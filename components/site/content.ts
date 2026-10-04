@@ -506,7 +506,7 @@ export const FAQ: Question[] = [
     },
     {
         q: 'Is my data safe?',
-        a: 'Your data travels encrypted over HTTPS, passwords are stored as one-way hashes, every login needs a code from an authenticator app, and every request is limited to your own records. You can see every device signed in and sign out everywhere. Next, the database itself will refuse to return another user\'s rows, and sensitive details such as PAN and account numbers will be encrypted before they are saved.',
+        a: 'Your data travels encrypted over HTTPS, passwords are stored as one-way hashes, every login needs a code from an authenticator app, and the database itself refuses to return another user\'s rows. You can see every device signed in and sign out everywhere. Sensitive details such as PAN and account numbers will be encrypted before they are saved, as they arrive.',
     },
     {
         q: 'Do I have to type everything by hand?',

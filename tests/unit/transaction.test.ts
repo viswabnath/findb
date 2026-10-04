@@ -1,8 +1,8 @@
 /**
  * Unit tests for lib/transaction.ts (no database)
  */
-import type { PoolClient } from 'pg';
-import { withTransaction, RequestError, type TransactionPool } from '../../lib/transaction';
+import type { Pool, PoolClient } from 'pg';
+import { withTransaction, withUserScope, RequestError, type TransactionPool } from '../../lib/transaction';
 
 function mockPool({ failOn }: { failOn?: string } = {}) {
     const statements: string[] = [];
@@ -69,5 +69,62 @@ describe('RequestError', () => {
         expect(error).toBeInstanceOf(Error);
         expect(error.status).toBe(404);
         expect(error.message).toBe('Income transaction not found');
+    });
+});
+
+describe('withUserScope', () => {
+    test('one transaction as findb_user with app.user_id, committed at the end', async () => {
+        const { pool, client, statements } = mockPool();
+
+        const result = await withUserScope(pool as unknown as Pool, 42, async (scoped) => {
+            await scoped.query('SELECT 1');
+            return 'done';
+        });
+
+        expect(result).toBe('done');
+        expect(statements).toEqual([
+            'BEGIN; SET LOCAL ROLE "findb_user"; SELECT set_config(\'app.user_id\', \'42\', true)',
+            'SELECT 1',
+            'COMMIT',
+        ]);
+        expect(client.release).toHaveBeenCalledTimes(1);
+    });
+
+    test('withTransaction inside it uses a savepoint on the same connection', async () => {
+        const { pool, statements } = mockPool();
+
+        await withUserScope(pool as unknown as Pool, 7, async (scoped) => {
+            await withTransaction(scoped, async (tx) => { await tx.query('INSERT 1'); });
+            await expect(withTransaction(scoped, async (tx) => {
+                await tx.query('INSERT 2');
+                throw new RequestError(400, 'no');
+            })).rejects.toThrow('no');
+        });
+
+        expect(statements.slice(1)).toEqual([
+            'SAVEPOINT findb_sp_1', 'INSERT 1', 'RELEASE SAVEPOINT findb_sp_1',
+            'SAVEPOINT findb_sp_2', 'INSERT 2', 'ROLLBACK TO SAVEPOINT findb_sp_2',
+            'COMMIT',
+        ]);
+        expect(pool.connect).toHaveBeenCalledTimes(1);
+    });
+
+    test('commits writes made before an expected failure, and rethrows it', async () => {
+        const { pool, statements } = mockPool();
+        const failure = new RequestError(400, 'That code is not right');
+
+        await expect(withUserScope(pool as unknown as Pool, 7, async (scoped) => {
+            await scoped.query('INSERT wrong_code event');
+            throw failure;
+        })).rejects.toBe(failure);
+
+        expect(statements.slice(1, 3)).toEqual(['INSERT wrong_code event', 'COMMIT']);
+    });
+
+    test('refuses a user id that is not a whole number', async () => {
+        const { pool } = mockPool();
+        await expect(withUserScope(pool as unknown as Pool, 1.5, async () => 'x')).rejects.toThrow('whole-number user id');
+        await expect(withUserScope(pool as unknown as Pool, Number.NaN, async () => 'x')).rejects.toThrow('whole-number user id');
+        expect(pool.connect).not.toHaveBeenCalled();
     });
 });

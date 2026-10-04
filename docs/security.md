@@ -1,6 +1,18 @@
 # Account security
 
-v2 Phase 1, security and privacy, part one ([v2-plan.md](v2-plan.md)). Database-enforced isolation and the privacy notice follow in their own pull requests.
+v2 Phase 1, security and privacy ([v2-plan.md](v2-plan.md)). The privacy notice follows in its own pull request.
+
+## Database-enforced isolation
+
+Every query in a logged-in request is limited to that user's rows by the database itself, so a query that forgets its own `user_id` filter still cannot read or change another user's data.
+
+- `withUser` (`lib/api-route.ts`) runs the handler inside `withUserScope` (`lib/transaction.ts`): one transaction on one connection, started with `BEGIN; SET LOCAL ROLE "findb_user"; SELECT set_config('app.user_id', '<id>', true)`. `db()` (`lib/db.ts`) returns that transaction for the rest of the request (an `AsyncLocalStorage`), so route code is unchanged. `withTransaction` inside it uses a savepoint. Both settings are local to the transaction, so nothing carries over on the pooled connection.
+- `findb_user` (migrations `0006`, `0007`) owns nothing, cannot log in and does not bypass row level security. Every table with a `user_id` (and `users`, by `id`, and `session`) has the policy `own_rows`: rows where the user id equals `app_user_id()`, the setting read back. With no user set, nothing matches. Writing a row for another user is refused (`42501`).
+- The app's login stays the tables' owner, which skips row level security. It runs only what must find an account before knowing who is asking: registration, login and the two-factor steps, recovery, logout and the session check, plus migrations and scripts. Route code that reads a user's data belongs behind `withUser`.
+- The request commits at its end, also when the handler throws, so writes made outside `withTransaction` stay as before; an SQL error aborts the transaction and the commit becomes a rollback.
+- **A new table** with user data needs `own_rows` in its migration. Without a policy, `findb_user` sees none of its rows (safe, but the feature will not work); `tests/isolation.test.js` fails until it has one. Default privileges give `findb_user` access to new tables.
+- **Setting it up** needs an administrator once per database (the app's login cannot create roles): `create role findb_user nologin; grant findb_user to <app login>;`, in the Supabase SQL editor. `0006` stops with that instruction if it was not done.
+- Through Supabase's transaction pooler, start the transaction and switch the role in one statement, as `withUserScope` does: a parameterized query sent separately right after `SET LOCAL ROLE` was seen to hang there.
 
 ## Two-factor login (required)
 

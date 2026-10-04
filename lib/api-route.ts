@@ -1,8 +1,8 @@
 import type { NextRequest } from 'next/server';
-import { db } from './db';
+import { ownerPool, requestScope } from './db';
 import { allowRequest, authBlocked, recordAuthFailure } from './rate-limit';
 import { SESSION_COOKIE, sessionUserId } from './session';
-import { RequestError } from './transaction';
+import { RequestError, withUserScope } from './transaction';
 
 /**
  * Shared plumbing for the API route handlers, matching the legacy Express app's responses:
@@ -79,9 +79,12 @@ export function withUser<C>(handler: AuthedHandler<C>) {
             return jsonError(429, 'Too many requests. Please slow down.');
         }
         try {
-            const userId = await sessionUserId(db(), request.cookies.get(SESSION_COOKIE)?.value);
+            const userId = await sessionUserId(ownerPool(), request.cookies.get(SESSION_COOKIE)?.value);
             if (userId === null) return jsonError(401, 'Authentication required');
-            return await handler(request, userId, context);
+            // Everything the handler does with db() runs as the user, limited to their rows by the
+            // database itself (docs/security.md)
+            return await withUserScope(ownerPool(), userId,
+                scoped => requestScope.run(scoped, () => handler(request, userId, context)));
         } catch (error) {
             if (error instanceof RequestError) return jsonError(error.status, error.message);
             console.error(`${request.method} ${request.nextUrl.pathname} failed:`, error);
