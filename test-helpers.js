@@ -49,6 +49,7 @@ async function clearTestData() {
         await client.query('DELETE FROM cash_balance');
         await client.query('DELETE FROM credit_cards');
         await client.query('DELETE FROM banks');
+        // The ledger tables (ledger_accounts, journal_entries, journal_lines) go with their user
         await client.query('DELETE FROM users');
 
         // Reset sequences
@@ -249,6 +250,7 @@ async function deleteTestUser(username) {
     for (const table of ['activity_log', 'expenses', 'income_entries', 'cash_balance', 'credit_cards', 'banks']) {
         await pool.query(`DELETE FROM ${table} WHERE user_id = $1`, [userId]);
     }
+    // The user's ledger goes with them (ON DELETE CASCADE)
     await pool.query('DELETE FROM users WHERE id = $1', [userId]);
 }
 

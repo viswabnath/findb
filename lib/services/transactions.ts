@@ -1,11 +1,13 @@
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import { logActivity } from '../activity-log';
 import { RequestError, withTransaction } from '../transaction';
+import { recordExpense, recordIncome, voidEntries } from '../ledger';
 
 /**
  * Income and expenses: the transaction routes moved from the former Express app (N3). Every write
- * runs in one transaction with the entry, the balance change and the activity entry, and locks
- * the rows it checks or reverses (FOR UPDATE), exactly as the Express routes do.
+ * runs in one transaction with the entry, the balance change, the matching ledger entry
+ * (lib/ledger.ts) and the activity entry, and locks the rows it checks or reverses (FOR UPDATE).
+ * An edit voids the entry's ledger record and records the new one; a delete voids it.
  */
 
 type Body = Record<string, unknown>;
@@ -126,6 +128,7 @@ export async function addIncome(pool: Pool, userId: number, body: Body): Promise
             [userId, source, amount, creditedToType, creditedToId, entry.date, entry.month, entry.year],
         );
         await applyIncome(client, userId, creditedToType, creditedToId, amount, 1);
+        await recordIncome(client, userId, { ...result.rows[0], date: entry.date });
         await logActivity(client, userId, 'created', 'income', result.rows[0].id, `Added income: ${source}`, amount);
         return result.rows[0];
     });
@@ -147,6 +150,8 @@ export async function updateIncome(pool: Pool, userId: number, id: string, body:
             [source, amount, creditedToType, creditedToId, entry.date, entry.month, entry.year, id, userId],
         );
         await applyIncome(client, userId, creditedToType, creditedToId, amount, 1);
+        await voidEntries(client, userId, 'income_entries', id);
+        await recordIncome(client, userId, { id, source: String(source), amount, credited_to_type: creditedToType, credited_to_id: creditedToId, date: entry.date });
         await logActivity(client, userId, 'updated', 'income', Number(id), `Updated income: ${source}`, amount,
             { source: old.source, amount: old.amount, credited_to_type: old.credited_to_type, credited_to_id: old.credited_to_id },
             { source, amount, creditedToType, creditedToId });
@@ -161,6 +166,7 @@ export async function deleteIncome(pool: Pool, userId: number, id: string): Prom
 
         await applyIncome(client, userId, old.credited_to_type, old.credited_to_id, old.amount, -1);
         await client.query('DELETE FROM income_entries WHERE id = $1 AND user_id = $2', [id, userId]);
+        await voidEntries(client, userId, 'income_entries', id);
         await logActivity(client, userId, 'deleted', 'income', Number(id), `Deleted income: ${old.source}`, old.amount);
     });
 }
@@ -232,6 +238,7 @@ export async function addExpense(pool: Pool, userId: number, body: Body): Promis
         );
         // Balances always change, for every tracking option
         await applyExpense(client, userId, paymentMethod, paymentSourceId, amount, 1);
+        await recordExpense(client, userId, { ...result.rows[0], date: entry.date });
         await logActivity(client, userId, 'created', 'expense', result.rows[0].id, `Added expense: ${title}`, amount);
         return result.rows[0];
     });
@@ -253,6 +260,8 @@ export async function updateExpense(pool: Pool, userId: number, id: string, body
             [title, amount, paymentMethod, paymentSourceId, entry.date, entry.month, entry.year, id, userId],
         );
         await applyExpense(client, userId, paymentMethod, paymentSourceId, amount, 1);
+        await voidEntries(client, userId, 'expenses', id);
+        await recordExpense(client, userId, { id, title: String(title), amount, payment_method: paymentMethod, payment_source_id: paymentSourceId, date: entry.date });
         await logActivity(client, userId, 'updated', 'expense', Number(id), `Updated expense: ${title}`, amount,
             { title: old.title, amount: old.amount, payment_method: old.payment_method, payment_source_id: old.payment_source_id },
             { title, amount, paymentMethod, paymentSourceId });
@@ -267,6 +276,7 @@ export async function deleteExpense(pool: Pool, userId: number, id: string): Pro
 
         await applyExpense(client, userId, old.payment_method, old.payment_source_id, old.amount, -1);
         await client.query('DELETE FROM expenses WHERE id = $1 AND user_id = $2', [id, userId]);
+        await voidEntries(client, userId, 'expenses', id);
         await logActivity(client, userId, 'deleted', 'expense', Number(id), `Deleted expense: ${old.title}`, old.amount);
     });
 }

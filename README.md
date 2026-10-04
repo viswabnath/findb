@@ -90,6 +90,8 @@ npm run dev         # http://localhost:3000
 | `npm run setup-db` | Create or update the tables |
 | `npm test` | Build the app, start it against the `balancetrack_test` schema, and run all Jest tests |
 | `npm run test:unit` | Unit tests only (no database needed) |
+| `npm run migrate:test` / `npm run migrate:status` | Apply or list the SQL migrations in `db/migrations/` |
+| `npm run ledger:check` | Read-only check that stored balances equal the ledger's ([docs/ledger.md](docs/ledger.md)) |
 | `npm run test:e2e` | End-to-end browser tests (Playwright) |
 | `npm run typecheck` / `npm run lint` | TypeScript and ESLint checks |
 
@@ -101,7 +103,7 @@ FinDB runs on Vercel as a standard Next.js project (`vercel.json` sets the regio
 
 1. Import the repository in Vercel.
 2. Add the environment variables from `.env` for Production (Settings > Environment Variables). Use a different `SESSION_SECRET` per environment.
-3. Run `npm run setup-db` once against the production database.
+3. Run `npm run setup-db` once against the production database, then `node scripts/migrate.js --production` (after a backup, for later migrations).
 
 Only production is built: merging into `master` deploys production. Preview builds for other branches are skipped (`ignoreCommand` in `vercel.json`), which saves build time on the free plan. The Preview environment still points at the test database (`balancetrack_test` schema, with `REQUIRE_TEST_SCHEMA=true`), in case a preview is ever deployed by hand with `vercel deploy`.
 
@@ -110,6 +112,7 @@ Only production is built: merging into `master` deploys production. Preview buil
 - [docs/API.md](docs/API.md): API reference
 - [docs/STATUS.md](docs/STATUS.md): current status and known issues
 - [docs/v2-plan.md](docs/v2-plan.md): planned features
+- [docs/ledger.md](docs/ledger.md): the double-entry ledger, migrations and the balance check
 - [docs/backups.md](docs/backups.md): nightly encrypted backups and how to restore them
 - [docs/costs.md](docs/costs.md): running costs, free limits, alerts and upkeep
 

@@ -1,12 +1,16 @@
 import type { Pool, QueryResultRow } from 'pg';
 import { logActivity } from '../activity-log';
 import { RequestError, withTransaction } from '../transaction';
+import {
+    archiveMirroredAccount, cardAccount, recordBankOpening, recordCashSetTo, updateMirroredAccount, voidEntries,
+} from '../ledger';
 
 /**
  * Banks, credit cards and cash: the account routes moved from the former Express app (N3).
  * Same queries, messages and activity log entries as the Express routes, so the API contract
- * suites pass against either app. Known gaps kept for now (see docs/v2-audit.md): add accepts
- * negative balances and zero limits, and edits and deletes write no activity log entry.
+ * suites pass against either app. Every change also writes the ledger (lib/ledger.ts) in the same
+ * transaction. Known gaps kept for now (see docs/v2-audit.md): add accepts negative balances and
+ * zero limits, and edits and deletes write no activity log entry.
  */
 
 type Body = Record<string, unknown>;
@@ -43,6 +47,7 @@ export async function addBank(pool: Pool, userId: number, body: Body): Promise<Q
                 [userId, name, initialBalance],
             );
             const bank = result.rows[0];
+            await recordBankOpening(client, userId, bank.id, name, initialBalance);
             await logActivity(client, userId, 'create', 'bank', bank.id, `Added bank account: ${name}`, initialBalance, null,
                 { name, initialBalance, currentBalance: initialBalance });
             return bank;
@@ -69,6 +74,10 @@ export async function updateBank(pool: Pool, userId: number, id: string, body: B
             'UPDATE banks SET name = $1, initial_balance = $2, current_balance = current_balance + $3 WHERE id = $4 AND user_id = $5 RETURNING *',
             [name.trim(), newBalance, difference, id, userId],
         );
+        // The ledger's opening entry is replaced, which moves the balance by the same difference
+        await updateMirroredAccount(client, userId, 'banks', id, name.trim());
+        await voidEntries(client, userId, 'banks', id, ['opening_balance']);
+        await recordBankOpening(client, userId, id, name.trim(), newBalance);
         return result.rows[0];
     });
 }
@@ -88,6 +97,7 @@ export async function deleteBank(pool: Pool, userId: number, id: string): Promis
         }
         const result = await client.query('DELETE FROM banks WHERE id = $1 AND user_id = $2 RETURNING *', [id, userId]);
         if (result.rows.length === 0) throw new RequestError(404, 'Bank not found');
+        await archiveMirroredAccount(client, userId, 'banks', id);
     });
 }
 
@@ -108,6 +118,7 @@ export async function addCard(pool: Pool, userId: number, body: Body): Promise<Q
                 [userId, name, creditLimit],
             );
             const card = result.rows[0];
+            await cardAccount(client, userId, card.id);
             await logActivity(client, userId, 'create', 'credit_card', card.id, `Added credit card: ${name}`, creditLimit, null,
                 { name, creditLimit, usedLimit: 0, availableLimit: creditLimit });
             return card;
@@ -140,6 +151,7 @@ export async function updateCard(pool: Pool, userId: number, id: string, body: B
             'UPDATE credit_cards SET name = $1, credit_limit = $2 WHERE id = $3 AND user_id = $4 RETURNING *',
             [name.trim(), newLimit, id, userId],
         );
+        await updateMirroredAccount(client, userId, 'credit_cards', id, name.trim(), newLimit);
         return result.rows[0];
     });
 }
@@ -155,6 +167,7 @@ export async function deleteCard(pool: Pool, userId: number, id: string): Promis
         }
         const result = await client.query('DELETE FROM credit_cards WHERE id = $1 AND user_id = $2 RETURNING *', [id, userId]);
         if (result.rows.length === 0) throw new RequestError(404, 'Credit card not found');
+        await archiveMirroredAccount(client, userId, 'credit_cards', id);
     });
 }
 
@@ -184,6 +197,7 @@ export async function setCash(pool: Pool, userId: number, body: Body): Promise<Q
                     'UPDATE cash_balance SET balance = $1, initial_balance = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
                     [balance || 0, initialBalance || 0, userId],
                 );
+                await recordCashSetTo(client, userId, result.rows[0].id, result.rows[0].balance, false);
                 await logActivity(client, userId, 'updated', 'cash_balance', result.rows[0].id,
                     `Updated cash balance from ₹${amount(oldValues.initial_balance)} to ₹${amount(initialBalance)}`,
                     initialBalance, oldValues, { balance, initial_balance: initialBalance });
@@ -193,6 +207,7 @@ export async function setCash(pool: Pool, userId: number, body: Body): Promise<Q
                 'UPDATE cash_balance SET balance = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 RETURNING *',
                 [balance || 0, userId],
             );
+            await recordCashSetTo(client, userId, result.rows[0].id, result.rows[0].balance, false);
             await logActivity(client, userId, 'updated', 'cash_balance', result.rows[0].id,
                 `Cash balance updated to ₹${amount(balance)}`,
                 balance, oldValues, { balance, initial_balance: oldValues.initial_balance });
@@ -204,6 +219,7 @@ export async function setCash(pool: Pool, userId: number, body: Body): Promise<Q
             'INSERT INTO cash_balance (user_id, balance, initial_balance) VALUES ($1, $2, $3) RETURNING *',
             [userId, balance || 0, initialValue || 0],
         );
+        await recordCashSetTo(client, userId, result.rows[0].id, result.rows[0].balance, true);
         await logActivity(client, userId, 'created', 'cash_balance', result.rows[0].id,
             `Set initial cash balance: ₹${amount(initialValue)}`, initialValue);
         return result.rows[0];
