@@ -81,3 +81,46 @@ export function SplitBar({ a, b, labelA, labelB }: { a: number; b: number; label
         </div>
     );
 }
+
+/** ₹0.74, for amounts per ₹100 */
+export const perHundred = (amount: number) => `₹${amount.toFixed(2)}`;
+
+interface RateFieldProps {
+    /** "Interest rate", "Expected return" or "Inflation" */
+    label: string;
+    /** The rate in % a year */
+    value: number;
+    onChange: (annualRate: number) => void;
+    min: number;
+    max: number;
+    step: number;
+    help?: ReactNode;
+}
+
+/**
+ * A yearly rate that can also be typed as rupees per ₹100 a month, the way lenders, chit groups
+ * and banks in India often say it: ₹1 per ₹100 a month is 12% a year. The other form is always
+ * shown under the field.
+ */
+export function RateField({ label, value, onChange, min, max, step, help }: RateFieldProps) {
+    const [unit, setUnit] = useState<'year' | 'hundred'>('year');
+    const groupId = useId();
+    const monthly = value / 12;
+    return (
+        <div className="field">
+            <span style={{ fontWeight: 600 }} id={groupId}>Enter the {label.toLowerCase()} as</span>
+            <div className="segmented" role="group" aria-labelledby={groupId}>
+                <button type="button" aria-pressed={unit === 'year'} onClick={() => setUnit('year')}>% a year</button>
+                <button type="button" aria-pressed={unit === 'hundred'} onClick={() => setUnit('hundred')}>₹ per ₹100 a month</button>
+            </div>
+            {unit === 'year' ? (
+                <NumberField key="year" label={`${label} (% a year)`} value={value} onChange={onChange} min={min} max={max} step={step} unit="%"
+                    help={<>Same as {perHundred(monthly)} per ₹100 a month.{help ? <> {help}</> : null}</>} />
+            ) : (
+                <NumberField key="hundred" label={`${label} (₹ per ₹100 a month)`} value={Number(monthly.toFixed(2))}
+                    onChange={next => onChange(next * 12)} min={Number((min / 12).toFixed(2))} max={Number((max / 12).toFixed(2))} step={0.01} unit="rupees"
+                    help={<>Same as {Number(value.toFixed(2))}% a year. ₹1 per ₹100 a month is 12% a year.{help ? <> {help}</> : null}</>} />
+            )}
+        </div>
+    );
+}

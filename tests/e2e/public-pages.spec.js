@@ -104,6 +104,22 @@ test('the EMI calculator updates as you type', async ({ page }) => {
     await page.getByRole('textbox', { name: 'Loan amount (₹)' }).fill('1000000');
     await expect(emi).toHaveText('₹8,678');
     await expect(page.locator('tbody tr')).toHaveCount(20);
+
+    // The rate as rupees per ₹100 a month: 8.5% a year is ₹0.71; ₹1 per ₹100 is 12% a year
+    await expect(page.locator('.result-rows')).toContainText('Interest per ₹100 a month₹0.71');
+    await page.getByRole('button', { name: '₹ per ₹100 a month' }).click();
+    await page.getByRole('textbox', { name: 'Interest rate (₹ per ₹100 a month)' }).fill('1');
+    await expect(page.locator('.verdict-box')).toContainText('12% a year is ₹1.00 per ₹100 a month');
+});
+
+test('the FD calculator shows interest per ₹100, and accepts the rate that way', async ({ page }) => {
+    await page.goto('/tools/fd-calculator');
+    // 7.1% a year is ₹0.59 per ₹100 a month
+    await expect(page.locator('.result-rows')).toContainText('Interest per ₹100 a month₹0.59');
+    await page.getByRole('button', { name: '₹ per ₹100 a month' }).click();
+    await page.getByRole('textbox', { name: 'Interest rate (₹ per ₹100 a month)' }).fill('0.5');
+    await expect(page.locator('.result-rows')).toContainText('Interest per ₹100 a month₹0.50');
+    await expect(page.locator('.field small').first()).toContainText('Same as 6% a year');
 });
 
 test('the loan payoff tool ranks loans by interest rate', async ({ page }) => {

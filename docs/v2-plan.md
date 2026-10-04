@@ -74,6 +74,7 @@ There are hundreds of expense trackers. Most do one of two things: they record s
 - **Simple first:** each screen shows what the user's modules need and nothing more; advanced options sit behind "More".
 - **Phone first:** every screen is designed for a phone at 360 px wide first, then widened for larger screens.
 - **Plain language** on every screen, with financial terms explained where they appear.
+- **Interest in both forms:** every interest rate or return the user enters or sees (loans, money with people, chits, cards, deposits, investments) can be entered and is shown as **% a year** and as **₹ per ₹100 a month**, the way many Indians quote it (₹1 per ₹100 a month is 12% a year). Totals also show the interest or growth on every ₹100.
 - **Ready for Indian languages:** all text lives in message files from Phase 1, never written into components, so translations can be added without code changes. Amounts and dates follow Indian formats in every language.
 - **Accessible:** WCAG 2.2 AA (contrast, keyboard use, screen reader labels, text that can be enlarged), checked in the Playwright flows.
 

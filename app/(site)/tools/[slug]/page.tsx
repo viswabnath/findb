@@ -21,6 +21,7 @@ const ABOUT: Record<string, { how: string[]; feature: { href: string; label: str
         how: [
             'An EMI (equated monthly instalment) stays the same every month, but what it pays for changes. Early on, most of it is interest; towards the end, most of it reduces the loan.',
             'That is why paying a little extra in the first few years saves the most interest.',
+            'Interest is often quoted as rupees per ₹100 a month. ₹1 per ₹100 a month is 12% a year, so a yearly rate divided by 12 gives the rupees per ₹100 a month. Note that a lender quoting "per hundred" may charge it on the full amount every month, which costs more than an EMI loan at the same rate, because an EMI loan charges interest only on what is still owed.',
         ],
         feature: { href: '/features/loans', label: 'Track your loans in FinDB' },
     },

@@ -210,6 +210,7 @@ export const FEATURES: Feature[] = [
             'Lend ₹20,000 to a friend, share a Goa trip with four people, or split rent with flatmates. FinDB remembers who owes whom, so nobody has to keep it in their head.',
         points: [
             'Money lent or borrowed, with or without interest, with reminders',
+            'Interest shown both as % a year and as rupees per ₹100 a month, the way it is often agreed between people',
             'Groups for trips and flatmates: who paid and who shares each cost',
             'Split equally, by exact amounts, by percentage or by shares',
             'Settle up with the fewest payments possible',
@@ -235,6 +236,7 @@ export const FEATURES: Feature[] = [
             'Home, car, personal, education and gold loans, and the chit funds many Indian families run. FinDB shows how much of each EMI is interest, which debt hurts most, and how to clear it faster.',
         points: [
             'Each EMI split into interest and the amount that reduces your loan',
+            'Every rate shown as % a year and as rupees per ₹100 a month',
             'Gold loans and loans against FDs, insurance or property',
             'Chit funds: monthly contribution, dividend, auction bids and the money you receive',
             'Debts ranked from most to least dangerous, with the reason',
@@ -243,7 +245,7 @@ export const FEATURES: Feature[] = [
         example: {
             title: 'Which loan first?',
             lines: [
-                'You have a credit card balance at 42% a year, a personal loan at 14%, and a home loan at 8.5%.',
+                'You have a credit card balance at 42% a year (₹3.50 per ₹100 a month), a personal loan at 14% (₹1.17), and a home loan at 8.5% (₹0.71).',
                 'You can spare ₹10,000 extra a month.',
             ],
             result: 'FinDB shows that clearing the card first saves the most interest, and by how much.',
@@ -277,7 +279,7 @@ export const FEATURES: Feature[] = [
                 'Your card bill is ₹48,000 and the minimum due is ₹2,400.',
                 'You pay ₹2,400.',
             ],
-            result: 'FinDB warns that the remaining ₹45,600 now attracts interest of about 3.5% a month.',
+            result: 'FinDB warns that the remaining ₹45,600 now attracts interest of about ₹3.50 per ₹100 a month, which is about 42% a year.',
         },
     },
     {
@@ -358,7 +360,7 @@ export const FEATURES: Feature[] = [
             title: 'Saving for a bike',
             lines: [
                 'You want ₹2,40,000 in 24 months and start an RD of ₹9,500 a month.',
-                'The RD earns about 7% a year.',
+                'The RD earns about 7% a year, which is about ₹0.58 per ₹100 a month.',
             ],
             result: 'FinDB shows you will reach about ₹2,44,000, slightly ahead of your goal.',
         },
@@ -415,7 +417,7 @@ export const FEATURES: Feature[] = [
         example: {
             title: 'Money sitting idle',
             lines: [
-                'You keep ₹4,00,000 in a savings account earning 2.7% a year.',
+                'You keep ₹4,00,000 in a savings account earning 2.7% a year (about ₹0.23 per ₹100 a month).',
                 'Inflation is around 5%.',
             ],
             result: 'FinDB explains that this money is losing about ₹9,000 of value a year, and what keeps money safe while earning more.',

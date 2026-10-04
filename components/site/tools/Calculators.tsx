@@ -3,9 +3,10 @@
 import { useMemo, useState } from 'react';
 import { CircleCheck, Plus, TriangleAlert, X } from 'lucide-react';
 import {
-    chitFund, emi, fixedDeposit, goldValue, inflation, payoff, recurringDeposit, sip, type Karat, type LoanInput,
+    chitFund, emi, fixedDeposit, goldValue, inflation, interestPerHundredBorrowed, payoff, perHundredMonthly,
+    recurringDeposit, sip, type Karat, type LoanInput,
 } from '@/src/core/calculators';
-import { NumberField, Row, SplitBar, rupees } from './fields';
+import { NumberField, RateField, Row, SplitBar, perHundred as paise, rupees } from './fields';
 
 /* Each calculator opens with realistic sample values, so it shows what it does before any typing. */
 
@@ -14,11 +15,12 @@ export function EmiCalculator() {
     const [rate, setRate] = useState(8.5);
     const [years, setYears] = useState(20);
     const result = useMemo(() => emi(amount, rate, Math.max(1, Math.round(years * 12))), [amount, rate, years]);
+    const monthly = perHundredMonthly(rate);
     return (
         <div className="calc">
             <div className="calc-form">
                 <NumberField label="Loan amount (₹)" value={amount} onChange={setAmount} min={50000} max={20000000} step={50000} />
-                <NumberField label="Interest rate (% a year)" value={rate} onChange={setRate} min={1} max={30} step={0.05} unit="%" />
+                <RateField label="Interest rate" value={rate} onChange={setRate} min={1} max={36} step={0.05} />
                 <NumberField label="Tenure (years)" value={years} onChange={setYears} min={1} max={30} step={1} unit="years" />
             </div>
             <div className="calc-result result" aria-live="polite">
@@ -26,8 +28,16 @@ export function EmiCalculator() {
                     <span className="label">Your monthly EMI</span>
                     <span className="value">{rupees(result.emi)}</span>
                 </div>
+                <div className="verdict-box">
+                    <span>
+                        {Number(rate.toFixed(2))}% a year is <strong>{paise(monthly)} per ₹100 a month</strong>. Over the whole loan you pay{' '}
+                        <strong>{paise(interestPerHundredBorrowed(result.totalInterest, amount))}</strong> of interest on every ₹100 borrowed.
+                    </span>
+                </div>
                 <SplitBar a={amount} b={result.totalInterest} labelA="Loan" labelB="Interest" />
                 <div className="result-rows">
+                    <Row label="Interest per ₹100 a month" value={paise(monthly)} />
+                    <Row label="Interest on every ₹100 borrowed, in total" value={paise(interestPerHundredBorrowed(result.totalInterest, amount))} />
                     <Row label="Total interest" value={rupees(result.totalInterest)} />
                     <Row label="Total you pay" value={rupees(result.totalPaid)} />
                     <Row label="Interest in year 1" value={rupees(result.years[0]?.interestPaid ?? 0)} />
@@ -122,6 +132,8 @@ export function PayoffCalculator() {
                             <Row label="Debt-free in, with the extra" value={`${withExtra.months} months`} />
                             <Row label="Interest, paying only EMIs" value={rupees(base.totalInterest)} />
                             <Row label="Interest, with the extra" value={rupees(withExtra.totalInterest)} />
+                            <Row label="Interest on every ₹100 owed today, with the extra"
+                                value={paise(interestPerHundredBorrowed(withExtra.totalInterest, named.reduce((sum, loan) => sum + loan.balance, 0)))} />
                         </div>
                         <span className="label" style={{ fontWeight: 700 }}>Put the extra here, in this order</span>
                         <ol className="order-list">
@@ -129,7 +141,7 @@ export function PayoffCalculator() {
                                 const loan = named.find(row => row.name === name)!;
                                 return (
                                     <li key={name}>
-                                        <span>{name}<br /><small>{loan.annualRate}% a year</small></span>
+                                        <span>{name}<br /><small>{loan.annualRate}% a year, {paise(perHundredMonthly(loan.annualRate))} per ₹100 a month</small></span>
                                         <small>Closed in month {withExtra.closedIn[name]}</small>
                                     </li>
                                 );
@@ -152,7 +164,7 @@ export function FdCalculator() {
         <div className="calc">
             <div className="calc-form">
                 <NumberField label="Deposit (₹)" value={amount} onChange={setAmount} min={5000} max={10000000} step={5000} />
-                <NumberField label="Interest rate (% a year)" value={rate} onChange={setRate} min={2} max={10} step={0.05} unit="%" />
+                <RateField label="Interest rate" value={rate} onChange={setRate} min={2} max={10} step={0.05} />
                 <NumberField label="Period (months)" value={months} onChange={setMonths} min={6} max={120} step={1} unit="months" />
             </div>
             <div className="calc-result result" aria-live="polite">
@@ -161,6 +173,8 @@ export function FdCalculator() {
                 <div className="result-rows">
                     <Row label="Interest earned" value={rupees(result.interest)} />
                     <Row label="Effective yearly return" value={`${(((1 + rate / 400) ** 4 - 1) * 100).toFixed(2)}%`} />
+                    <Row label="Interest per ₹100 a month" value={paise(perHundredMonthly(rate))} />
+                    <Row label="Interest on every ₹100 deposited, in total" value={paise(interestPerHundredBorrowed(result.interest, result.invested))} />
                 </div>
                 <p className="calc-note">Compounded every quarter, as most Indian banks do. Interest is taxable, and the bank deducts TDS when interest crosses the yearly limit.</p>
             </div>
@@ -177,7 +191,7 @@ export function RdCalculator() {
         <div className="calc">
             <div className="calc-form">
                 <NumberField label="Every month (₹)" value={monthly} onChange={setMonthly} min={500} max={200000} step={500} />
-                <NumberField label="Interest rate (% a year)" value={rate} onChange={setRate} min={2} max={10} step={0.05} unit="%" />
+                <RateField label="Interest rate" value={rate} onChange={setRate} min={2} max={10} step={0.05} />
                 <NumberField label="Period (months)" value={months} onChange={setMonths} min={6} max={120} step={1} unit="months" />
             </div>
             <div className="calc-result result" aria-live="polite">
@@ -186,6 +200,8 @@ export function RdCalculator() {
                 <div className="result-rows">
                     <Row label="You put in" value={rupees(result.invested)} />
                     <Row label="Interest earned" value={rupees(result.interest)} />
+                    <Row label="Interest per ₹100 a month" value={paise(perHundredMonthly(rate))} />
+                    <Row label="Interest on every ₹100 you put in, in total" value={paise(interestPerHundredBorrowed(result.interest, result.invested))} />
                 </div>
                 <p className="calc-note">Each instalment earns quarterly compound interest for the months it stays deposited, as banks and the post office calculate it.</p>
             </div>
@@ -202,7 +218,7 @@ export function SipCalculator() {
         <div className="calc">
             <div className="calc-form">
                 <NumberField label="Every month (₹)" value={monthly} onChange={setMonthly} min={500} max={200000} step={500} />
-                <NumberField label="Expected return (% a year)" value={rate} onChange={setRate} min={1} max={20} step={0.5} unit="%" />
+                <RateField label="Expected return" value={rate} onChange={setRate} min={1} max={20} step={0.5} />
                 <NumberField label="Years" value={years} onChange={setYears} min={1} max={40} step={1} unit="years" />
             </div>
             <div className="calc-result result" aria-live="polite">
@@ -211,6 +227,8 @@ export function SipCalculator() {
                 <div className="result-rows">
                     <Row label="You put in" value={rupees(result.invested)} />
                     <Row label="Estimated growth" value={rupees(result.gains)} />
+                    <Row label="Growth per ₹100 a month" value={paise(perHundredMonthly(rate))} />
+                    <Row label="Growth on every ₹100 you put in, in total" value={paise(interestPerHundredBorrowed(result.gains, result.invested))} />
                 </div>
                 <div className="verdict-box warn"><TriangleAlert size={20} /><span>Market returns are not guaranteed. Real returns go up and down, and can be negative in some years.</span></div>
             </div>
@@ -285,6 +303,12 @@ export function ChitCalculator() {
                     <span className="label">{borrower ? 'What it costs you, as a yearly interest rate' : 'What it earns you, as a yearly interest rate'}</span>
                     <span className="value">{result.yearlyRate.toFixed(1)}%</span>
                 </div>
+                <div className={`verdict-box${borrower ? ' warn' : ''}`} style={{ fontWeight: 500 }}>
+                    <span>
+                        That is <strong>{paise(result.perHundredMonthly)} per ₹100 a month</strong>, the way chit members usually say it.
+                        {' '}On every ₹100 of the chit value you {result.net >= 0 ? 'gain' : 'lose'} <strong>{paise(Math.abs(result.net) / chitValue * 100)}</strong> in total.
+                    </span>
+                </div>
                 <div className="result-rows">
                     <Row label="Monthly instalment, before dividends" value={rupees(result.contribution)} />
                     <Row label="You pay in total, after dividends" value={rupees(result.totalPaid)} />
@@ -314,7 +338,8 @@ export function InflationCalculator() {
         <div className="calc">
             <div className="calc-form">
                 <NumberField label="Amount today (₹)" value={amount} onChange={setAmount} min={1000} max={10000000} step={1000} />
-                <NumberField label="Inflation (% a year)" value={rate} onChange={setRate} min={1} max={12} step={0.1} unit="%" help="India's retail inflation has mostly been between 3% and 7% a year over the last decade." />
+                <RateField label="Inflation" value={rate} onChange={setRate} min={1} max={12} step={0.1}
+                    help="India's retail inflation has mostly been between 3% and 7% a year over the last decade." />
                 <NumberField label="Years from now" value={years} onChange={setYears} min={1} max={40} step={1} unit="years" />
             </div>
             <div className="calc-result result" aria-live="polite">
@@ -322,6 +347,8 @@ export function InflationCalculator() {
                 <div className="result-rows">
                     <Row label={`What ${rupees(amount)} kept as cash will buy then, in today's money`} value={rupees(result.todaysValue)} />
                     <Row label="Value lost by keeping it as cash" value={rupees(amount - result.todaysValue)} />
+                    <Row label={`What costs ₹100 today, in ${years} years`} value={paise(inflation(100, rate, years).futureCost)} />
+                    <Row label="Prices rise per ₹100 a month, roughly" value={paise(perHundredMonthly(rate))} />
                 </div>
                 <p className="calc-note">Money in a savings account at 2.5% to 3% loses value whenever inflation is higher than that.</p>
             </div>
