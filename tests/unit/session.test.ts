@@ -3,7 +3,7 @@
  * cookies signed here are accepted by it, so both apps share one login during the migration.
  */
 import type { Pool } from 'pg';
-import { clearSessionCookie, createSession, destroySession, SESSION_MAX_AGE_MS, sessionUserId, signSessionCookie, unsignSessionCookie } from '../../lib/session';
+import { clearSessionCookie, createSession, destroySession, SESSION_MAX_AGE_MS, sessionUserId, signSessionCookie, unsignSessionCookie, signedInHintCookie, clearSignedInHintCookie, SIGNED_IN_HINT_COOKIE } from '../../lib/session';
 
 // The signer express-session uses (a dependency of express-session)
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -114,5 +114,21 @@ describe('createSession and destroySession', () => {
 
     test('clearSessionCookie expires the cookie', () => {
         expect(clearSessionCookie(false)).toBe('sessionId=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict');
+    });
+});
+
+describe('signed-in hint cookie (read by the static website pages)', () => {
+    test('says only that someone is signed in, readable by scripts, for the length of a session', () => {
+        const cookie = signedInHintCookie(true, Date.UTC(2026, 9, 4, 10, 0, 0));
+        expect(cookie.startsWith(`${SIGNED_IN_HINT_COOKIE}=1;`)).toBe(true);
+        expect(cookie).not.toContain('HttpOnly');
+        expect(cookie).toContain('Expires=Sun, 04 Oct 2026 12:00:00 GMT');
+        expect(cookie).toContain('SameSite=Strict');
+        expect(cookie).toContain('Secure');
+        expect(signedInHintCookie(false)).not.toContain('Secure');
+    });
+
+    test('is removed at logout', () => {
+        expect(clearSignedInHintCookie(true)).toMatch(/^findb_signed_in=; Path=\/; Expires=Thu, 01 Jan 1970 00:00:00 GMT/);
     });
 });

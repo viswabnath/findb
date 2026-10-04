@@ -6,7 +6,9 @@
 #   2. a check that the dump is readable and has every table;
 #   3. encryption with age to the public key below. Only the private key kept by the owner
 #      (outside the repository) can decrypt it, so the artifact is safe in a public repository;
-#   4. upload as a workflow artifact, kept for 30 days.
+#   4. upload as a workflow artifact, kept for 30 days;
+#   5. check the database size against the free plan's 500 MB: a warning above 70%, and a failed
+#      run (so GitHub emails the owner) above 85%. See docs/costs.md.
 # It takes about a minute a day; GitHub-hosted runners are free for public repositories.
 # Restoring is described in docs/backups.md.
 name: Nightly database backup
@@ -27,6 +29,7 @@ env:
   AGE_RECIPIENT: age1k5p5mkzfdd45qnyw5ghhwk930vxk382pd3f4tnf2dt28vehhzpusgy0x5p
   PG_IMAGE: postgres:17-alpine
   EXPECTED_TABLES: 8
+  DB_LIMIT_MB: 500
 
 jobs:
   backup:
@@ -67,3 +70,20 @@ jobs:
           path: backup.dump.age
           retention-days: 30
           if-no-files-found: error
+
+      - name: Check the database size against the free plan
+        env:
+          DATABASE_URL: ${{ secrets.BACKUP_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          bytes=$(docker run --rm -e DATABASE_URL "$PG_IMAGE" \
+            sh -c 'psql "$DATABASE_URL" -tAc "select pg_database_size(current_database())"')
+          mb=$((bytes / 1024 / 1024))
+          percent=$((mb * 100 / DB_LIMIT_MB))
+          echo "Database size: ${mb} MB of ${DB_LIMIT_MB} MB (${percent}%)" | tee -a "$GITHUB_STEP_SUMMARY"
+          if [ "$percent" -ge 85 ]; then
+            echo "::error::The database is at ${percent}% of the free plan's ${DB_LIMIT_MB} MB. Act now: see docs/costs.md."
+            exit 1
+          elif [ "$percent" -ge 70 ]; then
+            echo "::warning::The database is at ${percent}% of the free plan's ${DB_LIMIT_MB} MB. Plan the next step: see docs/costs.md."
+          fi

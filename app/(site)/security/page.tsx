@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 import { CircleCheck, CircleDashed } from 'lucide-react';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: 'Security',
     description: 'How FinDB protects your account and your financial data, today and next.',
-};
+    path: '/security',
+});
 
 export default function SecurityPage() {
     return (
@@ -17,7 +19,7 @@ export default function SecurityPage() {
                         Your financial records are some of the most personal data you have. This page explains, in plain
                         words, how FinDB protects them today and what is being added next.
                     </p>
-                    <p className="updated rise rise-3">Last updated 3 October 2026</p>
+                    <p className="updated rise rise-3">Last updated 4 October 2026</p>
                 </div>
             </section>
 
@@ -33,6 +35,8 @@ export default function SecurityPage() {
                             <li><CircleCheck size={18} /><span><strong>Safe sessions.</strong> HTTP-only, same-site cookies that expire after 2 hours; a new session at every login.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Limits on guessing.</strong> Repeated failed logins from one address are paused.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Strict browser rules.</strong> A Content Security Policy and standard security headers on every page.</span></li>
+                            <li><CircleCheck size={18} /><span><strong>Nightly encrypted backups.</strong> Kept for 30 days, readable only with FinDB&apos;s private key, and a restore has been tested.</span></li>
+                            <li><CircleCheck size={18} /><span><strong>Data in India.</strong> The database and the app run in Mumbai.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Every change logged.</strong> Your activity log keeps the old and new value of each change.</span></li>
                         </ul>
                     </div>
@@ -44,7 +48,6 @@ export default function SecurityPage() {
                             <li><CircleDashed size={18} /><span><strong>Encrypted sensitive details:</strong> PAN, account, policy and folio numbers are encrypted before they are saved, and shown masked.</span></li>
                             <li><CircleDashed size={18} /><span><strong>Stronger passwords:</strong> long passphrases allowed, and known leaked passwords refused.</span></li>
                             <li><CircleDashed size={18} /><span><strong>Database-enforced privacy:</strong> the database itself refuses to return another user&apos;s rows.</span></li>
-                            <li><CircleDashed size={18} /><span><strong>Daily backups,</strong> with a restore that has actually been tested.</span></li>
                         </ul>
                     </div>
                 </div>

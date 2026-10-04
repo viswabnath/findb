@@ -1,18 +1,28 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowRight } from 'lucide-react';
 import { TOOLS, toolBySlug } from '@/components/site/content';
 import { ToolIcon } from '@/components/site/FeatureIcon';
 import { ToolCalculator } from '@/components/site/tools/Calculators';
+import { JsonLd, breadcrumbs } from '@/components/site/JsonLd';
+import { SITE_URL } from '@/lib/site-url';
 
 interface Props {
     params: Promise<{ slug: string }>;
 }
 
+/** Every tool page is built at deploy time; any other address is a 404 */
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+    return TOOLS.map(item => ({ slug: item.slug }));
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const tool = toolBySlug((await params).slug);
-    return tool ? { title: tool.name, description: tool.short } : {};
+    return tool ? pageMetadata({ title: tool.name, description: tool.short, path: `/tools/${tool.slug}` }) : {};
 }
 
 /** How each tool works, in plain words, and where FinDB tracks the same thing */
@@ -84,6 +94,21 @@ export default async function ToolPage({ params }: Props) {
 
     return (
         <>
+            <JsonLd data={{
+                '@graph': [
+                    {
+                        '@type': 'WebApplication',
+                        name: `${tool.name} by FinDB`,
+                        url: `${SITE_URL}/tools/${tool.slug}`,
+                        description: tool.short,
+                        applicationCategory: 'FinanceApplication',
+                        operatingSystem: 'Any (web browser)',
+                        offers: { '@type': 'Offer', price: '0', priceCurrency: 'INR' },
+                        isAccessibleForFree: true,
+                    },
+                    breadcrumbs([{ name: 'Free tools', path: '/tools' }, { name: tool.name, path: `/tools/${tool.slug}` }]),
+                ],
+            }} />
             <section className="page-head">
                 <div className="wrap">
                     <nav className="crumbs rise" aria-label="Breadcrumb">

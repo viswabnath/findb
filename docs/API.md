@@ -7,9 +7,16 @@ All endpoints are Next.js route handlers under `/api` (`app/api`), with the logi
 http://localhost:3000/api
 ```
 
+## Health
+
+**GET** `/api/health` → `200 { "ok": true }` when the app and its database answer, or `503 { "ok": false }` when the database does not.
+- No login needed, and never cached.
+- It is meant for an uptime monitor, which also keeps the free database from pausing (see [costs.md](costs.md)).
+- It reveals nothing beyond up or down.
+
 ## Authentication
 
-Session-cookie based (`sessionId` cookie, HTTP-only, `SameSite=strict`, 2-hour lifetime, `Secure` when the request is HTTPS). Login and registration always start a new session. Every endpoint except register, login, logout, forgot-username, forgot-password and reset-password requires a valid session; otherwise it returns `401 { "error": "Authentication required" }`.
+Session-cookie based (`sessionId` cookie, HTTP-only, `SameSite=strict`, 2-hour lifetime, `Secure` when the request is HTTPS). Login and registration always start a new session, and also set `findb_signed_in=1`: a readable cookie with the same lifetime that holds no secret and grants nothing. The static website pages read it to show "Open FinDB" instead of "Log in". Every endpoint except register, login, logout, forgot-username, forgot-password and reset-password requires a valid session; otherwise it returns `401 { "error": "Authentication required" }`.
 
 ### Register
 **POST** `/api/register`
@@ -35,7 +42,7 @@ All fields are required. Response: `{ "success": true, "userId": 1 }`. Duplicate
 Response: `{ "success": true, "userId": 1, "name": "string", "trackingOption": "income|expenses|both" }`
 
 ### Logout
-**POST** `/api/logout` → `{ "success": true }`. Deletes the session and clears the `sessionId` cookie.
+**POST** `/api/logout` → `{ "success": true }`. Deletes the session and clears the `sessionId` and `findb_signed_in` cookies.
 
 ### Current user
 **GET** `/api/user` → the logged-in user's profile row.

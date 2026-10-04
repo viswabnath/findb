@@ -2,12 +2,14 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { buildContentSecurityPolicy, createNonce } from './lib/csp';
 
 /**
- * Gives every page a per-request nonce Content-Security-Policy, and sends visitors without a
- * session cookie from the logged-in screens to /login. "/" is the website's home page; only old
- * links into the former single-page app (/?section=...) are redirected.
+ * Runs only for the app's pages (app/(product)): gives each one a per-request nonce
+ * Content-Security-Policy, and sends visitors without a session cookie from the logged-in screens
+ * to /login. It also redirects old links into the former single-page app (/?section=...).
  *
- * The matcher lists exactly the pages in app/ (tests/unit/routing.test.ts checks it). API
- * routes are not matched: next.config.ts gives them a deny-all policy.
+ * It does not run for the website's pages: they are static, served from the CDN, and get a fixed
+ * policy from next.config.ts (lib/site-routes.ts), so a website visit costs no function call. API
+ * routes are not matched either: next.config.ts gives them a deny-all policy.
+ * tests/unit/routing.test.ts checks that the matcher lists exactly the app's pages.
  */
 /** Logged-in screens served by Next.js; visitors without a session cookie go to /login */
 const APP_PATHS = new Set(['/setup', '/transactions', '/summary', '/activity']);
@@ -50,18 +52,8 @@ export function proxy(request: NextRequest) {
 
 export const config = {
     matcher: [
-        '/',
-        '/features',
-        '/features/:slug',
-        '/tools',
-        '/tools/:slug',
-        '/roadmap',
-        '/download',
-        '/faq',
-        '/about',
-        '/security',
-        '/privacy',
-        '/terms',
+        // The home page only when it is an old /?section=... link
+        { source: '/', has: [{ type: 'query', key: 'section' }] },
         '/login',
         '/register',
         '/forgot-username',

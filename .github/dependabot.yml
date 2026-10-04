@@ -1,0 +1,22 @@
+# Keeps dependencies up to date with as little upkeep as possible:
+#   - once a month, with all minor and patch updates grouped into a single pull request;
+#   - security fixes as soon as GitHub knows of them (repository settings: Dependabot security updates).
+# Nothing runs automatically on these pull requests (no CI, and Vercel skips preview builds), so
+# run the tests locally before merging one. See docs/costs.md.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ['*']

@@ -104,3 +104,20 @@ export async function destroySession(pool: Pick<Pool, 'query'>, cookieValue: str
 export function clearSessionCookie(secure: boolean): string {
     return [`${SESSION_COOKIE}=`, 'Path=/', 'Expires=Thu, 01 Jan 1970 00:00:00 GMT', 'HttpOnly', 'SameSite=Strict', ...(secure ? ['Secure'] : [])].join('; ');
 }
+
+/**
+ * A cookie the website's static pages can read to show "Open FinDB" instead of "Log in" without a
+ * server call. It holds no secret and grants nothing: the session itself stays in the HttpOnly
+ * sessionId cookie, which every logged-in request checks. It lasts as long as a new session.
+ */
+export const SIGNED_IN_HINT_COOKIE = 'findb_signed_in';
+
+export function signedInHintCookie(secure: boolean, now = Date.now()): string {
+    const expires = new Date(now + SESSION_MAX_AGE_MS);
+    return [`${SIGNED_IN_HINT_COOKIE}=1`, 'Path=/', `Expires=${expires.toUTCString()}`, 'SameSite=Strict', ...(secure ? ['Secure'] : [])].join('; ');
+}
+
+/** Set-Cookie value that removes the signed-in hint */
+export function clearSignedInHintCookie(secure: boolean): string {
+    return [`${SIGNED_IN_HINT_COOKIE}=`, 'Path=/', 'Expires=Thu, 01 Jan 1970 00:00:00 GMT', 'SameSite=Strict', ...(secure ? ['Secure'] : [])].join('; ');
+}

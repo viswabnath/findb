@@ -13,9 +13,9 @@
     --muted: #4f6a60;
     --line: #dfece6;
     --line-strong: #c4dbd0;
-    --primary: #0f8a5f;
-    --primary-hover: #0b6e4c;
-    --primary-text: #0f8a5f;
+    --primary: #0b7a54;
+    --primary-hover: #08623f;
+    --primary-text: #0b7a54;
     --on-primary: #ffffff;
     --tint: #e7f6ef;
     --tint-fg: #0b6e4c;
@@ -24,7 +24,7 @@
     --gold-text: #8a5a05;
     --negative: #c2410c;
     --negative-soft: #fdeee6;
-    --info: #2563eb;
+    --info: #1d4ed8;
     --info-soft: #e8efff;
     --band-bg: #0b3d2c;
     --band-fg: #f1faf5;
@@ -44,7 +44,7 @@
     --c-bill: #0ea5e9;
     --c-travel: #14b8a6;
     --c-home: #64748b;
-    --c-income: #0f8a5f;
+    --c-income: #0b7a54;
 
     --logo-tile: #0f8a5f;
     --logo-glyph: #ffffff;
@@ -311,13 +311,14 @@ h3 { font-size: 1.1rem; font-weight: 600; line-height: 1.35; letter-spacing: -0.
     .rise-3 { animation-delay: 0.14s; }
     .rise-4 { animation-delay: 0.21s; }
     .rise-5 { animation-delay: 0.3s; }
-    @keyframes rise { from { opacity: 0; transform: translateY(16px); } }
+    /* Slide only, never fade: text is readable from the first frame (and counts as painted) */
+    @keyframes rise { from { transform: translateY(16px); } }
 }
 
 @media (prefers-reduced-motion: no-preference) {
     @supports (animation-timeline: view()) {
         .reveal { animation: reveal linear both; animation-timeline: view(); animation-range: entry 0% entry 35%; }
-        @keyframes reveal { from { opacity: 0; transform: translateY(24px); } }
+        @keyframes reveal { from { transform: translateY(24px); } }
     }
 }
 
@@ -344,7 +345,7 @@ h3 { font-size: 1.1rem; font-weight: 600; line-height: 1.35; letter-spacing: -0.
 .phone-big { font-family: var(--font-head), sans-serif; font-weight: 700; font-size: 1.45rem; letter-spacing: -0.02em; }
 .phone-card { border-radius: 14px; padding: 12px; background: var(--surface-2); border: 1px solid var(--line); display: grid; gap: 8px; }
 .phone-card.green { background: var(--primary); color: var(--on-primary); border-color: transparent; }
-.phone-card.green .phone-label { color: inherit; opacity: 0.85; }
+.phone-card.green .phone-label { color: inherit; }
 .phone-alert { display: flex; gap: 8px; align-items: center; padding: 9px 10px; border-radius: 12px; background: var(--gold-soft); color: var(--fg); font-weight: 600; font-size: 0.74rem; }
 .phone-alert svg { color: var(--gold-text); flex: none; }
 .meter { height: 8px; border-radius: 8px; background: var(--line); overflow: hidden; }

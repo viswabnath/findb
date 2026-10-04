@@ -1,14 +1,16 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 import { ArrowRight, Monitor, Smartphone, TabletSmartphone } from 'lucide-react';
 import { InstallButton } from '@/components/site/InstallButton';
 import { QrCode } from '@/components/site/QrCode';
 import { StoreBadges } from '@/components/site/StoreBadges';
 import { SITE_URL } from '@/lib/site-url';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: 'Get the app',
     description: 'Use FinDB on your phone, tablet or computer. Install it from your browser and it opens like an app.',
-};
+    path: '/download',
+});
 
 export default function DownloadPage() {
     return (

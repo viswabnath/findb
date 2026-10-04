@@ -111,6 +111,7 @@ Only production is built: merging into `master` deploys production. Preview buil
 - [docs/STATUS.md](docs/STATUS.md): current status and known issues
 - [docs/v2-plan.md](docs/v2-plan.md): planned features
 - [docs/backups.md](docs/backups.md): nightly encrypted backups and how to restore them
+- [docs/costs.md](docs/costs.md): running costs, free limits, alerts and upkeep
 
 ## License
 

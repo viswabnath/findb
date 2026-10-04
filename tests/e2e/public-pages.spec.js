@@ -1,7 +1,7 @@
 // @ts-check
 /**
  * The website (app/(site)): home, features, roadmap, get the app, questions, security, privacy,
- * terms and about. Every page must open without logging in, load under the nonce
+ * terms and about. Every page must open without logging in, load under the website's fixed
  * Content-Security-Policy without violations or console errors, and link to and from the app.
  */
 const { test, expect } = require('@playwright/test');
@@ -40,13 +40,16 @@ async function watchForProblems(page) {
 }
 
 for (const { path, heading } of PAGES) {
-    test(`${path} opens without login and loads under the nonce CSP`, async ({ page }) => {
+    test(`${path} opens without login and loads under the website CSP`, async ({ page }) => {
         const problems = await watchForProblems(page);
 
         const response = await page.goto(path);
         expect(response?.status()).toBe(200);
         const csp = response?.headers()['content-security-policy'] || '';
-        expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/);
+        // Static pages: a fixed policy from next.config.ts, no nonce, and never the app's policy
+        expect(csp).toContain('script-src \'self\' \'unsafe-inline\'');
+        expect(csp).toContain('object-src \'none\'');
+        expect(csp).not.toContain('nonce-');
 
         await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible();
         await expect(page.locator('footer.site-footer')).toBeVisible();
@@ -56,6 +59,43 @@ for (const { path, heading } of PAGES) {
         expect(problems).toEqual([]);
     });
 }
+
+test('search engines and AI assistants: canonical address, preview image, structured data', async ({ page, request }) => {
+    await page.goto('/tools/emi-calculator');
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\/tools\/emi-calculator$/);
+    const image = await page.locator('meta[property="og:image"]').getAttribute('content');
+    expect(image).toMatch(/\/tools\/emi-calculator\/opengraph-image/);
+    const preview = await request.get(new URL(image || '').pathname);
+    expect(preview.status()).toBe(200);
+    expect(preview.headers()['content-type']).toBe('image/png');
+
+    const data = JSON.parse(await page.locator('script[type="application/ld+json"]').first().textContent() || '{}');
+    const types = (data['@graph'] || [data]).map(item => item['@type']);
+    expect(types).toEqual(['WebApplication', 'BreadcrumbList']);
+
+    await page.goto('/faq');
+    const faq = JSON.parse(await page.locator('script[type="application/ld+json"]').textContent() || '{}');
+    expect(faq['@type']).toBe('FAQPage');
+    expect(faq.mainEntity[0].name).toBe('Is FinDB really free?');
+});
+
+test('llms.txt, llms-full.txt and robots.txt describe the website and keep the app private', async ({ request }) => {
+    const index = await request.get('/llms.txt');
+    expect(index.status()).toBe(200);
+    const indexText = await index.text();
+    expect(indexText.startsWith('# FinDB\n')).toBe(true);
+    expect(indexText).toContain('/tools/emi-calculator');
+
+    const full = await (await request.get('/llms-full.txt')).text();
+    expect(full).toContain('## Questions and answers');
+    expect(full).toContain('### Loans and chit funds');
+
+    const robots = await (await request.get('/robots.txt')).text();
+    expect(robots).toContain('User-Agent: GPTBot');
+    expect(robots).toContain('Disallow: /setup');
+    expect(robots).toContain('Disallow: /api/');
+    expect(robots).toMatch(/Sitemap: .*\/sitemap\.xml/);
+});
 
 test('the Features menu opens, closes with Escape, and navigates on the client', async ({ page }) => {
     const problems = await watchForProblems(page);

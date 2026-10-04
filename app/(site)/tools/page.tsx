@@ -1,13 +1,15 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { TOOLS } from '@/components/site/content';
 import { ToolIcon } from '@/components/site/FeatureIcon';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: 'Free money calculators',
     description: 'Free EMI, loan payoff, FD, RD, SIP, gold value, chit fund and inflation calculators for India. No sign-up; nothing you type leaves your browser.',
-};
+    path: '/tools',
+});
 
 export default function ToolsPage() {
     return (

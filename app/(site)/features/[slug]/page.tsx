@@ -1,18 +1,27 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { ArrowRight, CircleCheck, CircleDashed, Lightbulb } from 'lucide-react';
 import { FEATURES, featureBySlug } from '@/components/site/content';
 import { FeatureIcon } from '@/components/site/FeatureIcon';
 import { StatusBadge } from '@/components/site/StatusBadge';
+import { JsonLd, breadcrumbs } from '@/components/site/JsonLd';
 
 interface Props {
     params: Promise<{ slug: string }>;
 }
 
+/** Every feature page is built at deploy time; any other address is a 404 */
+export const dynamicParams = false;
+
+export function generateStaticParams() {
+    return FEATURES.map(item => ({ slug: item.slug }));
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
     const feature = featureBySlug((await params).slug);
-    return feature ? { title: feature.name, description: feature.short } : {};
+    return feature ? pageMetadata({ title: feature.name, description: feature.short, path: `/features/${feature.slug}` }) : {};
 }
 
 const STATUS_NOTE = {
@@ -32,6 +41,7 @@ export default async function FeaturePage({ params }: Props) {
 
     return (
         <>
+            <JsonLd data={breadcrumbs([{ name: 'Features', path: '/features' }, { name: feature.name, path: `/features/${feature.slug}` }])} />
             <section className="page-head">
                 <div className="wrap">
                     <nav className="crumbs rise" aria-label="Breadcrumb">
