@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'async_hooks';
 import { Pool } from 'pg';
 
 /**
@@ -31,7 +32,20 @@ function createPool(): Pool {
 }
 
 /** The shared pool, created on first use (one per server instance; reused across hot reloads in dev) */
-export function db(): Pool {
+export function ownerPool(): Pool {
     globalForDb.findbPool ??= createPool();
     return globalForDb.findbPool;
+}
+
+/** The current request's user-scoped database, set by withUser */
+export const requestScope = new AsyncLocalStorage<Pool>();
+
+/**
+ * The database for the code running now. Inside a logged-in request (withUser in lib/api-route.ts)
+ * that is the request's own transaction as the row-level-security role, limited to the user's rows
+ * (withUserScope in lib/transaction.ts). Elsewhere (login, registration, recovery, the session
+ * check) it is the pool, as the tables' owner.
+ */
+export function db(): Pool {
+    return requestScope.getStore() ?? ownerPool();
 }

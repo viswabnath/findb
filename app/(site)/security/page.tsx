@@ -31,7 +31,7 @@ export default function SecurityPage() {
                             <li><CircleCheck size={18} /><span><strong>Encrypted connections.</strong> Everything travels over HTTPS.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Passwords never stored.</strong> Passwords and security answers are kept only as one-way hashes (bcrypt).</span></li>
                             <li><CircleCheck size={18} /><span><strong>Your records only.</strong> Every request is limited to the signed-in user, and entries can only use your own accounts.</span></li>
-                            <li><CircleCheck size={18} /><span><strong>Locked database.</strong> Row level security is on for every table, and the database is encrypted at rest by our hosting provider.</span></li>
+                            <li><CircleCheck size={18} /><span><strong>Database-enforced privacy.</strong> Every request runs as a restricted database role that the database itself limits to your rows, so even a mistake in FinDB&apos;s code could not show you someone else&apos;s data. The database is encrypted at rest by our hosting provider.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Two-step login for everyone.</strong> Every login needs a code from an authenticator app such as Google Authenticator, with one-time recovery codes for a lost phone. Free, with no SMS.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Safe sessions you can see.</strong> HTTP-only, same-site cookies that expire after 2 hours; every device signed in is listed in Settings, with &ldquo;sign out everywhere&rdquo; and your recent logins.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Strong passwords.</strong> Long passphrases are welcome, and common or known leaked passwords are refused. The leak check sends only the first five characters of a scrambled form of the password, never the password.</span></li>
@@ -46,7 +46,6 @@ export default function SecurityPage() {
                         <h2 style={{ fontSize: '1.5rem' }}>Being added next</h2>
                         <ul>
                             <li><CircleDashed size={18} /><span><strong>Encrypted sensitive details:</strong> PAN, account, policy and folio numbers are encrypted before they are saved, and shown masked. The encryption is in place and already protects your two-step login key; these details arrive with the features that use them.</span></li>
-                            <li><CircleDashed size={18} /><span><strong>Database-enforced privacy:</strong> the database itself refuses to return another user&apos;s rows.</span></li>
                         </ul>
                     </div>
                 </div>

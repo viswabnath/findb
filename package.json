@@ -81,7 +81,8 @@
           "<rootDir>/tests/activity-api.test.js",
           "<rootDir>/tests/account-ownership.test.js",
           "<rootDir>/tests/ledger.test.js",
-          "<rootDir>/tests/security.test.js"
+          "<rootDir>/tests/security.test.js",
+          "<rootDir>/tests/isolation.test.js"
         ],
         "setupFiles": [
           "<rootDir>/tests/env.js"
