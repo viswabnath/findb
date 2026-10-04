@@ -18,7 +18,7 @@ export default function PrivacyPage() {
                         Short version: FinDB collects only what it needs to work, uses it only to show you your own money,
                         and never sells or shares it.
                     </p>
-                    <p className="updated rise rise-3">Last updated 3 October 2026</p>
+                    <p className="updated rise rise-3">Last updated 4 October 2026</p>
                 </div>
             </section>
 
@@ -36,7 +36,7 @@ export default function PrivacyPage() {
                         <h2>What we do not collect</h2>
                         <ul>
                             <li>No bank, card or UPI passwords, PINs or OTPs, ever.</li>
-                            <li>No advertising or tracking cookies. The only cookie is the one that keeps you signed in.</li>
+                            <li>No advertising or tracking cookies. FinDB sets two cookies when you log in: one that keeps you signed in, and one that only tells the website to show &ldquo;Open FinDB&rdquo; instead of &ldquo;Log in&rdquo;. Both end when you log out or after two hours.</li>
                             <li>No contacts, location or SMS from your phone.</li>
                         </ul>
 
@@ -50,9 +50,9 @@ export default function PrivacyPage() {
 
                         <h2>Where it is kept</h2>
                         <p>
-                            FinDB runs on Vercel, and your data is stored in a Supabase Postgres database, encrypted at rest.
-                            The database is currently in Sydney, Australia; we plan to move it to Mumbai, India, before the
-                            public launch.
+                            FinDB runs on Vercel in Mumbai, and your data is stored in a Supabase Postgres database in Mumbai,
+                            India, encrypted at rest. It is backed up every night; each backup is encrypted before it is stored,
+                            kept for 30 days, and can be read only with a key held by FinDB.
                         </p>
 
                         <h2>Your rights</h2>
