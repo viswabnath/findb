@@ -15,6 +15,8 @@ npm run lint         # ESLint (npm run lint:fix to fix)
 npm run setup-db       # Create/migrate all tables (public schema = production)
 npm run setup-test-db  # Same, in the balancetrack_test schema
 npm run reset-test-db  # Delete all rows from app tables in the test schema (destructive)
+npm run migrate:test   # Apply pending db/migrations to the test schema (setup-test-db and test runs do it too)
+npm run ledger:check   # Read-only: stored balances equal the ledger's (ledger:check:test for the test schema)
 
 # Testing
 npm test               # Build Next.js, start it on :3200 (test schema), run every Jest project
@@ -89,8 +91,10 @@ A single Next.js 16 app (App Router, TypeScript strict) on Vercel, with Supabase
 - **Security headers** are in `next.config.ts` (`tests/unit/security-headers.test.ts`): the standard set on every response, and a deny-all CSP on API responses (pages get theirs from `proxy.ts`).
 - New server code goes in `lib/` with no Next.js imports; financial logic goes in `src/core/`.
 
-### Database (`setup-db.js`)
-Tables: `users`, `banks`, `credit_cards`, `income_entries`, `expenses`, `cash_balance`, `activity_log`, `session`
+### Database (`setup-db.js`, `db/migrations/`)
+Tables: `users`, `banks`, `credit_cards`, `income_entries`, `expenses`, `cash_balance`, `activity_log`, `session`, and the ledger: `ledger_accounts`, `journal_entries`, `journal_lines` (`docs/ledger.md`)
+- **Ledger (v2 Phase 1, expand step):** every change to banks, cards, cash, income and expenses also writes the double-entry ledger through `lib/ledger.ts`, on the same transaction's client. Amounts are `bigint` paise; the database refuses an entry whose lines do not add up to zero. Edits and deletes void entries, never remove them. The view `ledger_balance_check` must show no difference after any change (`tests/ledger.test.js`).
+- **Migrations:** new schema changes are numbered SQL files in `db/migrations/`, applied by `scripts/migrate.js` (test schema before every test server; production only with `--production`, after a backup). Never edit one that has run; add a new one. Through the Supabase pooler never use a session `SET`; use `SET LOCAL` or a transaction option.
 - Every table has row level security enabled with no policies, which blocks Supabase's public Data API. Enable RLS on any new table.
 - `DB_SCHEMA` (optional) selects the Postgres schema via `search_path`; unset means `public`.
 - All monetary columns use `DECIMAL(20,2)`; amounts go to SQL as given so decimal arithmetic stays exact.

@@ -9,7 +9,11 @@
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "setup-db": "node setup-db.js",
-    "setup-test-db": "DB_SCHEMA=balancetrack_test node -r ./scripts/use-test-env.js setup-db.js",
+    "setup-test-db": "DB_SCHEMA=balancetrack_test node -r ./scripts/use-test-env.js setup-db.js && npm run migrate:test",
+    "migrate:test": "DB_SCHEMA=balancetrack_test REQUIRE_TEST_SCHEMA=true node -r ./scripts/use-test-env.js scripts/migrate.js",
+    "migrate:status": "node scripts/migrate.js --status",
+    "ledger:check": "node scripts/ledger-check.js",
+    "ledger:check:test": "DB_SCHEMA=balancetrack_test node -r ./scripts/use-test-env.js scripts/ledger-check.js",
     "reset-test-db": "node -r ./scripts/use-test-env.js reset-test-db.js",
     "reset-test-db-with-user": "node -r ./scripts/use-test-env.js reset-test-db.js --with-user",
     "test": "node scripts/run-api-tests.js",
@@ -75,7 +79,8 @@
           "<rootDir>/tests/account-recovery.test.js",
           "<rootDir>/tests/entry-dates.test.js",
           "<rootDir>/tests/activity-api.test.js",
-          "<rootDir>/tests/account-ownership.test.js"
+          "<rootDir>/tests/account-ownership.test.js",
+          "<rootDir>/tests/ledger.test.js"
         ],
         "setupFiles": [
           "<rootDir>/tests/env.js"

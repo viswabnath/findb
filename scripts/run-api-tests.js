@@ -48,6 +48,8 @@ function run(command, args, env) {
 }
 
 async function startServer() {
+    // The test schema gets any migration not yet applied (db/migrations), as production will
+    if (await run('node', ['scripts/migrate.js'], TEST_SERVER_ENV) !== 0) throw new Error('migrations failed');
     console.log('Building Next.js...');
     if (await run('node', [NEXT_BIN, 'build'], {}) !== 0) throw new Error('next build failed');
     const logFile = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'findb-api-')), 'server.log');

@@ -29,7 +29,8 @@ module.exports = defineConfig({
         { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
     ],
     webServer: process.env.E2E_BASE_URL ? undefined : {
-        command: `npx next build && npx next start --port ${PORT}`,
+        // Any migration not yet applied to the test schema runs first (scripts/migrate.js)
+        command: `node scripts/migrate.js && npx next build && npx next start --port ${PORT}`,
         url: `http://localhost:${PORT}/next-health`,
         reuseExistingServer: false,
         timeout: 240_000,
