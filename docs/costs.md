@@ -33,8 +33,18 @@ need little of anyone's time. Today the running cost is **₹0 a month**.
 |---|---|---|---|
 | Database size | Nightly backup job (`.github/workflows/backup.yml`) | Above 70% of 500 MB: a warning in the run summary | Above 85%: the run fails and GitHub emails the owner |
 | Backup failure | The same job | Any failed step: GitHub emails the owner | Check the run log |
+| Site or database down | Uptime monitor on `/api/health` (once set up) | Email within minutes | Check Vercel and Supabase status pages and logs |
 | Vercel usage | Vercel dashboard > Usage | Vercel emails as Hobby limits approach | See below |
 | Dependency security fixes | Dependabot | A pull request and an email | Merge after running the tests |
+
+## Uptime monitor (to set up once)
+
+`/api/health` answers `{ "ok": true }` when the app and the database are up, and `503` when the database is not. Point a free uptime monitor at it, for example UptimeRobot or Better Stack (both have free plans):
+- URL: `https://findb-app.vercel.app/api/health`
+- Check: every 5 minutes, expecting status 200
+- Alerts: by email to the owner
+
+That is about 8,600 function calls a month, under 1% of Vercel's free allowance. It also keeps the production database active every day, which closes the pausing risk below.
 
 ## The monthly check (about 10 minutes)
 
@@ -71,6 +81,6 @@ Any recurring cost is agreed with the owner first. Nothing here is ever turned o
 
 ## One open risk
 
-A free Supabase project pauses after 7 days without activity. Once real users arrive, production is active every day. Until then, the nightly backup connects to it every night, which should count as activity, but Supabase does not document exactly what counts.
+A free Supabase project pauses after 7 days without activity. Once real users arrive, production is active every day. Until then, the nightly backup connects to it every night. Once the uptime monitor above is set up, it queries the database every 5 minutes as well. Supabase does not document exactly what counts as activity, but these should keep it active.
 
 If production ever pauses, the app's pages show errors until it is restored from the Supabase dashboard; no data is lost. The website itself keeps working, because it is static.

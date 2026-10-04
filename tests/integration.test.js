@@ -51,6 +51,14 @@ describe('Integration Tests - Server Endpoints', () => {
     };
 
     describe('Authentication Endpoints', () => {
+        test('GET /api/health says the app and its database answer, and is never cached', async () => {
+            const response = await request(target()).get('/api/health');
+
+            expect(response.status).toBe(200);
+            expect(response.body).toEqual({ ok: true });
+            expect(response.headers['cache-control']).toContain('no-store');
+        });
+
         test('GET / is the website home page', async () => {
             const response = await request(target()).get('/');
 

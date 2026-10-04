@@ -11,12 +11,12 @@
     --surface-2: #f7fbf9;
     --fg: #0e2a21;
     --muted: #55705f;
-    --faint: #7d968b;
+    --faint: #5d786c;
     --line: #e1ece6;
     --line-strong: #c8dcd2;
-    --primary: #0f8a5f;
-    --primary-hover: #0b6e4c;
-    --primary-text: #0f8a5f;
+    --primary: #0b7a54;
+    --primary-hover: #08623f;
+    --primary-text: #0b7a54;
     --on-primary: #ffffff;
     --tint: #e7f6ef;
     --tint-fg: #0b6e4c;
@@ -26,7 +26,7 @@
     --danger: #c63b2f;
     --danger-soft: #fdecea;
     --danger-hover: #a83127;
-    --info: #2563eb;
+    --info: #1d4ed8;
     --info-soft: #e8efff;
     --sidebar-bg: #0b3d2c;
     --sidebar-fg: #d9efe5;
@@ -36,7 +36,7 @@
     --shadow: 0 1px 2px rgb(14 42 33 / 6%), 0 12px 30px -14px rgb(14 42 33 / 20%);
     --shadow-lg: 0 24px 60px -20px rgb(14 42 33 / 35%);
 
-    --c-income: #0f8a5f;
+    --c-income: #0b7a54;
     --c-expense: #ef4444;
     --c-bank: #0ea5e9;
     --c-card: #8b5cf6;
