@@ -9,7 +9,7 @@ const request = require('supertest');
 
 // Import the actual server app AFTER mocking rate limiter
 const { target, closeTarget } = require('./api-target');
-const { deleteTestUser } = require('../test-helpers');
+const { deleteTestUser, enableTestTwoFactor, logIn } = require('../test-helpers');
 
 describe('Edge Cases & Error Scenarios - Complete Coverage', () => {
     let sessionCookie;
@@ -19,24 +19,22 @@ describe('Edge Cases & Error Scenarios - Complete Coverage', () => {
         await deleteTestUser('edgetest123');
         const userData = {
             username: 'edgetest123',
-            password: 'EdgeTest123&',
+            password: 'Boundary_Pass9',
             name: 'Edge Test User',
             email: 'edge@test.com',
             securityQuestion: 'What is your edge test?',
             securityAnswer: 'boundaries'
         };
 
-        await request(target())
+        const registered = await request(target())
             .post('/api/register')
             .send(userData);
+        expect(registered.status).toBe(200);
+        // Registration leaves two-factor setup to do; the test user gets the known test secret
+        await enableTestTwoFactor(registered.body.userId);
 
         // Login to get session
-        const loginResponse = await request(target())
-            .post('/api/login')
-            .send({
-                username: 'edgetest123',
-                password: 'EdgeTest123&'
-            });
+        const loginResponse = await logIn(() => request(target()), 'edgetest123', 'Boundary_Pass9');
 
         sessionCookie = loginResponse.headers['set-cookie'];
 
@@ -106,18 +104,21 @@ describe('Edge Cases & Error Scenarios - Complete Coverage', () => {
         test('should handle all password validation edge cases', async () => {
             const testCases = [
                 { password: '1234567', description: 'exactly 7 chars (too short)' },
-                { password: '12345678901234567', description: 'exactly 17 chars (too long)' },
-                { password: 'allLowerCase123&', description: 'no uppercase' },
-                { password: 'ALLUPPERCASE123&', description: 'no lowercase' },
-                { password: 'NoNumbersHere&', description: 'no numbers' },
-                { password: 'HasNumbers123', description: 'no special chars' }
+                { password: 'Aa1&'.repeat(16) + 'x', description: 'exactly 65 chars (too long)' },
+                { password: 'alllower123&', description: 'under 16 chars, no uppercase' },
+                { password: 'ALLUPPER123&', description: 'under 16 chars, no lowercase' },
+                { password: 'NoNumbersHere&', description: 'under 16 chars, no numbers' },
+                { password: 'HasNumbers123', description: 'under 16 chars, no symbol' },
+                { password: 'Password@123', description: 'too common' },
+                { password: 'passwordpassword', description: 'a common passphrase' }
             ];
 
             for (const testCase of testCases) {
                 const response = await request(target())
                     .post('/api/register')
                     .send({
-                        username: `test${Date.now()}${Math.random()}`,
+                        // A valid username, so only the password can be refused
+                        username: `test${Date.now()}${Math.floor(Math.random() * 1e6)}`,
                         password: testCase.password,
                         name: 'Test User',
                         email: `test${Date.now()}${Math.random()}@example.com`,
@@ -126,8 +127,7 @@ describe('Edge Cases & Error Scenarios - Complete Coverage', () => {
                     });
 
                 expect(response.status).toBe(400);
-                // Should have some validation error
-                expect(response.body.error).toBeDefined();
+                expect(response.body.error).toMatch(/Password|password/);
             }
         });
     });
@@ -166,12 +166,7 @@ describe('Edge Cases & Error Scenarios - Complete Coverage', () => {
             expect(response.body.success).toBe(true);
 
             // Re-login for other tests
-            const loginResponse = await request(target())
-                .post('/api/login')
-                .send({
-                    username: 'edgetest123',
-                    password: 'EdgeTest123&'
-                });
+            const loginResponse = await logIn(() => request(target()), 'edgetest123', 'Boundary_Pass9');
             // Later tests reuse this session; fail here, not with a puzzling 401 further down
             expect(loginResponse.status).toBe(200);
             expect(loginResponse.headers['set-cookie']).toBeDefined();

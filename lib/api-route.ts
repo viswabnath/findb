@@ -89,3 +89,8 @@ export function withUser<C>(handler: AuthedHandler<C>) {
         }
     };
 }
+
+/** The browser's user agent, for the session list and login history */
+export function userAgent(request: NextRequest): string | null {
+    return request.headers.get('user-agent');
+}

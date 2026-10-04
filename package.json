@@ -80,11 +80,28 @@
           "<rootDir>/tests/entry-dates.test.js",
           "<rootDir>/tests/activity-api.test.js",
           "<rootDir>/tests/account-ownership.test.js",
-          "<rootDir>/tests/ledger.test.js"
+          "<rootDir>/tests/ledger.test.js",
+          "<rootDir>/tests/security.test.js"
         ],
         "setupFiles": [
           "<rootDir>/tests/env.js"
-        ]
+        ],
+        "transform": {
+          "^.+\\.ts$": [
+            "@swc/jest",
+            {
+              "jsc": {
+                "parser": {
+                  "syntax": "typescript"
+                },
+                "target": "es2022"
+              },
+              "module": {
+                "type": "commonjs"
+              }
+            }
+          ]
+        }
       },
       {
         "displayName": "scripts",

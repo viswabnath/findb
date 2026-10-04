@@ -41,6 +41,8 @@ module.exports = defineConfig({
             DB_SCHEMA: 'balancetrack_test',
             REQUIRE_TEST_SCHEMA: 'true',
             DISABLE_RATE_LIMIT: 'true',
+            // Tests never depend on an outside service (lib/breached-password.ts)
+            BREACHED_PASSWORD_CHECK: 'false',
         },
     },
 });

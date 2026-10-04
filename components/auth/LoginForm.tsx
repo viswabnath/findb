@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthButton, AuthForm, AuthHead, AuthShell, Field, PasswordField } from './AuthShell';
+import { TwoFactorSetup, TwoFactorVerify } from './TwoFactor';
 import { useToast } from '@/components/Toast';
 import { apiError, apiPost } from '@/lib/api-client';
 import { isValidUsername, requireValue } from '@/lib/auth-validation';
@@ -15,6 +16,8 @@ export function LoginForm() {
     const toast = useToast();
     const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
+    // After the right password: the code from the app, or setting the app up the first time
+    const [step, setStep] = useState<'password' | 'verify' | 'setup'>('password');
 
     useEffect(() => {
         const prefill = sessionStorage.getItem(PREFILL_USERNAME_KEY);
@@ -31,9 +34,10 @@ export function LoginForm() {
             if (!isValidUsername(name)) {
                 throw new Error('Invalid username format. Username can only contain letters, numbers, and underscores');
             }
-            const result = await apiPost<{ success?: boolean }>('/api/login', { username: name, password: secret });
+            const result = await apiPost<{ success?: boolean; twoFactor?: 'verify' | 'setup' }>('/api/login', { username: name, password: secret });
             if (result.data.success) {
-                window.location.assign('/setup');
+                setPassword('');
+                setStep(result.data.twoFactor === 'setup' ? 'setup' : 'verify');
             } else {
                 toast('error', apiError(result.data, 'Login failed'));
             }
@@ -41,6 +45,12 @@ export function LoginForm() {
             toast('error', error instanceof Error ? error.message : 'Login failed');
         }
     }
+
+    // A full page load once signed in: the session just changed
+    const done = () => window.location.assign('/setup');
+    const expired = () => setStep('password');
+    if (step === 'verify') return <AuthShell><TwoFactorVerify onDone={done} onExpired={expired} /></AuthShell>;
+    if (step === 'setup') return <AuthShell><TwoFactorSetup onDone={done} onExpired={expired} /></AuthShell>;
 
     return (
         <AuthShell>

@@ -2,7 +2,7 @@ import type { MetadataRoute } from 'next';
 import { SITE_URL } from '@/lib/site-url';
 
 /** Private: the logged-in app, the sign-in screens and the API */
-const PRIVATE = ['/api/', '/setup', '/transactions', '/summary', '/activity', '/welcome', '/login', '/register', '/forgot-username', '/forgot-password'];
+const PRIVATE = ['/api/', '/setup', '/transactions', '/summary', '/activity', '/settings', '/welcome', '/login', '/register', '/forgot-username', '/forgot-password'];
 
 /**
  * Search engines and AI assistants are welcome to read the website, including llms.txt; the app and

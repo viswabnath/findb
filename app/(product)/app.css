@@ -243,6 +243,33 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .rules li svg { width: 14px; height: 14px; flex: none; color: var(--line-strong); }
 .rules li.ok { color: var(--tint-fg); }
 .rules li.ok svg { color: var(--primary); }
+
+/* Two-factor setup and recovery codes */
+.setup-steps { margin: 0; padding-left: 20px; display: grid; gap: 12px; color: var(--fg); }
+.setup-steps li::marker { color: var(--primary-text); font-weight: 700; }
+.qr-box { width: 176px; margin: 12px 0; padding: 8px; background: #ffffff; border: 1px solid var(--line); border-radius: 12px; }
+.qr-box .qr { display: block; width: 100%; height: auto; }
+.setup-key-label { display: block; font-size: 0.86rem; color: var(--muted); }
+.setup-key { display: inline-block; margin-top: 4px; padding: 6px 10px; border-radius: 8px; background: var(--tint); color: var(--tint-fg);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.95rem; letter-spacing: 0.04em; word-break: break-all; }
+.recovery-codes { list-style: none; margin: 0; padding: 12px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+    border: 1px dashed var(--line-strong); border-radius: 12px; }
+.recovery-codes code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 1rem; letter-spacing: 0.04em; }
+.check-line { display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
+.check-line input { width: 18px; height: 18px; accent-color: var(--primary); }
+
+/* Settings: sessions and login history */
+.settings-list { list-style: none; margin: 0; padding: 0; }
+.settings-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 14px clamp(16px, 2.5vw, 24px); border-bottom: 1px solid var(--line); }
+.settings-list li:last-child { border-bottom: 0; }
+.settings-list .what { font-weight: 600; }
+.settings-list .when { color: var(--muted); font-size: 0.9rem; }
+.settings-list li.warning .what { color: var(--danger); }
+.settings-list .this-device { margin-left: 8px; padding: 2px 8px; border-radius: 999px; background: var(--tint); color: var(--tint-fg); font-size: 0.78rem; font-weight: 700; }
+.settings-actions { display: flex; flex-wrap: wrap; gap: 10px; padding: 16px clamp(16px, 2.5vw, 24px); }
+.settings-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; padding: 0 clamp(16px, 2.5vw, 24px) 16px; }
+.settings-form .field { min-width: 180px; }
 @media (max-width: 420px) { .rules { grid-template-columns: 1fr; } }
 
 .auth-brand {

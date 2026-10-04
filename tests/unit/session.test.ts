@@ -50,10 +50,17 @@ describe('sessionUserId', () => {
     test('returns the user id of a live session', async () => {
         const { pool, query } = poolReturning([{ sess: { userId: 42, cookie: {} } }]);
         expect(await sessionUserId(pool, expressCookie(SID))).toBe(42);
-        expect(query).toHaveBeenCalledWith('SELECT sess FROM session WHERE sid = $1 AND expire > NOW()', [SID]);
+        const [sql, params] = query.mock.calls[0] as [string, string[]];
+        expect(params).toEqual([SID]);
+        expect(sql).toContain('SELECT sess FROM session WHERE sid = $1 AND expire > NOW()');
+        // Notes the last use, at most every five minutes (the session list shows it)
+        expect(sql).toContain('UPDATE session SET last_seen_at = NOW()');
+        expect(sql).toContain("last_seen_at < NOW() - interval '5 minutes'");
     });
 
     test('null for an expired or missing session, or one without a numeric user id', async () => {
+        // A login waiting for its two-factor code has no userId, so it opens nothing
+        expect(await sessionUserId(poolReturning([{ sess: { pendingLogin: { userId: 42, stage: 'verify' } } }]).pool, expressCookie(SID))).toBeNull();
         expect(await sessionUserId(poolReturning([]).pool, expressCookie(SID))).toBeNull();
         expect(await sessionUserId(poolReturning([{ sess: { userId: '42' } }]).pool, expressCookie(SID))).toBeNull();
         expect(await sessionUserId(poolReturning([{ sess: {} }]).pool, expressCookie(SID))).toBeNull();
@@ -77,13 +84,15 @@ describe('createSession and destroySession', () => {
     test('stores the express-session row shape and sets a cookie express-session accepts', async () => {
         const query = jest.fn().mockResolvedValue({ rows: [] });
         const before = Date.now();
-        const header = await createSession({ query } as unknown as Pool, 42, true);
+        const header = await createSession({ query } as unknown as Pool, 42, true, 'Mozilla/5.0 Test');
 
-        const [sql, params] = query.mock.calls[0] as [string, [string, string, number]];
+        const [sql, params] = query.mock.calls[0] as [string, [string, string, number, number, string]];
         // Expired sessions are cleared on each login
         expect(query.mock.calls[1]).toEqual(['DELETE FROM session WHERE expire < NOW()']);
-        expect(sql).toBe('INSERT INTO session (sid, sess, expire) VALUES ($1, $2, to_timestamp($3))');
-        const [sid, sessJson, expireSeconds] = params;
+        expect(sql).toBe('INSERT INTO session (sid, sess, expire, user_id, user_agent, last_seen_at) VALUES ($1, $2, to_timestamp($3), $4, $5, NOW())');
+        const [sid, sessJson, expireSeconds, userId, userAgent] = params;
+        // The user and device, for the session list (docs/security.md)
+        expect([userId, userAgent]).toEqual([42, 'Mozilla/5.0 Test']);
         const sess = JSON.parse(sessJson);
         expect(sess.userId).toBe(42);
         expect(sess.cookie).toMatchObject({ originalMaxAge: SESSION_MAX_AGE_MS, httpOnly: true, path: '/', sameSite: 'strict', secure: true });

@@ -30,14 +30,16 @@ export default function PrivacyPage() {
                             <li><strong>Your account:</strong> your name, username and email, and your password and security answer stored only as one-way hashes.</li>
                             <li><strong>Your financial records:</strong> the accounts, balances and entries you add yourself.</li>
                             <li><strong>Your activity log:</strong> a record of each change you make, so you can see your own history.</li>
+                            <li><strong>Your sign-in security:</strong> your two-step login key, encrypted; your recovery codes, only as one-way hashes; and your recent logins and signed-in devices, described by browser and device type (such as &ldquo;Chrome on Android&rdquo;), with no IP address or location. Login history older than a year is deleted.</li>
                             <li><strong>Basic technical logs:</strong> errors and request information our hosting providers keep for a short time to run and secure the service.</li>
                         </ul>
 
                         <h2>What we do not collect</h2>
                         <ul>
                             <li>No bank, card or UPI passwords, PINs or OTPs, ever.</li>
-                            <li>No advertising or tracking cookies. FinDB sets two cookies when you log in: one that keeps you signed in, and one that only tells the website to show &ldquo;Open FinDB&rdquo; instead of &ldquo;Log in&rdquo;. Both end when you log out or after two hours.</li>
+                            <li>No advertising or tracking cookies. FinDB sets two cookies when you log in: one that keeps you signed in, and one that only tells the website to show &ldquo;Open FinDB&rdquo; instead of &ldquo;Log in&rdquo;. Both end when you log out or after two hours. Between your password and your two-step code, a third cookie holds the unfinished login for at most ten minutes.</li>
                             <li>No contacts, location or SMS from your phone.</li>
+                            <li>Your password is never sent anywhere. To refuse known leaked passwords, FinDB sends only the first five characters of a one-way hash of it to the free Pwned Passwords service, and checks the answer itself.</li>
                         </ul>
 
                         <h2>How we use it</h2>

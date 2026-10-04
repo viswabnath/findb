@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthButton, AuthForm, AuthHead, AuthShell, Field, PasswordField, PasswordRules } from './AuthShell';
+import { TwoFactorSetup } from './TwoFactor';
 import { useToast } from '@/components/Toast';
 import { apiError, apiPost } from '@/lib/api-client';
 import { SECURITY_QUESTIONS, validateRegistration, type RegistrationInput } from '@/lib/auth-validation';
@@ -15,6 +16,8 @@ export function RegisterForm() {
     const router = useRouter();
     const toast = useToast();
     const [form, setForm] = useState<RegistrationInput>(EMPTY);
+    // After registering, two-factor setup; the account is signed in once it is confirmed
+    const [settingUp, setSettingUp] = useState(false);
     const field = (key: keyof RegistrationInput) => ({
         value: form[key],
         onChange: (event: { target: { value: string } }) => setForm(current => ({ ...current, [key]: event.target.value })),
@@ -25,16 +28,24 @@ export function RegisterForm() {
             const data = validateRegistration(form);
             const result = await apiPost<{ success?: boolean }>('/api/register', data);
             if (result.data.success) {
-                // Registration also logs the user in; next they choose what to track. A full page
-                // load, like after login: the session just changed, and a client-side push was
-                // occasionally lost here (seen in the end-to-end runs)
-                window.location.assign('/welcome');
+                setSettingUp(true);
             } else {
                 toast('error', apiError(result.data, 'Registration failed'));
             }
         } catch (error) {
             toast('error', error instanceof Error ? error.message : 'Registration failed');
         }
+    }
+
+    if (settingUp) {
+        // Next they choose what to track. A full page load, like after login: the session just
+        // changed, and a client-side push was occasionally lost here (seen in the end-to-end runs)
+        return (
+            <AuthShell>
+                <TwoFactorSetup onDone={() => window.location.assign('/welcome')}
+                    onExpired={() => { toast('error', 'Log in to finish setting up your account'); router.push('/login'); }} />
+            </AuthShell>
+        );
     }
 
     return (

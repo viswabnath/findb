@@ -1,18 +1,14 @@
-import { isHttps, jsonBody, withPublic } from '@/lib/api-route';
+import { jsonBody, userAgent, withPublic } from '@/lib/api-route';
 import { db } from '@/lib/db';
+import { startPendingLogin } from '@/lib/login-flow';
 import { login } from '@/lib/services/auth';
-import { createSession, destroySession, SESSION_COOKIE, signedInHintCookie } from '@/lib/session';
 
-// A new session id on every login, and the previous session (if any) removed: protects
-// against session fixation, like express-session's regenerate
+// Step one of a login: the password. A right one starts a pending login (no session yet), which
+// the two-factor code finishes (/api/login/two-factor), or two-factor setup for an account that
+// has not set it up (/api/two-factor/setup). Any session the browser had is ended.
 export const POST = withPublic(async (request) => {
-    const user = await login(db(), await jsonBody(request));
-    await destroySession(db(), request.cookies.get(SESSION_COOKIE)?.value);
-    const cookie = await createSession(db(), user.id, isHttps(request));
-    const headers = new Headers({ 'Set-Cookie': cookie });
-    headers.append('Set-Cookie', signedInHintCookie(isHttps(request)));
-    return Response.json(
-        { success: true, userId: user.id, name: user.name, trackingOption: user.tracking_option },
-        { headers },
-    );
+    const user = await login(db(), await jsonBody(request), userAgent(request));
+    const twoFactor = user.twoFactorEnabled ? 'verify' : 'setup';
+    const headers = await startPendingLogin(request, user.id, twoFactor);
+    return Response.json({ success: true, twoFactor }, { headers });
 }, { authLimited: true, errorMessage: 'Login failed. Please try again.' });

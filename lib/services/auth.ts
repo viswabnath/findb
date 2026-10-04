@@ -3,6 +3,8 @@ import bcrypt from 'bcryptjs';
 import type { Pool, QueryResultRow } from 'pg';
 import { logActivity } from '../activity-log';
 import { isValidEmail, isValidUsername, passwordProblem } from '../auth-validation';
+import { BREACHED_PASSWORD_MESSAGE, isBreachedPassword } from '../breached-password';
+import { recordLoginEvent } from './security';
 import { RequestError, withTransaction } from '../transaction';
 
 /**
@@ -31,12 +33,13 @@ export async function register(pool: Pool, body: Body): Promise<number> {
     if (e.length > 255) throw new RequestError(400, 'Email too long (max 255 characters)');
     if (a.length > 200) throw new RequestError(400, 'Security answer too long (max 200 characters)');
     if (!isValidEmail(e)) throw new RequestError(400, 'Invalid email format');
-    const problem = passwordProblem(p);
-    if (problem) throw new RequestError(400, problem);
     if (!isValidUsername(u)) throw new RequestError(400, 'Username can only contain letters, numbers, and underscores');
+    const problem = passwordProblem(p, u);
+    if (problem) throw new RequestError(400, problem);
 
     const existing = await pool.query('SELECT id FROM users WHERE username = $1 OR email = $2', [u, e]);
     if (existing.rows.length > 0) throw new RequestError(400, 'Username or email already exists');
+    if (await isBreachedPassword(p)) throw new RequestError(400, BREACHED_PASSWORD_MESSAGE);
 
     const passwordHash = await bcrypt.hash(p, 10);
     const answerHash = await bcrypt.hash(a.toLowerCase().trim(), 10);
@@ -54,17 +57,23 @@ export async function register(pool: Pool, body: Body): Promise<number> {
     }
 }
 
-/** Check a username and password; returns the user's id, name and tracking option */
-export async function login(pool: Pool, body: Body): Promise<{ id: number; name: string; tracking_option: string }> {
+/**
+ * Check a username and password (the first step of a login); returns the user's id and whether
+ * two-factor login is set up. A wrong password for an existing account goes into its login history.
+ */
+export async function login(pool: Pool, body: Body, userAgent: string | null = null): Promise<{ id: number; twoFactorEnabled: boolean }> {
     const { username, password } = body;
     if (!username || !password) throw new RequestError(400, 'Username and password are required');
     if (typeof username !== 'string' || typeof password !== 'string' || !isValidUsername(username)) {
         throw new RequestError(400, 'Invalid username format. Username can only contain letters, numbers, and underscores');
     }
-    const result = await pool.query('SELECT id, password_hash, name, tracking_option FROM users WHERE username = $1', [username]);
+    const result = await pool.query('SELECT id, password_hash, totp_enabled_at FROM users WHERE username = $1', [username]);
     const user = result.rows[0];
-    if (!user || !(await bcrypt.compare(password, user.password_hash))) throw new RequestError(400, 'Invalid credentials');
-    return { id: user.id, name: user.name, tracking_option: user.tracking_option };
+    if (!user || !(await bcrypt.compare(password, user.password_hash))) {
+        if (user) await recordLoginEvent(pool, user.id, 'wrong_password', userAgent);
+        throw new RequestError(400, 'Invalid credentials');
+    }
+    return { id: user.id, twoFactorEnabled: user.totp_enabled_at !== null };
 }
 
 export async function getUser(pool: Pool, userId: number): Promise<QueryResultRow> {
@@ -184,16 +193,17 @@ export async function resetPassword(pool: Pool, body: Body): Promise<void> {
     if (!validAnswer(securityAnswer) || !newPassword || typeof newPassword !== 'string') {
         throw new RequestError(400, 'All fields are required');
     }
-    const problem = passwordProblem(newPassword);
-    if (problem) throw new RequestError(400, problem);
-
     const user = await findRecoveryUser(pool, identifier);
+    const problem = passwordProblem(newPassword, user?.username ?? '');
+    if (problem) throw new RequestError(400, problem);
     if (!(await checkRecoveryAnswer(pool, user, securityAnswer))) throw new RequestError(400, RECOVERY_FAILED_MESSAGE);
+    if (await isBreachedPassword(newPassword)) throw new RequestError(400, BREACHED_PASSWORD_MESSAGE);
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
     await withTransaction(pool, async (client) => {
         await client.query('UPDATE users SET password_hash = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2', [passwordHash, user!.id]);
         await client.query('DELETE FROM session WHERE sess->>\'userId\' = $1', [String(user!.id)]);
         await logActivity(client, user!.id, 'password_reset', 'account', user!.id, 'Password reset through the security question; all sessions signed out');
+        await recordLoginEvent(client, user!.id, 'password_changed');
     });
 }

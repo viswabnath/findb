@@ -12,7 +12,7 @@ const request = require('supertest');
 
 
 const { target, closeTarget } = require('./api-target');
-const { createTestUser, createTestBank, createTestCashBalance, deleteTestUser, query } = require('../test-helpers');
+const { createTestUser, createTestBank, createTestCashBalance, deleteTestUser, query, logIn } = require('../test-helpers');
 
 const USERNAME = 'entry_dates_user';
 const PASSWORD = 'TestPass123&';
@@ -32,7 +32,7 @@ beforeAll(async () => {
     bankId = (await createTestBank(user.id, { name: 'DATES BANK', balance: 100000 })).id;
     await createTestCashBalance(user.id, 100000);
     agent = request.agent(target());
-    expect((await agent.post('/api/login').send({ username: USERNAME, password: PASSWORD })).status).toBe(200);
+    expect((await logIn(agent, USERNAME, PASSWORD)).status).toBe(200);
 });
 
 afterEach(() => {

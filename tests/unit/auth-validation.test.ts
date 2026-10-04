@@ -18,18 +18,31 @@ const valid: RegistrationInput = {
 
 describe('passwordProblem', () => {
     test.each([
-        ['Ab1_', 'Password must be between 8 and 16 characters long'],
-        ['Abcdefgh1_Abcdefgh', 'Password must be between 8 and 16 characters long'],
-        ['ABCDEFG1_', 'Password must contain at least one lowercase letter'],
-        ['abcdefg1_', 'Password must contain at least one uppercase letter'],
-        ['Abcdefgh_', 'Password must contain at least one number'],
-        ['Abcdefgh1!', 'Password must contain at least one special character (_, -, @, :,or &)'],
+        ['Ab1_', 'Password must be at least 8 characters long'],
+        ['Ab1_'.repeat(16) + 'x', 'Password must be at most 64 characters long'],
+        ['ABCDEFG1_', 'Password must contain at least one lowercase letter, or be 16 characters or longer'],
+        ['abcdefg1_', 'Password must contain at least one uppercase letter, or be 16 characters or longer'],
+        ['Abcdefgh_', 'Password must contain at least one number, or be 16 characters or longer'],
+        ['Abcdefgh12', 'Password must contain at least one symbol, or be 16 characters or longer'],
+        ['Password@123', 'This password is too common. Choose another.'],
+        ['P@ssw0rd!', 'This password is too common. Choose another.'],
+        ['iloveyouiloveyou', 'This password is too common. Choose another.'],
     ])('%s -> %s', (password, message) => {
         expect(passwordProblem(password)).toBe(message);
     });
 
-    test.each(['Balance_2026', 'Abcdefg1-', 'Abcdefg1@', 'Abcdefg1:', 'Abcdefg1&'])('%s is accepted', password => {
+    test.each(['Balance_2026', 'Abcdefg1-', 'Abcdefg1!', 'Abcdefg1 #', 'mango river quietly bicycle', 'sixteen chars ok'])('%s is accepted', password => {
         expect(passwordProblem(password)).toBeNull();
+    });
+
+    test('a password may not contain the username', () => {
+        expect(passwordProblem('Asha_rao_2026!', 'asha_rao')).toBe('Password must not contain your username');
+        expect(passwordProblem('Balance_2026', 'asha_rao')).toBeNull();
+    });
+
+    test('counts characters, not bytes, but never more than bcrypt reads (72 bytes)', () => {
+        expect(passwordProblem('पासवर्ड बहुत लंबा है अब')).toBeNull();
+        expect(passwordProblem('पासवर्ड'.repeat(5))).toBe('Password must be at most 64 characters long');
     });
 });
 
@@ -65,7 +78,8 @@ describe('validateRegistration', () => {
     test.each<[Partial<RegistrationInput>, string]>([
         [{ name: '' }, 'Name is required'],
         [{ email: 'not-an-email' }, 'Please enter a valid email address'],
-        [{ password: 'weak', confirmPassword: 'weak' }, 'Password must be between 8 and 16 characters long'],
+        [{ password: 'weak', confirmPassword: 'weak' }, 'Password must be at least 8 characters long'],
+        [{ password: 'Asha_rao_2026', confirmPassword: 'Asha_rao_2026' }, 'Password must not contain your username'],
         [{ confirmPassword: 'Balance_2027' }, 'Passwords do not match'],
         [{ username: 'asha.rao' }, 'Username can only contain letters, numbers, and underscores'],
         [{ securityAnswer: 'x' }, 'Security answer must be at least 2 characters long'],

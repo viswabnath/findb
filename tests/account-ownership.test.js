@@ -10,7 +10,7 @@ const request = require('supertest');
 
 
 const { target, closeTarget } = require('./api-target');
-const { createTestUser, deleteTestUser, query } = require('../test-helpers');
+const { createTestUser, deleteTestUser, query, logIn } = require('../test-helpers');
 
 const OWNER = 'ownership_owner';
 const OTHER = 'ownership_other';
@@ -26,7 +26,7 @@ let otherBank;
 async function loggedIn(username, email, trackingOption) {
     await createTestUser({ username, password: PASSWORD, email, trackingOption });
     const agent = request.agent(target());
-    expect((await agent.post('/api/login').send({ username, password: PASSWORD })).status).toBe(200);
+    expect((await logIn(agent, username, PASSWORD)).status).toBe(200);
     return agent;
 }
 

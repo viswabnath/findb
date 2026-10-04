@@ -11,7 +11,7 @@
 const request = require('supertest');
 
 const { target, closeTarget } = require('./api-target');
-const { createTestUser, deleteTestUser, getPool, query } = require('../test-helpers');
+const { createTestUser, deleteTestUser, getPool, query, logIn } = require('../test-helpers');
 
 const USER = 'ledger_user';
 const OTHER = 'ledger_other';
@@ -28,7 +28,7 @@ beforeAll(async () => {
     user = await createTestUser({ username: USER, password: PASSWORD, email: 'ledger_user@example.com' });
     other = await createTestUser({ username: OTHER, password: PASSWORD, email: 'ledger_other@example.com' });
     agent = request.agent(target());
-    expect((await agent.post('/api/login').send({ username: USER, password: PASSWORD })).status).toBe(200);
+    expect((await logIn(agent, USER, PASSWORD)).status).toBe(200);
 });
 
 afterAll(async () => {

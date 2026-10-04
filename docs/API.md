@@ -16,7 +16,7 @@ http://localhost:3000/api
 
 ## Authentication
 
-Session-cookie based (`sessionId` cookie, HTTP-only, `SameSite=strict`, 2-hour lifetime, `Secure` when the request is HTTPS). Login and registration always start a new session, and also set `findb_signed_in=1`: a readable cookie with the same lifetime that holds no secret and grants nothing. The static website pages read it to show "Open FinDB" instead of "Log in". Every endpoint except register, login, logout, forgot-username, forgot-password and reset-password requires a valid session; otherwise it returns `401 { "error": "Authentication required" }`.
+Session-cookie based (`sessionId` cookie, HTTP-only, `SameSite=strict`, 2-hour lifetime, `Secure` when the request is HTTPS). Two-factor login is required ([security.md](security.md)): the password starts a **pending login** (`findb_login` cookie, HTTP-only, 10 minutes), which opens nothing until the code from the authenticator app finishes it, or, for an account without two-factor login yet, until setup is confirmed. Finishing a login always starts a new session and also sets `findb_signed_in=1`: a readable cookie with the same lifetime that holds no secret and grants nothing. The static website pages read it to show "Open FinDB" instead of "Log in". Every endpoint except register, login, the two-factor login and setup steps, logout, forgot-username, forgot-password and reset-password requires a valid session; otherwise it returns `401 { "error": "Authentication required" }`.
 
 ### Register
 **POST** `/api/register`
@@ -24,14 +24,14 @@ Session-cookie based (`sessionId` cookie, HTTP-only, `SameSite=strict`, 2-hour l
 ```json
 {
   "username": "letters, numbers, underscores; max 50",
-  "password": "8-16 chars, upper + lower + digit + one of _ - @ : &",
+  "password": "8-64 chars; under 16 needs upper + lower + digit + symbol; not common, breached or containing the username",
   "name": "max 100",
   "email": "valid email, max 255",
   "securityQuestion": "string",
   "securityAnswer": "max 200"
 }
 ```
-All fields are required. Response: `{ "success": true, "userId": 1 }`. Duplicate username or email returns `400`.
+All fields are required. Response: `{ "success": true, "userId": 1, "twoFactor": "setup" }`, with a pending login at two-factor setup (no session yet). Duplicate username or email returns `400`.
 
 ### Login
 **POST** `/api/login`
@@ -39,7 +39,32 @@ All fields are required. Response: `{ "success": true, "userId": 1 }`. Duplicate
 ```json
 { "username": "string", "password": "string" }
 ```
-Response: `{ "success": true, "userId": 1, "name": "string", "trackingOption": "income|expenses|both" }`
+Response: `{ "success": true, "twoFactor": "verify" | "setup" }`, with a pending login (no session yet). `verify`: send the code to `/api/login/two-factor`. `setup`: the account has no two-factor login yet; set it up with `/api/two-factor/setup`. A wrong password returns `400 { "error": "Invalid credentials" }`.
+
+### Login, step two
+**POST** `/api/login/two-factor` (needs the pending login at `verify`)
+
+```json
+{ "code": "123456" }
+```
+or `{ "recoveryCode": "abcde-fghij" }`. Response: `{ "success": true, "userId": 1, "name": "string", "trackingOption": "income|expenses|both" }`, with a new session. A wrong or reused code returns `400`; after five wrong codes in 15 minutes, `429` for any code. Without a pending login at this step, `401 { "error": "Your login has expired. Log in again." }`.
+
+### Two-factor setup
+Needs the pending login at `setup`.
+- **GET** `/api/two-factor/setup` → `{ "secret": "BASE32", "otpauthUri": "otpauth://totp/FinDB:username?..." }`. The same secret until it is confirmed. Not cached.
+- **POST** `/api/two-factor/setup` with `{ "code": "123456" }` → `{ "success": true, "recoveryCodes": ["abcde-fghij", ...10] }`, shown only now, with a new session. A wrong code returns `400`.
+
+### Two-factor status and recovery codes
+- **GET** `/api/two-factor` → `{ "enabledAt": "timestamp" | null, "recoveryCodesLeft": 10 }`
+- **POST** `/api/two-factor/recovery-codes` with `{ "code": "123456" }` → `{ "success": true, "recoveryCodes": [...10] }`, replacing all earlier codes. A wrong code returns `400`; too many, `429`.
+
+### Sessions
+- **GET** `/api/sessions` → `[{ "id": "hash", "device": "Chrome on Windows", "createdAt", "lastSeenAt", "current": true }]`, newest use first. `id` is a hash, never the session's real id.
+- **DELETE** `/api/sessions/:id` → `{ "success": true }`: signs that device out. Unknown id: `404`.
+- **DELETE** `/api/sessions` → `{ "success": true }`: signs out everywhere, this browser included, and clears its cookies.
+
+### Login history
+**GET** `/api/login-history` → the last 30 events, newest first: `[{ "event": "signed_in", "device": "Safari on iPhone", "at": "timestamp" }]`. Events: `signed_in`, `wrong_password`, `wrong_code`, `recovery_code_used`, `two_factor_enabled`, `recovery_codes_created`, `signed_out_session`, `signed_out_everywhere`, `password_changed`.
 
 ### Logout
 **POST** `/api/logout` → `{ "success": true }`. Deletes the session and clears the `sessionId` and `findb_signed_in` cookies.

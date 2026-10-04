@@ -41,13 +41,15 @@ DB_NAME=expense_tracker
 DB_PASSWORD=your-password
 DB_PORT=5432
 SESSION_SECRET=your-secure-secret
+# Field encryption, version:base64 32-byte key (docs/security.md); a different key per environment
+FIELD_ENCRYPTION_KEYS=1:base64-key
 ```
 
 The Supabase database in `.env` is production: project `findb-production-mumbai` (Mumbai, ref `iypiauyflbfvbgxotlcr`), data in the `public` schema. The app connects as the login `findb_app` (no superuser; it owns the tables), and Vercel runs in `bom1` (Mumbai). It moved from the Sydney project `findb-production` on 2026-10-03. A read-only login `findb_backup` makes the nightly encrypted backup (`.github/workflows/backup.yml`, see `docs/backups.md`); that is the only GitHub Actions workflow.
 Tests use a separate free Supabase project, `findb-test` (Mumbai, project ref `kcxjthhbclcgwdnenqsy`), whose connection settings are in the git-ignored `.env.test`. `scripts/use-test-env.js` loads `.env.test` over `.env` for `npm test`, `npm run test:e2e`, `setup-test-db` and `reset-test-db`, and each run prints which database it uses. It connects as the role `findb_test_app` (no superuser) through the Mumbai pooler, and the tests still use the `balancetrack_test` schema there. Without `.env.test`, tests fall back to the `balancetrack_test` schema of the database in `.env`.
 - Vercel builds production only (`ignoreCommand` in `vercel.json` skips every preview build). The Preview environment's variables point at `findb-test` with `REQUIRE_TEST_SCHEMA=true`, for a preview deployed by hand. Keep CI light: no GitHub Actions workflow runs the test suites; run them locally. The only workflow is the nightly backup (about a minute a day).
 - `tests/env.js` forces `DB_SCHEMA=balancetrack_test` in Jest; `clearTestData`, `deleteTestUser` and `reset-test-db.js` refuse to delete outside a `*_test` schema.
-- Every server a test starts (`scripts/run-api-tests.js`, `playwright.config.js`) gets `DB_SCHEMA=balancetrack_test` and `REQUIRE_TEST_SCHEMA=true`; with that flag `lib/db.ts` refuses any other schema. It also gets `DISABLE_RATE_LIMIT=true`.
+- Every server a test starts (`scripts/run-api-tests.js`, `playwright.config.js`) gets `DB_SCHEMA=balancetrack_test` and `REQUIRE_TEST_SCHEMA=true`; with that flag `lib/db.ts` refuses any other schema. It also gets `DISABLE_RATE_LIMIT=true` and `BREACHED_PASSWORD_CHECK=false` (no outside calls).
 - Never weaken those guards. A server without `DB_SCHEMA` reads and writes production data.
 - Never `require()` a database script to "check it loads" (`setup-db.js` runs on load); use `node --check`.
 - `testTimeout` is 30 s because of the remote database round trips, and suites run one at a time because they share one database.
@@ -86,7 +88,8 @@ A single Next.js 16 app (App Router, TypeScript strict) on Vercel, with Supabase
 - Entries may only use the user's own accounts (`requireOwnAccount` in `lib/services/transactions.ts`); every query is limited to the session's user.
 - Build SQL with `$n` parameters only, never string interpolation.
 - `lib/db.ts` is the pool: `DB_SCHEMA` selects the schema, SSL when `DB_SSL=true` or in production, and client-side time limits (10 s to connect, 20 s per query) so a stalled connection fails instead of hanging.
-- **Sessions** (`lib/session.ts`) live in the `session` table in the former Express format (signed `sessionId` cookie, `sess` JSON with `userId`), so older sessions stay valid. Login and registration always start a new session; logout deletes it. The cookie is `HttpOnly`, `SameSite=Strict`, 2 hours, and `Secure` over HTTPS. Expired rows are deleted on each login.
+- **Sessions** (`lib/session.ts`) live in the `session` table in the former Express format (signed `sessionId` cookie, `sess` JSON with `userId`), plus `user_id`, `user_agent` and `last_seen_at` for the session list. A finished login always starts a new session; logout deletes it. The cookie is `HttpOnly`, `SameSite=Strict`, 2 hours, and `Secure` over HTTPS. Expired rows are deleted on each login.
+- **Two-factor login is required** (`docs/security.md`, `lib/services/security.ts`, `lib/login-flow.ts`): the password (or registration) starts a pending login (`findb_login` cookie, a `session` row without `userId`, so it opens nothing), and a TOTP code or recovery code (or confirming setup) finishes it. TOTP secrets are encrypted with `lib/field-encryption.ts` (AES-256-GCM, `FIELD_ENCRYPTION_KEYS`, a separate key per environment). In tests, users have `TEST_TOTP_SECRET` and `logIn(agent, username, password)` in `test-helpers.js` does both steps; never add a switch that skips two-factor login.
 - **Rate limits** (`lib/rate-limit.ts`): 100 requests a minute per IP, and 5 failed auth attempts per 15 minutes per IP. Counted in memory per instance, behind `RateLimitStore`.
 - **Security headers** are in `next.config.ts` (`tests/unit/security-headers.test.ts`): the standard set on every response, and a deny-all CSP on API responses (pages get theirs from `proxy.ts`).
 - New server code goes in `lib/` with no Next.js imports; financial logic goes in `src/core/`.
@@ -109,7 +112,7 @@ Jest projects in `package.json`, each listing its files in `testMatch` (**a new 
 
 Playwright flows are in `tests/e2e/` (`npm run test:e2e`); they use the screens' ids and `data-action` hooks. `tests/e2e/public-pages.spec.js` covers the website.
 
-`test-helpers.js` provides `clearTestData()`, `createTestUser()`, `deleteTestUser(username)` and `query()` against the test schema. Suites that create users call `deleteTestUser` in `beforeAll`/`afterAll` so reruns don't fail with "username exists". Test passwords must satisfy the password rules (special characters: `_ - @ : &` only).
+`test-helpers.js` provides `clearTestData()`, `createTestUser()`, `deleteTestUser(username)` and `query()` against the test schema. Suites that create users call `deleteTestUser` in `beforeAll`/`afterAll` so reruns don't fail with "username exists". Test passwords must satisfy the password rules (`passwordProblem`: under 16 characters needs upper, lower, digit and symbol; not common; not containing the username). The api Jest project transforms TypeScript, so `test-helpers.js` uses `lib/totp.ts` and `lib/field-encryption.ts` directly.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

@@ -5,7 +5,7 @@
 
 const request = require('supertest');
 const { target } = require('./api-target');
-const { deleteTestUser } = require('../test-helpers');
+const { deleteTestUser, enableTestTwoFactor, logIn } = require('../test-helpers');
 
 describe('Bank Deletion Fix', () => {
     let agent;
@@ -20,7 +20,7 @@ describe('Bank Deletion Fix', () => {
             .post('/api/register')
             .send({
                 username: 'testuser_bankdel',
-                password: 'Test123&',
+                password: 'Bankdel_Pass9',
                 name: 'Test User',
                 email: 'bankdel@example.com',
                 securityQuestion: 'What is your pet name?',
@@ -28,13 +28,10 @@ describe('Bank Deletion Fix', () => {
             });
 
         expect(registerResponse.status).toBe(200);
+        // Registration leaves two-factor setup to do; the test user gets the known test secret
+        await enableTestTwoFactor(registerResponse.body.userId);
 
-        const loginResponse = await agent
-            .post('/api/login')
-            .send({
-                username: 'testuser_bankdel',
-                password: 'Test123&'
-            });
+        const loginResponse = await logIn(agent, 'testuser_bankdel', 'Bankdel_Pass9');
 
         expect(loginResponse.status).toBe(200);
     });

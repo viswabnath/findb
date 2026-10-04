@@ -14,7 +14,7 @@ FinDB (Finance Dashboard) is a personal finance tracker for people in India. You
 - **Tracking modes:** income only, expenses only, or both, chosen at sign-up.
 - **Installable:** add FinDB to the home screen of a phone, tablet or computer, where it opens like an app.
 - **Accounts and security:**
-  - username and password login with 2-hour sessions;
+  - username and password login with a required code from an authenticator app, and 2-hour sessions you can see and sign out;
   - account recovery by security question that does not reveal whether an account exists, and pauses after repeated wrong answers;
   - bcrypt password hashing and rate-limited login;
   - a Content-Security-Policy and standard security headers on every response;
@@ -64,6 +64,7 @@ DB_USER=<database user>
 DB_PASSWORD=<password>
 DB_SSL=true
 SESSION_SECRET=<64-byte hex string>
+FIELD_ENCRYPTION_KEYS=1:<base64 of 32 random bytes>   # docs/security.md
 # Optional: the Postgres schema to use (default: public)
 DB_SCHEMA=findb_dev
 ```
@@ -102,7 +103,7 @@ Tests always use the `balancetrack_test` schema and refuse to run against any ot
 FinDB runs on Vercel as a standard Next.js project (`vercel.json` sets the region, `bom1` in Mumbai, next to the database).
 
 1. Import the repository in Vercel.
-2. Add the environment variables from `.env` for Production (Settings > Environment Variables). Use a different `SESSION_SECRET` per environment.
+2. Add the environment variables from `.env` for Production (Settings > Environment Variables). Use a different `SESSION_SECRET` and `FIELD_ENCRYPTION_KEYS` per environment.
 3. Run `npm run setup-db` once against the production database, then `node scripts/migrate.js --production` (after a backup, for later migrations).
 
 Only production is built: merging into `master` deploys production. Preview builds for other branches are skipped (`ignoreCommand` in `vercel.json`), which saves build time on the free plan. The Preview environment still points at the test database (`balancetrack_test` schema, with `REQUIRE_TEST_SCHEMA=true`), in case a preview is ever deployed by hand with `vercel deploy`.
@@ -113,6 +114,7 @@ Only production is built: merging into `master` deploys production. Preview buil
 - [docs/STATUS.md](docs/STATUS.md): current status and known issues
 - [docs/v2-plan.md](docs/v2-plan.md): planned features
 - [docs/ledger.md](docs/ledger.md): the double-entry ledger, migrations and the balance check
+- [docs/security.md](docs/security.md): two-factor login, encryption of sensitive values, sessions and passwords
 - [docs/backups.md](docs/backups.md): nightly encrypted backups and how to restore them
 - [docs/costs.md](docs/costs.md): running costs, free limits, alerts and upkeep
 

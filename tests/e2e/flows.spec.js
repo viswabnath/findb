@@ -125,7 +125,7 @@ test('logout ends the session and login restores it', async ({ page }) => {
     const afterLogout = await page.request.get('/api/banks');
     expect(afterLogout.status()).toBe(401);
 
-    await login(page, user.username, user.password);
+    await login(page, user);
     const afterLogin = await page.request.get('/api/banks');
     expect(afterLogin.status()).toBe(200);
 });
@@ -186,5 +186,5 @@ test('forgot password resets it through the security question', async ({ page })
     await page.locator('[data-action="resetPassword"]').click();
     await expect(page.locator('.toast-message', { hasText: 'Password reset successfully' })).toBeVisible();
 
-    await login(page, user.username, newPassword);
+    await login(page, user, newPassword);
 });
