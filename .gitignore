@@ -135,6 +135,8 @@ scratch.js
 
 # Database dumps and backups
 *.sql
+# except the schema migrations, which are code (docs/ledger.md)
+!db/migrations/*.sql
 *.dump
 *.sqlite
 *.db
