@@ -1,5 +1,7 @@
 # Keeps dependencies up to date with as little upkeep as possible:
 #   - once a month, with all minor and patch updates grouped into a single pull request;
+#   - packages that must move together (ESLint and its plugins, React and its types) always come in
+#     one pull request, majors included, so no merge leaves a combination npm cannot install;
 #   - security fixes as soon as GitHub knows of them (repository settings: Dependabot security updates).
 # Nothing runs automatically on these pull requests (no CI, and Vercel skips preview builds), so
 # run the tests locally before merging one. See docs/costs.md.
@@ -10,7 +12,12 @@ updates:
     schedule:
       interval: monthly
     open-pull-requests-limit: 3
+    # A package goes to the first group it matches, so the move-together groups come first
     groups:
+      eslint:
+        patterns: ['eslint', '@eslint/*', 'typescript-eslint', '@typescript-eslint/*', 'globals']
+      react:
+        patterns: ['react', 'react-dom', '@types/react', '@types/react-dom']
       minor-and-patch:
         update-types: [minor, patch]
   - package-ecosystem: github-actions
