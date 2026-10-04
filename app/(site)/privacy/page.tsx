@@ -57,24 +57,42 @@ export default function PrivacyPage() {
                             kept for 30 days, and can be read only with a key held by FinDB.
                         </p>
 
+                        <h2>Who is responsible</h2>
+                        <p>
+                            FinDB is made by OneMark, which decides how your data is used and is responsible for it under India&apos;s
+                            Digital Personal Data Protection Act, 2023. You can reach us at <strong>support@onemark.co.in</strong>.
+                        </p>
+
+                        <h2>Your consent</h2>
+                        <p>
+                            When you create an account, FinDB shows a short version of this notice and asks you to agree to it; it
+                            records when you agreed and to which version. If this notice changes in a way that matters, FinDB asks
+                            you again before you continue. You can withdraw your consent at any time in Settings, under
+                            &ldquo;Your data&rdquo;, as easily as you gave it: FinDB then signs you out everywhere and stops using your
+                            data until you agree again. Withdrawing does not delete your data; ask us to delete it, below.
+                        </p>
+
                         <h2>Your rights</h2>
                         <p>
-                            Under India&apos;s Digital Personal Data Protection Act, 2023, you can ask to see, correct, export or
-                            erase your data. You can edit your records and export your activity log in the app today. A full
-                            export and self-service account deletion are part of the public launch; until then, email{' '}
-                            <strong>support@onemark.co.in</strong> and we will do it for you.
+                            You can ask to see, correct, export or erase your data. Settings shows what FinDB holds about you, and
+                            you can edit your records and export your activity log in the app today. A full export and
+                            self-service account deletion are part of the public launch; until then, email{' '}
+                            <strong>support@onemark.co.in</strong> and we will do it for you. You can also name someone to exercise
+                            these rights for you if you die or cannot act yourself.
                         </p>
 
                         <h2>How long we keep it</h2>
                         <p>
-                            For as long as you have an account. When you delete your account, your data is deleted with it,
-                            apart from what the law requires us to keep.
+                            For as long as you have an account, except your login history, which is kept for a year. When you
+                            delete your account, your data is deleted with it, apart from what the law requires us to keep.
+                            Backups that still contain it expire within 30 days.
                         </p>
 
                         <h2>Questions or complaints</h2>
                         <p>
-                            Email <strong>support@onemark.co.in</strong>. If we change this guide in a way that matters, we
-                            will tell you in the app before it takes effect.
+                            Email <strong>support@onemark.co.in</strong> and we will reply. If you are not satisfied with our
+                            answer, you can complain to the Data Protection Board of India. If we change this guide in a way that
+                            matters, we will tell you in the app and ask for your consent again before it takes effect.
                         </p>
                     </div>
                 </div>

@@ -28,10 +28,11 @@ Session-cookie based (`sessionId` cookie, HTTP-only, `SameSite=strict`, 2-hour l
   "name": "max 100",
   "email": "valid email, max 255",
   "securityQuestion": "string",
-  "securityAnswer": "max 200"
+  "securityAnswer": "max 200",
+  "acceptPrivacyNotice": true
 }
 ```
-All fields are required. Response: `{ "success": true, "userId": 1, "twoFactor": "setup" }`, with a pending login at two-factor setup (no session yet). Duplicate username or email returns `400`.
+All fields are required; `acceptPrivacyNotice` must be `true` (the consent is recorded with the notice version, [privacy.md](privacy.md)), otherwise `400 { "error": "Please read and accept the privacy notice to create an account" }`. Response: `{ "success": true, "userId": 1, "twoFactor": "setup" }`, with a pending login at two-factor setup (no session yet). Duplicate username or email returns `400`.
 
 ### Login
 **POST** `/api/login`
@@ -70,7 +71,12 @@ Needs the pending login at `setup`.
 **POST** `/api/logout` → `{ "success": true }`. Deletes the session and clears the `sessionId` and `findb_signed_in` cookies.
 
 ### Current user
-**GET** `/api/user` → the logged-in user's profile row.
+**GET** `/api/user` → `{ "name", "tracking_option", "consentNeeded": false, "noticeVersion": "2026-10-04" }`. `consentNeeded` is true until the user agrees to the current privacy notice (accounts from before it, or after withdrawing); the app then shows the consent screen.
+
+### Privacy
+- **GET** `/api/privacy` → `{ "consent": { "noticeVersion", "givenAt", "withdrawnAt", "needed" }, "tables": [{ "table", "category", "holds", "purpose", "retention", "rows" }] }`: what FinDB holds about the user (`lib/data-inventory.ts`), with their record counts.
+- **POST** `/api/privacy/consent` with `{ "noticeVersion": "2026-10-04" }` → `{ "success": true }`. Any other version: `400` (the notice changed; reload).
+- **POST** `/api/privacy/withdraw` → `{ "success": true }`: consent withdrawn, every session signed out, cookies cleared. Data is not deleted.
 
 ### Set tracking option
 **POST** `/api/set-tracking-option`

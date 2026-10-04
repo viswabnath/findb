@@ -41,7 +41,7 @@ describe('a new account sets up two-factor login before it is signed in', () => 
     test('registering starts a pending login, which opens nothing', async () => {
         const response = await agent.post('/api/register').send({
             username: NEW_USER, password: PASSWORD, name: 'New User', email: 'security_new@example.com',
-            securityQuestion: 'pet', securityAnswer: 'rex',
+            securityQuestion: 'pet', securityAnswer: 'rex', acceptPrivacyNotice: true,
         });
         expect(response.status).toBe(200);
         expect(response.body.twoFactor).toBe('setup');
@@ -225,7 +225,7 @@ describe('sessions and login history', () => {
 });
 
 describe('passwords', () => {
-    const base = { name: 'Phrase User', securityQuestion: 'pet', securityAnswer: 'rex' };
+    const base = { name: 'Phrase User', securityQuestion: 'pet', securityAnswer: 'rex', acceptPrivacyNotice: true };
 
     test('a passphrase of plain words, 16 characters or more, is accepted', async () => {
         const response = await request(target()).post('/api/register')

@@ -5,6 +5,7 @@ import { logActivity } from '../activity-log';
 import { isValidEmail, isValidUsername, passwordProblem } from '../auth-validation';
 import { BREACHED_PASSWORD_MESSAGE, isBreachedPassword } from '../breached-password';
 import { recordLoginEvent } from './security';
+import { consentStatus, recordConsent } from './privacy';
 import { RequestError, withTransaction } from '../transaction';
 
 /**
@@ -19,8 +20,12 @@ const str = (value: unknown): string => (typeof value === 'string' ? value : '')
 
 // ----- Registration and login -----
 
-/** Create a user and return its id (tracking option 'both' until the welcome step sets it) */
-export async function register(pool: Pool, body: Body): Promise<number> {
+/**
+ * Create a user and return its id (tracking option 'both' until the welcome step sets it). The
+ * privacy notice must be accepted ({ acceptPrivacyNotice: true }); the consent is recorded with
+ * the account.
+ */
+export async function register(pool: Pool, body: Body, userAgent: string | null = null): Promise<number> {
     const { username, password, name, email, securityQuestion, securityAnswer } = body;
     if (!username || !password || !name || !email || !securityQuestion || !securityAnswer
         || [username, password, name, email, securityQuestion, securityAnswer].some(value => typeof value !== 'string')) {
@@ -33,6 +38,7 @@ export async function register(pool: Pool, body: Body): Promise<number> {
     if (e.length > 255) throw new RequestError(400, 'Email too long (max 255 characters)');
     if (a.length > 200) throw new RequestError(400, 'Security answer too long (max 200 characters)');
     if (!isValidEmail(e)) throw new RequestError(400, 'Invalid email format');
+    if (body.acceptPrivacyNotice !== true) throw new RequestError(400, 'Please read and accept the privacy notice to create an account');
     if (!isValidUsername(u)) throw new RequestError(400, 'Username can only contain letters, numbers, and underscores');
     const problem = passwordProblem(p, u);
     if (problem) throw new RequestError(400, problem);
@@ -44,11 +50,14 @@ export async function register(pool: Pool, body: Body): Promise<number> {
     const passwordHash = await bcrypt.hash(p, 10);
     const answerHash = await bcrypt.hash(a.toLowerCase().trim(), 10);
     try {
-        const result = await pool.query(
-            'INSERT INTO users (username, password_hash, name, email, security_question, security_answer_hash, tracking_option) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
-            [u, passwordHash, n, e, q, answerHash, 'both'],
-        );
-        return result.rows[0].id;
+        return await withTransaction(pool, async (client) => {
+            const result = await client.query(
+                'INSERT INTO users (username, password_hash, name, email, security_question, security_answer_hash, tracking_option) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id',
+                [u, passwordHash, n, e, q, answerHash, 'both'],
+            );
+            await recordConsent(client, result.rows[0].id, userAgent);
+            return result.rows[0].id as number;
+        });
     } catch (error) {
         if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23505') {
             throw new RequestError(400, 'Username or email already exists');
@@ -76,9 +85,12 @@ export async function login(pool: Pool, body: Body, userAgent: string | null = n
     return { id: user.id, twoFactorEnabled: user.totp_enabled_at !== null };
 }
 
+/** The logged-in user's name and tracking option, and whether they still need to agree to the privacy notice */
 export async function getUser(pool: Pool, userId: number): Promise<QueryResultRow> {
     const result = await pool.query('SELECT name, tracking_option FROM users WHERE id = $1', [userId]);
-    return result.rows[0] ?? {};
+    if (result.rows.length === 0) return {};
+    const consent = await consentStatus(pool, userId);
+    return { ...result.rows[0], consentNeeded: consent.needed, noticeVersion: consent.noticeVersion };
 }
 
 export async function setTrackingOption(pool: Pool, userId: number, body: Body): Promise<void> {

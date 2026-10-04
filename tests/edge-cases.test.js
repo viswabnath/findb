@@ -23,7 +23,8 @@ describe('Edge Cases & Error Scenarios - Complete Coverage', () => {
             name: 'Edge Test User',
             email: 'edge@test.com',
             securityQuestion: 'What is your edge test?',
-            securityAnswer: 'boundaries'
+            securityAnswer: 'boundaries',
+            acceptPrivacyNotice: true
         };
 
         const registered = await request(target())
@@ -78,7 +79,8 @@ describe('Edge Cases & Error Scenarios - Complete Coverage', () => {
                     name: 'Duplicate User',
                     email: 'dupe@test.com',
                     securityQuestion: 'test',
-                    securityAnswer: 'test'
+                    securityAnswer: 'test',
+                    acceptPrivacyNotice: true
                 });
 
             expect(response.status).toBe(400);
@@ -94,7 +96,8 @@ describe('Edge Cases & Error Scenarios - Complete Coverage', () => {
                     name: 'Duplicate Email User',
                     email: 'edge@test.com', // Already exists
                     securityQuestion: 'test',
-                    securityAnswer: 'test'
+                    securityAnswer: 'test',
+                    acceptPrivacyNotice: true
                 });
 
             expect(response.status).toBe(400);
@@ -123,7 +126,8 @@ describe('Edge Cases & Error Scenarios - Complete Coverage', () => {
                         name: 'Test User',
                         email: `test${Date.now()}${Math.random()}@example.com`,
                         securityQuestion: 'test',
-                        securityAnswer: 'test'
+                        securityAnswer: 'test',
+                        acceptPrivacyNotice: true
                     });
 
                 expect(response.status).toBe(400);

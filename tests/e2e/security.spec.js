@@ -5,7 +5,7 @@
  * everywhere" ends the session.
  */
 const { test, expect } = require('@playwright/test');
-const { uniqueUser, register, chooseTracking, logout } = require('./helpers');
+const { uniqueUser, register, chooseTracking, login, logout } = require('./helpers');
 
 test('a recovery code logs in when the phone is lost', async ({ page }) => {
     const user = uniqueUser();
@@ -52,4 +52,29 @@ test('a password alone opens nothing', async ({ page }) => {
     expect((await page.request.get('/api/banks')).status()).toBe(401);
     await page.goto('/setup');
     await expect(page).toHaveURL(/\/login$/);
+});
+
+test('sign-up shows the privacy notice, and withdrawing consent locks the app until agreeing again', async ({ page }) => {
+    const user = uniqueUser();
+    await page.goto('/register');
+    await expect(page.locator('#register-privacy-notice')).toContainText('Your rights');
+    await register(page, user);
+    await chooseTracking(page, 'both');
+
+    await page.locator('#nav-bar [data-action="showSection"][data-section="settings"]').click();
+    await expect(page.locator('#consent-status')).toContainText('Consent given');
+    await expect(page.locator('#my-data-list li[data-table="users"]')).toContainText('1 record');
+    await page.locator('[data-action="withdrawConsent"]').click();
+    await expect(page.locator('#withdraw-consent-warning')).toBeVisible();
+    await page.locator('[data-action="confirmWithdrawConsent"]').click();
+    await expect(page.locator('#login-form')).toBeVisible();
+
+    await login(page, user);
+    // login() waits for the app frame; the consent screen shows inside it instead of the screen
+    await expect(page.locator('#consent-section')).toBeVisible();
+    await expect(page.locator('[data-action="giveConsent"]')).toBeDisabled();
+    await page.locator('#consent-agree').check();
+    await page.locator('[data-action="giveConsent"]').click();
+    await expect(page.locator('#setup-section')).toBeVisible();
+    await expect(page.locator('#consent-section')).toHaveCount(0);
 });

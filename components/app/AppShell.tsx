@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { ArrowLeftRight, ChartColumn, History, LogOut, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Modal } from '@/components/Modal';
+import { ConsentScreen } from '@/components/privacy/ConsentScreen';
 import { Logo } from '@/components/site/Logo';
 import { apiGet, apiPost, onActiveRequestsChange } from '@/lib/api-client';
 
@@ -36,8 +37,15 @@ export function AppShell({ children }: { children: ReactNode }) {
     const [busy, setBusy] = useState(false);
     const [name, setName] = useState('');
 
+    // Set when the account has not agreed to the current privacy notice: the app waits for consent
+    const [consentVersion, setConsentVersion] = useState<string | null>(null);
+
     useEffect(() => {
-        apiGet<{ name?: string }>('/api/user').then(result => { if (result.ok) setName(result.data.name ?? ''); });
+        apiGet<{ name?: string; consentNeeded?: boolean; noticeVersion?: string }>('/api/user').then(result => {
+            if (!result.ok) return;
+            setName(result.data.name ?? '');
+            if (result.data.consentNeeded && result.data.noticeVersion) setConsentVersion(result.data.noticeVersion);
+        });
     }, []);
 
     // Show the progress bar while requests run, and hide it shortly after the last one
@@ -95,7 +103,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                         </button>
                     </header>
 
-                    <main className="app-content">{children}</main>
+                    <main className="app-content">
+                        {consentVersion
+                            ? <ConsentScreen noticeVersion={consentVersion} onAgreed={() => window.location.reload()} onLogout={logout} />
+                            : children}
+                    </main>
 
                     <footer className="app-footer">
                         <nav aria-label="FinDB">
