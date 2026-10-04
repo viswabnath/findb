@@ -45,6 +45,14 @@ export function toPaise(value: unknown): number {
     return negative ? -Number(paise) : Number(paise);
 }
 
+/** Whole paise as rupees text with two decimals, as Postgres returns a DECIMAL(20,2): 123456 is "1234.56" */
+export function fromPaise(paise: number | string | bigint): string {
+    const value = BigInt(paise);
+    const unsigned = value < 0n ? -value : value;
+    const text = `${unsigned / 100n}.${String(unsigned % 100n).padStart(2, '0')}`;
+    return value < 0n ? `-${text}` : text;
+}
+
 /** The id of one of the user's built-in accounts, created the first time it is needed */
 export async function systemAccount(client: Client, userId: number, key: SystemAccount): Promise<number> {
     const account = SYSTEM_ACCOUNTS[key];
@@ -152,6 +160,57 @@ export async function accountBalance(client: Client, accountId: number): Promise
     return Number(result.rows[0].balance);
 }
 
+export interface Balances {
+    /** By bank id: positive is money in the bank */
+    banks: Map<number, number>;
+    /** By card id: negative is money owed on the card */
+    cards: Map<number, number>;
+    /** The built-in accounts that have been created, by key */
+    system: Partial<Record<SystemAccount, number>>;
+}
+
+/**
+ * Every account's balance in paise, from the entries that still count: all of them, or only those
+ * dated on or before `asOf` (YYYY-MM-DD).
+ */
+export async function balances(client: Client, userId: number, asOf?: string): Promise<Balances> {
+    const result = await client.query(
+        `SELECT a.source_table, a.source_id, a.system_key,
+                COALESCE(SUM(l.amount_paise) FILTER (WHERE e.voided_at IS NULL AND ($2::date IS NULL OR e.entry_date <= $2::date)), 0)::bigint AS paise
+         FROM ledger_accounts a
+         LEFT JOIN journal_lines l ON l.user_id = a.user_id AND l.account_id = a.id
+         LEFT JOIN journal_entries e ON e.user_id = l.user_id AND e.id = l.entry_id
+         WHERE a.user_id = $1
+         GROUP BY a.id`,
+        [userId, asOf ?? null],
+    );
+    const found: Balances = { banks: new Map(), cards: new Map(), system: {} };
+    for (const row of result.rows) {
+        const paise = Number(row.paise);
+        if (row.source_table === 'banks') found.banks.set(Number(row.source_id), paise);
+        else if (row.source_table === 'credit_cards') found.cards.set(Number(row.source_id), paise);
+        else if (row.system_key) found.system[row.system_key as SystemAccount] = paise;
+    }
+    return found;
+}
+
+/** Income and spending in paise between two dates (YYYY-MM-DD, both included), from the entries that still count */
+export async function flows(client: Client, userId: number, from: string, to: string): Promise<{ income: number; expenses: number }> {
+    const result = await client.query(
+        `SELECT a.system_key, COALESCE(SUM(l.amount_paise), 0)::bigint AS paise
+         FROM journal_lines l
+         JOIN journal_entries e ON e.user_id = l.user_id AND e.id = l.entry_id
+         JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
+         WHERE l.user_id = $1 AND e.voided_at IS NULL AND e.entry_date BETWEEN $2::date AND $3::date
+           AND a.system_key IN ('income', 'expense')
+         GROUP BY a.system_key`,
+        [userId, from, to],
+    );
+    const by = Object.fromEntries(result.rows.map(row => [row.system_key, Number(row.paise)]));
+    // Income accounts are credited (negative) when money comes in
+    return { income: -(by.income ?? 0), expenses: by.expense ?? 0 };
+}
+
 // ----- What each change to the former tables records -----
 
 interface IncomeRow { id: unknown; source: string; amount: unknown; credited_to_type: unknown; credited_to_id: unknown; date: unknown }
@@ -190,11 +249,15 @@ export async function recordExpense(client: Client, userId: number, row: Expense
     });
 }
 
-/** A bank's starting balance: into the bank, from Opening balances */
+/**
+ * A bank's starting balance: into the bank, from Opening balances. Dated the day the bank was
+ * added, also when the starting balance is edited later, so earlier months keep it.
+ */
 export async function recordBankOpening(client: Client, userId: number, bankId: unknown, name: string, initialBalance: unknown): Promise<void> {
     const paise = toPaise(initialBalance ?? 0);
+    const added = await client.query('SELECT created_at::date::text AS day FROM banks WHERE id = $1 AND user_id = $2', [bankId, userId]);
     await postEntry(client, {
-        userId, description: `Opening balance: ${name}`, type: 'opening_balance', source: { table: 'banks', id: bankId },
+        userId, date: added.rows[0]?.day, description: `Opening balance: ${name}`, type: 'opening_balance', source: { table: 'banks', id: bankId },
         lines: [
             { accountId: await bankAccount(client, userId, bankId), paise },
             { accountId: await systemAccount(client, userId, 'opening_balance'), paise: -paise },
@@ -204,14 +267,16 @@ export async function recordBankOpening(client: Client, userId: number, bankId: 
 
 /**
  * Make the cash account's balance equal `balance` (the Setup screen sets cash to an amount, it does
- * not add to it): the difference is recorded against Opening balances the first time, and against
- * Balance adjustments after that.
+ * not add to it): the difference is recorded against Opening balances the first time, dated the day
+ * the user registered (the cash they started with), and against Balance adjustments, dated today,
+ * after that.
  */
 export async function recordCashSetTo(client: Client, userId: number, cashRowId: unknown, balance: unknown, first: boolean): Promise<void> {
     const cash = await systemAccount(client, userId, 'cash');
     const difference = toPaise(balance ?? 0) - await accountBalance(client, cash);
+    const registered = first ? (await client.query('SELECT created_at::date::text AS day FROM users WHERE id = $1', [userId])).rows[0]?.day : undefined;
     await postEntry(client, {
-        userId, description: first ? 'Opening balance: Cash' : 'Cash balance set by hand', type: first ? 'opening_balance' : 'adjustment',
+        userId, date: registered, description: first ? 'Opening balance: Cash' : 'Cash balance set by hand', type: first ? 'opening_balance' : 'adjustment',
         source: { table: 'cash_balance', id: cashRowId },
         lines: [
             { accountId: cash, paise: difference },

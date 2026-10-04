@@ -186,6 +186,96 @@ describe('every change keeps the ledger equal to the stored balances', () => {
     });
 });
 
+describe('balances and the summary are read from the ledger', () => {
+    const today = new Date();
+    const month = today.getMonth() + 1;
+    const year = today.getFullYear();
+    const pad = n => String(n).padStart(2, '0');
+    const thisMonth = `${year}-${pad(month)}-01`;
+    // A day in the next month: after the end of the month the summary shows
+    const nextMonth = month === 12 ? `${year + 1}-01-05` : `${year}-${pad(month + 1)}-05`;
+    let bank;
+    let card;
+
+    beforeAll(async () => {
+        bank = (await agent.post('/api/banks').send({ name: 'Reads Bank', initialBalance: 1000 })).body;
+        card = (await agent.post('/api/credit-cards').send({ name: 'Reads Card', creditLimit: 2000 })).body;
+        // Added well before this month's end, so the summary lists them on any day of the month
+        await query('UPDATE banks SET created_at = created_at - interval \'40 days\' WHERE id = $1', [bank.id]);
+        await query('UPDATE credit_cards SET created_at = created_at - interval \'40 days\' WHERE id = $1', [card.id]);
+        await agent.post('/api/income').send({ source: 'This month', amount: 300, creditedToType: 'bank', creditedToId: bank.id, date: thisMonth });
+        await agent.post('/api/income').send({ source: 'Next month', amount: 50, creditedToType: 'bank', creditedToId: bank.id, date: nextMonth });
+        await agent.post('/api/expenses').send({ title: 'Card spend', amount: 120, paymentMethod: 'credit_card', paymentSourceId: card.id, date: thisMonth });
+    });
+
+    test('the lists show the ledger\'s balance, not the former column', async () => {
+        // Tamper with the former columns: the API must not notice
+        await query('UPDATE banks SET current_balance = 1 WHERE id = $1', [bank.id]);
+        await query('UPDATE credit_cards SET used_limit = 1 WHERE id = $1', [card.id]);
+        try {
+            const banks = (await agent.get('/api/banks')).body;
+            expect(banks.find(row => row.id === bank.id).current_balance).toBe('1350.00');
+            const cards = (await agent.get('/api/credit-cards')).body;
+            expect(cards.find(row => row.id === card.id).used_limit).toBe('120.00');
+        } finally {
+            await query('UPDATE banks SET current_balance = 1350 WHERE id = $1', [bank.id]);
+            await query('UPDATE credit_cards SET used_limit = 120 WHERE id = $1', [card.id]);
+        }
+        await expectLedgerAgrees();
+    });
+
+    test('cash shows the ledger\'s balance', async () => {
+        const cash = (await agent.get('/api/cash-balance')).body;
+        const stored = await query('SELECT balance FROM cash_balance WHERE user_id = $1', [user.id]);
+        expect(cash.balance).toBe(stored.rows[0].balance);
+    });
+
+    test('the summary counts what is dated within the month, and balances as at its last day', async () => {
+        const summary = (await agent.get(`/api/monthly-summary?month=${month}&year=${year}`)).body;
+        const summaryBank = summary.banks.find(row => row.id === bank.id);
+        // 1000 opening + 300 this month; the 50 dated next month is not yet in
+        expect(summaryBank.current_balance).toBe('1300.00');
+        expect(summary.creditCards.find(row => row.id === card.id).current_balance).toBe('120.00');
+
+        // The other income in this file is dated in March 2026 and deleted
+        expect(summary.monthlyIncome).toBe(300);
+        expect(summary.totalExpenses).toBe(120);
+
+        // The bank list (today's balance) already includes next month's income
+        const banks = (await agent.get('/api/banks')).body;
+        expect(banks.find(row => row.id === bank.id).current_balance).toBe('1350.00');
+    });
+
+    test('an edited starting balance keeps the day the bank was added', async () => {
+        // The bank was dated back 40 days above, after its opening entry was recorded today
+        expect((await agent.put(`/api/banks/${bank.id}`).send({ name: 'Reads Bank', initialBalance: 1100 })).status).toBe(200);
+        const opening = await query(
+            `SELECT e.entry_date = b.created_at::date AS same_day FROM journal_entries e JOIN banks b ON b.id = e.source_id
+             WHERE e.source_table = 'banks' AND e.source_id = $1 AND e.entry_type = 'opening_balance' AND e.voided_at IS NULL`,
+            [bank.id],
+        );
+        expect(opening.rows).toEqual([{ same_day: true }]);
+        await expectLedgerAgrees();
+    });
+
+    test('the overspend check uses the ledger\'s balance', async () => {
+        // The former column says plenty; the ledger (1450.00 now) decides
+        await query('UPDATE banks SET current_balance = 999999 WHERE id = $1', [bank.id]);
+        try {
+            const response = await agent.post('/api/expenses')
+                .send({ title: 'Too much', amount: '1450.01', paymentMethod: 'bank', paymentSourceId: bank.id, date: thisMonth });
+            expect(response.status).toBe(400);
+            expect(response.body.error).toBe('Insufficient bank balance');
+        } finally {
+            await query('UPDATE banks SET current_balance = 1450 WHERE id = $1', [bank.id]);
+        }
+        const exact = await agent.post('/api/expenses')
+            .send({ title: 'Exactly enough', amount: '1450.00', paymentMethod: 'bank', paymentSourceId: bank.id, date: thisMonth });
+        expect(exact.status).toBe(200);
+        await expectLedgerAgrees();
+    });
+});
+
 describe('the database guards the ledger', () => {
     /** Run statements in one transaction that is always rolled back; resolves to the error, if any */
     async function inRolledBackTransaction(work) {

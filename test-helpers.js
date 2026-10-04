@@ -4,6 +4,8 @@
  */
 
 require('dotenv').config({ quiet: true });
+const fs = require('fs');
+const path = require('path');
 const bcrypt = require('bcryptjs');
 
 // Use the same pool instance as the main application to avoid conflicts
@@ -103,6 +105,18 @@ async function createTestUser(userData = {}) {
 }
 
 /**
+ * The fixtures below write the former tables directly, without the app's services, so the ledger
+ * (docs/ledger.md) does not know about them. Each one then brings the ledger up to date the same way
+ * existing data was moved: the backfill migrations, which only add what is missing.
+ */
+const LEDGER_BACKFILL = ['0002_ledger_backfill.sql', '0004_cash_opening_date.sql']
+    .map(file => fs.readFileSync(path.join(__dirname, 'db', 'migrations', file), 'utf8'));
+
+async function syncLedger(client) {
+    for (const sql of LEDGER_BACKFILL) await client.query(sql);
+}
+
+/**
  * Create a test bank
  */
 async function createTestBank(userId, bankData = {}) {
@@ -118,6 +132,7 @@ async function createTestBank(userId, bankData = {}) {
             'INSERT INTO banks (user_id, name, initial_balance, current_balance) VALUES ($1, $2, $3, $3) RETURNING *',
             [userId, name, balance]
         );
+        await syncLedger(client);
 
         return result.rows[0];
     } finally {
@@ -141,6 +156,7 @@ async function createTestCreditCard(userId, cardData = {}) {
             'INSERT INTO credit_cards (user_id, name, credit_limit) VALUES ($1, $2, $3) RETURNING *',
             [userId, name, creditLimit]
         );
+        await syncLedger(client);
 
         return result.rows[0];
     } finally {
@@ -159,6 +175,7 @@ async function createTestCashBalance(userId, amount = 500) {
             'INSERT INTO cash_balance (user_id, balance, initial_balance) VALUES ($1, $2, $2) RETURNING *',
             [userId, amount]
         );
+        await syncLedger(client);
 
         return result.rows[0];
     } finally {

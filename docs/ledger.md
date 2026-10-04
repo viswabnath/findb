@@ -26,9 +26,16 @@ A card is a liability, so money spent on it is a negative balance: a card with â
 
 ## The move (expand, then contract)
 
-1. **Expand (this step).** The ledger is created and filled from today's data (`db/migrations/0002_ledger_backfill.sql`). From then on, every change to banks, cards, cash, income and expenses also writes the ledger in the same transaction (`lib/ledger.ts`, called from `lib/services/accounts.ts` and `transactions.ts`). The screens still read the former tables.
-2. **Switch reads.** Balances and summaries come from the ledger.
-3. **Contract.** The former tables become read-only, then are removed once the ledger is proven.
+1. **Expand (done).** The ledger is created and filled from today's data (`db/migrations/0002_ledger_backfill.sql`). From then on, every change to banks, cards, cash, income and expenses also writes the ledger in the same transaction (`lib/ledger.ts`, called from `lib/services/accounts.ts` and `transactions.ts`).
+2. **Switch reads (done).** Every balance shown comes from the ledger: a bank's `current_balance`, a card's `used_limit` and cash in the account lists, the overspend check on a new expense, and the monthly summary (`lib/services/reports.ts`). The API's response shapes are unchanged. The former balance columns are still written, and `ledger_balance_check` must still show no difference.
+3. **Contract.** The former balance columns become unused, then are removed once the ledger is proven.
+
+### The monthly summary
+
+- Income and spending are the entries dated within the month (`flows` in `lib/ledger.ts`).
+- Balances are as at the month's last day: every entry dated on or before it (`balances(..., asOf)`).
+- Dates matter, so each entry carries the right one. A bank's opening entry is dated the day the bank was added, also after its starting balance is edited. The opening cash is dated the day the user registered (migration 0004), since the summary has always counted starting cash in every month. Setting cash by hand later is an adjustment dated the day it was made.
+- One change from before: the summary used to rebuild balances from the starting balance plus income minus spending, so cash set by hand never showed in it. It now does, from the day it was set; so do the adjustment entries from the move to the ledger.
 
 How each change is recorded:
 
@@ -54,7 +61,9 @@ npm run ledger:check:test   # the test database
 npm run ledger:check        # production (.env); reads only
 ```
 
-It prints any mismatch or unbalanced entry and exits with 1 if there is one. `tests/ledger.test.js` makes every kind of change through the API and checks after each that nothing differs, and that the database refuses an unbalanced entry or another user's account.
+It prints any mismatch or unbalanced entry and exits with 1 if there is one. `tests/ledger.test.js` makes every kind of change through the API and checks after each that nothing differs, that the API's balances and summary come from the ledger, and that the database refuses an unbalanced entry or another user's account.
+
+Test fixtures that write the former tables directly (`createTestBank`, `createTestCreditCard`, `createTestCashBalance` in `test-helpers.js`) then run the backfill migrations, so the ledger knows about them as it does about moved data.
 
 ## Migrations
 
