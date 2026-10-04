@@ -1,10 +1,12 @@
 import type { Pool, QueryResultRow } from 'pg';
 import { RequestError } from '../transaction';
+import { balances, flows, fromPaise } from '../ledger';
 
 /**
- * Monthly summary and activity feed: the report routes moved from the former Express app (N3).
- * Same queries and response shapes as the Express routes, except that the activity feed's
- * account-name lookups are limited to the user's own accounts (see activityAccountInfo).
+ * Monthly summary and activity feed: the report routes moved from the former Express app (N3),
+ * with the same response shapes. The summary's totals and balances come from the ledger
+ * (docs/ledger.md), and the activity feed's account-name lookups are limited to the user's own
+ * accounts (see activityAccountInfo).
  */
 
 // ----- Monthly summary -----
@@ -57,55 +59,38 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
         };
     }
 
-    const incomeResult = await pool.query(
-        'SELECT COALESCE(SUM(amount), 0) as total_income FROM income_entries WHERE user_id = $1 AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3',
-        [userId, selectedMonth, selectedYear],
-    );
-    const expenseResult = await pool.query(
-        'SELECT COALESCE(SUM(amount), 0) as total_expenses FROM expenses WHERE user_id = $1 AND EXTRACT(MONTH FROM date) = $2 AND EXTRACT(YEAR FROM date) = $3',
-        [userId, selectedMonth, selectedYear],
-    );
+    // The month's first and last day as text, never through the server's time zone
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const firstDay = `${selectedYear}-${pad(selectedMonth)}-01`;
+    const lastDay = `${selectedYear}-${pad(selectedMonth)}-${pad(new Date(Date.UTC(selectedYear, selectedMonth, 0)).getUTCDate())}`;
+    const monthFlows = await flows(pool, userId, firstDay, lastDay);
+    // Balances at the end of the month: every entry dated on or before its last day
+    const ledger = await balances(pool, userId, lastDay);
 
-    // Balances as they were at the end of the month (the last day, at its start: legacy behaviour)
+    // The accounts that existed by the month's end (the last day, at its start: legacy behaviour)
     const endOfMonth = new Date(selectedYear, selectedMonth, 0);
-    const bankResult = await pool.query(`
-        SELECT b.id, b.name, b.initial_balance,
-               b.initial_balance
-               + COALESCE((SELECT SUM(amount) FROM income_entries
-                           WHERE user_id = $1 AND credited_to_type = 'bank' AND credited_to_id = b.id AND date <= $2), 0)
-               - COALESCE((SELECT SUM(amount) FROM expenses
-                           WHERE user_id = $1 AND payment_method = 'bank' AND payment_source_id = b.id AND date <= $2), 0)
-               as balance_at_month_end
-        FROM banks b
-        WHERE b.user_id = $1 AND b.created_at <= $2`, [userId, endOfMonth]);
+    const banks = await pool.query('SELECT id, name, initial_balance FROM banks WHERE user_id = $1 AND created_at <= $2', [userId, endOfMonth]);
+    const bankResult = {
+        rows: banks.rows.map(bank => ({ ...bank, balance_at_month_end: fromPaise(ledger.banks.get(Number(bank.id)) ?? 0) })),
+    };
 
-    const cashResult = await pool.query(`
-        SELECT COALESCE(initial_balance, 0) as initial_balance,
-               COALESCE(initial_balance, 0)
-               + COALESCE((SELECT SUM(amount) FROM income_entries
-                           WHERE user_id = $1 AND credited_to_type = 'cash' AND date <= $2), 0)
-               - COALESCE((SELECT SUM(amount) FROM expenses
-                           WHERE user_id = $1 AND payment_method = 'cash' AND date <= $2), 0)
-               as cash_balance_at_month_end
-        FROM cash_balance
-        WHERE user_id = $1`, [userId, endOfMonth]);
-    const cashRow: QueryResultRow = cashResult.rows[0] ?? { initial_balance: 0, cash_balance_at_month_end: 0 };
+    const cashResult = await pool.query('SELECT COALESCE(initial_balance, 0) AS initial_balance FROM cash_balance WHERE user_id = $1', [userId]);
+    const cashRow: QueryResultRow = cashResult.rows.length === 0
+        ? { initial_balance: 0, cash_balance_at_month_end: 0 }
+        : { ...cashResult.rows[0], cash_balance_at_month_end: fromPaise(ledger.system.cash ?? 0) };
 
     let creditCards: QueryResultRow[] = [];
     if (trackingOption === 'expenses' || trackingOption === 'both') {
         const cards = await pool.query('SELECT * FROM credit_cards WHERE user_id = $1 AND created_at <= $2', [userId, endOfMonth]);
-        creditCards = await Promise.all(cards.rows.map(async (card) => {
-            const used = await pool.query(
-                `SELECT COALESCE(SUM(amount), 0) AS used_limit FROM expenses
-                 WHERE user_id = $1 AND payment_method = 'credit_card' AND payment_source_id = $2 AND date <= $3`,
-                [userId, card.id, endOfMonth],
-            );
-            return { ...card, current_balance: used.rows[0].used_limit, used_limit: used.rows[0].used_limit };
-        }));
+        creditCards = cards.rows.map((card) => {
+            // A card's ledger balance is negative by the amount owed
+            const used = fromPaise(-(ledger.cards.get(Number(card.id)) ?? 0));
+            return { ...card, current_balance: used, used_limit: used };
+        });
     }
 
-    const monthIncome = parseFloat(incomeResult.rows[0]?.total_income || 0);
-    const monthExpenses = parseFloat(expenseResult.rows[0]?.total_expenses || 0);
+    const monthIncome = monthFlows.income / 100;
+    const monthExpenses = monthFlows.expenses / 100;
     const totalBankBalance = bankResult.rows.reduce((sum, bank) => sum + parseFloat(bank.balance_at_month_end || 0), 0);
     const totalCurrentWealth = totalBankBalance + parseFloat(cashRow.cash_balance_at_month_end || 0);
     const totalInitialBankBalance = bankResult.rows.reduce((sum, bank) => sum + parseFloat(bank.initial_balance || 0), 0);

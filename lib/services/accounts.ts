@@ -2,14 +2,15 @@ import type { Pool, QueryResultRow } from 'pg';
 import { logActivity } from '../activity-log';
 import { RequestError, withTransaction } from '../transaction';
 import {
-    archiveMirroredAccount, cardAccount, recordBankOpening, recordCashSetTo, updateMirroredAccount, voidEntries,
+    archiveMirroredAccount, balances, cardAccount, fromPaise, recordBankOpening, recordCashSetTo, updateMirroredAccount, voidEntries,
 } from '../ledger';
 
 /**
  * Banks, credit cards and cash: the account routes moved from the former Express app (N3).
  * Same queries, messages and activity log entries as the Express routes, so the API contract
  * suites pass against either app. Every change also writes the ledger (lib/ledger.ts) in the same
- * transaction. Known gaps kept for now (see docs/v2-audit.md): add accepts negative balances and
+ * transaction, and the balances shown (a bank's current_balance, a card's used_limit, cash) come
+ * from the ledger. Known gaps kept for now (see docs/v2-audit.md): add accepts negative balances and
  * zero limits, and edits and deletes write no activity log entry.
  */
 
@@ -34,7 +35,8 @@ function requireName(name: unknown, message: string): string {
 
 export async function listBanks(pool: Pool, userId: number): Promise<QueryResultRow[]> {
     const result = await pool.query('SELECT * FROM banks WHERE user_id = $1 ORDER BY name', [userId]);
-    return result.rows;
+    const ledger = await balances(pool, userId);
+    return result.rows.map(bank => ({ ...bank, current_balance: fromPaise(ledger.banks.get(Number(bank.id)) ?? 0) }));
 }
 
 export async function addBank(pool: Pool, userId: number, body: Body): Promise<QueryResultRow> {
@@ -105,7 +107,9 @@ export async function deleteBank(pool: Pool, userId: number, id: string): Promis
 
 export async function listCards(pool: Pool, userId: number): Promise<QueryResultRow[]> {
     const result = await pool.query('SELECT * FROM credit_cards WHERE user_id = $1 ORDER BY name', [userId]);
-    return result.rows;
+    const ledger = await balances(pool, userId);
+    // A card's ledger balance is negative by the amount owed
+    return result.rows.map(card => ({ ...card, used_limit: fromPaise(-(ledger.cards.get(Number(card.id)) ?? 0)) }));
 }
 
 export async function addCard(pool: Pool, userId: number, body: Body): Promise<QueryResultRow> {
@@ -175,7 +179,9 @@ export async function deleteCard(pool: Pool, userId: number, id: string): Promis
 
 export async function getCash(pool: Pool, userId: number): Promise<QueryResultRow> {
     const result = await pool.query('SELECT * FROM cash_balance WHERE user_id = $1', [userId]);
-    return result.rows[0] || { balance: 0 };
+    if (result.rows.length === 0) return { balance: 0 };
+    const ledger = await balances(pool, userId);
+    return { ...result.rows[0], balance: fromPaise(ledger.system.cash ?? 0) };
 }
 
 /**

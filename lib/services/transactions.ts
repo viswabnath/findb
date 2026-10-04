@@ -1,7 +1,7 @@
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import { logActivity } from '../activity-log';
 import { RequestError, withTransaction } from '../transaction';
-import { recordExpense, recordIncome, voidEntries } from '../ledger';
+import { accountBalance, moneyAccount, recordExpense, recordIncome, toPaise, voidEntries } from '../ledger';
 
 /**
  * Income and expenses: the transaction routes moved from the former Express app (N3). Every write
@@ -63,8 +63,6 @@ async function applyExpense(client: Client, userId: number, method: unknown, sou
         await client.query(`UPDATE cash_balance SET balance = balance ${spend} $1 WHERE user_id = $2`, [amount, userId]);
     }
 }
-
-const amountOf = (value: unknown) => parseFloat(String(value));
 
 /**
  * Refuse an account the user does not own. Entries used to accept any account id the client
@@ -204,25 +202,23 @@ export async function getExpense(pool: Pool, userId: number, id: string): Promis
 /**
  * Users who also track income cannot overspend: the bank, cash or card must cover the amount.
  * Expenses-only users skip this check (their balances still change). Rows are locked so two
- * expenses cannot both pass the check. Compared as numbers: the legacy check compared the stored
- * balance text with the amount, which went wrong for an amount sent as a string.
+ * expenses cannot both pass the check. The balance is the ledger's, compared in whole paise.
  */
 async function checkCanSpend(client: Client, userId: number, method: unknown, sourceId: unknown, amount: unknown) {
     const user = await client.query('SELECT tracking_option FROM users WHERE id = $1', [userId]);
     if ((user.rows[0]?.tracking_option || 'both') === 'expenses') return;
 
-    const needed = amountOf(amount);
-    if (method === 'bank') {
-        const bank = await client.query('SELECT current_balance FROM banks WHERE id = $1 AND user_id = $2 FOR UPDATE', [sourceId, userId]);
-        if (bank.rows.length === 0 || amountOf(bank.rows[0].current_balance) < needed) throw new RequestError(400, 'Insufficient bank balance');
-    } else if (method === 'cash') {
-        const cash = await client.query('SELECT balance FROM cash_balance WHERE user_id = $1 FOR UPDATE', [userId]);
-        if (cash.rows.length === 0 || amountOf(cash.rows[0].balance) < needed) throw new RequestError(400, 'Insufficient cash balance');
-    } else if (method === 'credit_card') {
-        const card = await client.query('SELECT credit_limit, used_limit FROM credit_cards WHERE id = $1 AND user_id = $2 FOR UPDATE', [sourceId, userId]);
-        if (card.rows.length === 0 || amountOf(card.rows[0].credit_limit) - amountOf(card.rows[0].used_limit) < needed) {
-            throw new RequestError(400, 'Insufficient credit limit');
-        }
+    const needed = toPaise(amount);
+    const locked = method === 'bank' ? await client.query('SELECT id FROM banks WHERE id = $1 AND user_id = $2 FOR UPDATE', [sourceId, userId])
+        : method === 'cash' ? await client.query('SELECT id FROM cash_balance WHERE user_id = $1 FOR UPDATE', [userId])
+            : await client.query('SELECT credit_limit FROM credit_cards WHERE id = $1 AND user_id = $2 FOR UPDATE', [sourceId, userId]);
+    const missing = locked.rows.length === 0;
+    const balance = missing ? 0 : await accountBalance(client, await moneyAccount(client, userId, method, sourceId));
+    if (method === 'bank' && (missing || balance < needed)) throw new RequestError(400, 'Insufficient bank balance');
+    if (method === 'cash' && (missing || balance < needed)) throw new RequestError(400, 'Insufficient cash balance');
+    // A card's balance is negative by the amount owed, so the room left is the limit plus the balance
+    if (method === 'credit_card' && (missing || toPaise(locked.rows[0].credit_limit) + balance < needed)) {
+        throw new RequestError(400, 'Insufficient credit limit');
     }
 }
 

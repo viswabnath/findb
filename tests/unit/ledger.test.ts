@@ -1,7 +1,7 @@
 /**
  * Unit tests for lib/ledger.ts: paise rounding and the balance check before an entry is written
  */
-import { postEntry, toPaise } from '../../lib/ledger';
+import { fromPaise, postEntry, toPaise } from '../../lib/ledger';
 
 describe('toPaise', () => {
     test('turns rupees into whole paise without floating-point error', () => {
@@ -32,6 +32,20 @@ describe('toPaise', () => {
         expect(toPaise(1e-7)).toBe(0);
         expect(toPaise(5e-3)).toBe(1);
         expect(() => toPaise(1e20)).toThrow('Amount too large');
+    });
+});
+
+describe('fromPaise', () => {
+    test('writes paise as rupees with two decimals, as Postgres returns DECIMAL(20,2)', () => {
+        expect(fromPaise(123456)).toBe('1234.56');
+        expect(fromPaise(5)).toBe('0.05');
+        expect(fromPaise(0)).toBe('0.00');
+        expect(fromPaise(-50)).toBe('-0.50');
+        expect(fromPaise('-123400')).toBe('-1234.00');
+    });
+
+    test('round-trips with toPaise', () => {
+        for (const amount of ['0.01', '19.99', '100000.10', '-7.05']) expect(fromPaise(toPaise(amount))).toBe(amount);
     });
 });
 

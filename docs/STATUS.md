@@ -20,7 +20,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] Credit cards: CRUD with limit and used-limit tracking
 - [x] Cash balance with separate initial and running balance
 - [x] `DECIMAL(20,2)` for all money columns
-- [x] Double-entry ledger written beside the former tables on every change, checked by `ledger_balance_check` ([ledger.md](ledger.md)); the screens still read the former tables
+- [x] Double-entry ledger written beside the former tables on every change, checked by `ledger_balance_check` ([ledger.md](ledger.md)); every balance and the monthly summary are read from it
 
 ### Transactions
 - [x] Income (credited to a bank or cash) and expenses (paid by cash, bank or credit card)
