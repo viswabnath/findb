@@ -24,7 +24,8 @@ describe('Bank Deletion Fix', () => {
                 name: 'Test User',
                 email: 'bankdel@example.com',
                 securityQuestion: 'What is your pet name?',
-                securityAnswer: 'fluffy'
+                securityAnswer: 'fluffy',
+                acceptPrivacyNotice: true
             });
 
         expect(registerResponse.status).toBe(200);

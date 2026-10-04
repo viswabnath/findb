@@ -10,6 +10,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 
 ### Authentication
 - [x] Registration with server-side validation (username format; 8 to 64 character passwords or passphrases, refusing common, breached and username-containing ones)
+- [x] Privacy notice and recorded consent at sign-up (and once for older accounts), withdrawal in Settings, and a data inventory shown to the user ([privacy.md](privacy.md))
 - [x] Database-enforced isolation: logged-in requests run as a role that row level security limits to the user's rows ([security.md](security.md))
 - [x] Two-factor login required for everyone (authenticator app codes, one-time recovery codes), with the secret encrypted ([security.md](security.md))
 - [x] Login/logout with PostgreSQL-backed sessions (2-hour, HTTP-only, `SameSite=strict`); a Settings screen lists signed-in devices, signs them out (one or everywhere) and shows recent logins

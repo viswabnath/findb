@@ -73,6 +73,7 @@ async function register(page, user) {
     await page.locator('#register-confirm-password').fill(user.password);
     await page.locator('#register-security-question').selectOption(user.securityQuestion);
     await page.locator('#register-security-answer').fill(user.securityAnswer);
+    await page.locator('#register-privacy-consent').check();
     await page.locator('[data-action="register"]').click();
     await setUpTwoFactor(page, user);
     await expect(page.locator('#welcome-section')).toBeVisible();

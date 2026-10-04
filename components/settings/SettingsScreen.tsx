@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { History, KeyRound, LogOut, MonitorSmartphone } from 'lucide-react';
+import { Database, History, KeyRound, LogOut, MonitorSmartphone } from 'lucide-react';
 import { RecoveryCodes } from '@/components/auth/TwoFactor';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiError, apiGet, apiPost, redirectIfUnauthorized } from '@/lib/api-client';
+import { PRIVACY_CONTACT } from '@/lib/privacy-notice';
 
 /**
  * Account security (docs/security.md): two-factor login and recovery codes, the devices signed
@@ -14,6 +15,10 @@ import { apiDelete, apiError, apiGet, apiPost, redirectIfUnauthorized } from '@/
 interface Status { enabledAt: string | null; recoveryCodesLeft: number }
 interface Session { id: string; device: string; createdAt: string | null; lastSeenAt: string | null; current: boolean }
 interface LoginEvent { event: string; device: string; at: string }
+interface MyData {
+    consent: { noticeVersion: string; givenAt: string | null; withdrawnAt: string | null };
+    tables: { table: string; holds: string; purpose: string; retention: string; rows: number }[];
+}
 
 const EVENT_TEXT: Record<string, string> = {
     signed_in: 'Logged in',
@@ -41,12 +46,16 @@ export function SettingsScreen() {
     const [history, setHistory] = useState<LoginEvent[]>([]);
     const [code, setCode] = useState('');
     const [newCodes, setNewCodes] = useState<string[] | null>(null);
+    const [myData, setMyData] = useState<MyData | null>(null);
+    const [confirmWithdraw, setConfirmWithdraw] = useState(false);
 
     async function load() {
-        const [statusResult, sessionsResult, historyResult] = await Promise.all([
+        const [statusResult, sessionsResult, historyResult, dataResult] = await Promise.all([
             apiGet<Status>('/api/two-factor'), apiGet<Session[]>('/api/sessions'), apiGet<LoginEvent[]>('/api/login-history'),
+            apiGet<MyData>('/api/privacy'),
         ]);
-        if ([statusResult, sessionsResult, historyResult].some(result => redirectIfUnauthorized(result))) return;
+        if ([statusResult, sessionsResult, historyResult, dataResult].some(result => redirectIfUnauthorized(result))) return;
+        if (dataResult.ok) setMyData(dataResult.data);
         setStatus(statusResult.data);
         setSessions(Array.isArray(sessionsResult.data) ? sessionsResult.data : []);
         setHistory(Array.isArray(historyResult.data) ? historyResult.data : []);
@@ -80,6 +89,15 @@ export function SettingsScreen() {
         }
         toast('success', `${session.device} is signed out`);
         load();
+    }
+
+    async function withdrawConsent() {
+        const result = await apiPost('/api/privacy/withdraw', {});
+        if (!result.ok && !redirectIfUnauthorized(result)) {
+            toast('error', apiError(result.data, 'Your consent could not be withdrawn'));
+            return;
+        }
+        window.location.assign('/login');
     }
 
     async function signOutEverywhere() {
@@ -171,6 +189,51 @@ export function SettingsScreen() {
                         ))}
                     </ul>
                 </section>
+
+                {myData ? (
+                    <section className="card" aria-labelledby="my-data-title">
+                        <div className="card-head">
+                            <h3 id="my-data-title"><span className="icon-tile t-bank" aria-hidden="true"><Database /></span>Your data</h3>
+                            <span className="meta" id="consent-status">
+                                {myData.consent.givenAt && !myData.consent.withdrawnAt ? `Consent given ${when(myData.consent.givenAt)}` : 'No consent on record'}
+                            </span>
+                        </div>
+                        <p className="card-pad">
+                        What FinDB keeps about you, and why. Read the full <a href="/privacy">privacy notice</a>. To see or correct your
+                        records, use the app; for a copy of everything or to delete your account, email {PRIVACY_CONTACT} (both become
+                        buttons here at the public launch).
+                        </p>
+                        <ul id="my-data-list" className="settings-list">
+                            {myData.tables.map(item => (
+                                <li key={item.table} data-table={item.table}>
+                                    <div>
+                                        <span className="what">{item.holds}</span>
+                                        <div className="when">{item.purpose}. Kept: {item.retention.toLowerCase()}.</div>
+                                    </div>
+                                    <span className="when">{item.rows} {item.rows === 1 ? 'record' : 'records'}</span>
+                                </li>
+                            ))}
+                        </ul>
+                        <div className="settings-actions">
+                            {confirmWithdraw ? (
+                                <div className="stack">
+                                    <p id="withdraw-consent-warning">
+                                    Withdrawing consent stops FinDB using your data: you are signed out everywhere, and the app stays
+                                    locked until you agree again. Your data is not deleted; to have it deleted, email {PRIVACY_CONTACT}.
+                                    </p>
+                                    <div className="settings-actions consent-actions">
+                                        <button type="button" className="btn btn-danger" data-action="confirmWithdrawConsent" onClick={withdrawConsent}>Withdraw consent</button>
+                                        <button type="button" className="btn btn-secondary" data-action="cancelWithdrawConsent" onClick={() => setConfirmWithdraw(false)}>Keep it</button>
+                                    </div>
+                                </div>
+                            ) : (
+                                <button type="button" className="btn btn-secondary" data-action="withdrawConsent" onClick={() => setConfirmWithdraw(true)}>
+                                Withdraw consent
+                                </button>
+                            )}
+                        </div>
+                    </section>
+                ) : null}
             </div>
         </div>
     );

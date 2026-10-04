@@ -78,7 +78,8 @@ describe('Integration Tests - Server Endpoints', () => {
                 name: 'New Test User',
                 email: `newtest${Date.now()}@example.com`, // Make email unique
                 securityQuestion: 'What is your pet name?',
-                securityAnswer: 'Fluffy'
+                securityAnswer: 'Fluffy',
+                acceptPrivacyNotice: true
             };
 
             const response = await request(target())
@@ -97,7 +98,8 @@ describe('Integration Tests - Server Endpoints', () => {
                 name: 'Test User',
                 email: 'test2@example.com',
                 securityQuestion: 'What is your pet name?',
-                securityAnswer: 'Fluffy'
+                securityAnswer: 'Fluffy',
+                acceptPrivacyNotice: true
             };
 
             const response = await request(target())
@@ -310,7 +312,8 @@ describe('Integration Tests - Server Endpoints', () => {
                 name: 'Another User',
                 email: 'another@example.com',
                 securityQuestion: 'What is your pet name?',
-                securityAnswer: 'Fluffy'
+                securityAnswer: 'Fluffy',
+                acceptPrivacyNotice: true
             };
 
             const response = await request(target())

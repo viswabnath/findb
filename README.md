@@ -115,6 +115,7 @@ Only production is built: merging into `master` deploys production. Preview buil
 - [docs/v2-plan.md](docs/v2-plan.md): planned features
 - [docs/ledger.md](docs/ledger.md): the double-entry ledger, migrations and the balance check
 - [docs/security.md](docs/security.md): two-factor login, encryption of sensitive values, sessions and passwords
+- [docs/privacy.md](docs/privacy.md): the privacy notice, consent and the data inventory
 - [docs/backups.md](docs/backups.md): nightly encrypted backups and how to restore them
 - [docs/costs.md](docs/costs.md): running costs, free limits, alerts and upkeep
 

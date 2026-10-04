@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { AuthButton, AuthForm, AuthHead, AuthShell, Field, PasswordField, PasswordRules } from './AuthShell';
 import { TwoFactorSetup } from './TwoFactor';
+import { PrivacyNotice } from '@/components/privacy/PrivacyNotice';
 import { useToast } from '@/components/Toast';
 import { apiError, apiPost } from '@/lib/api-client';
 import { SECURITY_QUESTIONS, validateRegistration, type RegistrationInput } from '@/lib/auth-validation';
@@ -18,6 +19,8 @@ export function RegisterForm() {
     const [form, setForm] = useState<RegistrationInput>(EMPTY);
     // After registering, two-factor setup; the account is signed in once it is confirmed
     const [settingUp, setSettingUp] = useState(false);
+    // Consent to the privacy notice is required, and recorded with the account
+    const [acceptPrivacyNotice, setAcceptPrivacyNotice] = useState(false);
     const field = (key: keyof RegistrationInput) => ({
         value: form[key],
         onChange: (event: { target: { value: string } }) => setForm(current => ({ ...current, [key]: event.target.value })),
@@ -26,7 +29,8 @@ export function RegisterForm() {
     async function register() {
         try {
             const data = validateRegistration(form);
-            const result = await apiPost<{ success?: boolean }>('/api/register', data);
+            if (!acceptPrivacyNotice) throw new Error('Please read and accept the privacy notice to create an account');
+            const result = await apiPost<{ success?: boolean }>('/api/register', { ...data, acceptPrivacyNotice });
             if (result.data.success) {
                 setSettingUp(true);
             } else {
@@ -76,6 +80,14 @@ export function RegisterForm() {
                         </select>
                     </div>
                     <Field id="register-security-answer" label="Your answer" type="text" autoComplete="off" required {...field('securityAnswer')} />
+
+                    <span className="auth-section-title">Your privacy</span>
+                    <PrivacyNotice id="register-privacy-notice" />
+                    <label className="check-line">
+                        <input id="register-privacy-consent" type="checkbox" checked={acceptPrivacyNotice}
+                            onChange={event => setAcceptPrivacyNotice(event.target.checked)} />
+                        I have read the privacy notice and agree to FinDB using my data as it describes
+                    </label>
                 </div>
                 <AuthButton action="register" submit className="btn btn-primary btn-block">Create free account</AuthButton>
                 <p className="auth-alt">

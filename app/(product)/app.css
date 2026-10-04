@@ -258,6 +258,19 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .check-line { display: flex; align-items: center; gap: 10px; font-weight: 600; cursor: pointer; }
 .check-line input { width: 18px; height: 18px; accent-color: var(--primary); }
 
+/* The privacy notice (sign-up, consent screen) */
+.privacy-notice { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; background: var(--surface); font-size: 0.9rem;
+    max-height: 260px; overflow-y: auto; }
+.privacy-notice dl { margin: 0; display: grid; gap: 10px; }
+.privacy-notice dt { font-weight: 700; }
+.privacy-notice dd { margin: 2px 0 0; color: var(--muted); }
+.privacy-notice-foot { margin: 10px 0 0; font-size: 0.85rem; color: var(--muted); }
+.privacy-notice a { color: var(--primary-text); }
+.consent-title { display: flex; align-items: center; gap: 10px; font-size: 1.12rem; }
+.consent-actions { padding: 0; }
+.check-line { align-items: flex-start; }
+.check-line input { margin-top: 2px; flex: none; }
+
 /* Settings: sessions and login history */
 .settings-list { list-style: none; margin: 0; padding: 0; }
 .settings-list li { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 10px;

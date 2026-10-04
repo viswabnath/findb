@@ -23,7 +23,8 @@ describe('Cash Balance Activity', () => {
                 name: 'Test User',
                 email: 'testcash@example.com',
                 securityQuestion: 'What is your pet name?',
-                securityAnswer: 'fluffy'
+                securityAnswer: 'fluffy',
+                acceptPrivacyNotice: true
             });
 
         expect(registerResponse.status).toBe(200);
