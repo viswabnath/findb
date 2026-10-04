@@ -1,7 +1,8 @@
+import { isCommonPassword } from './common-passwords';
+
 /**
- * Client-side checks for the auth forms. Same rules and messages as the legacy
- * single-page app's AuthManager and the server's validatePassword, so users see
- * identical behaviour. The server validates again; these only give faster feedback.
+ * Checks shared by the auth forms and the server, so both give the same messages. The forms use
+ * them for faster feedback; the server always checks again.
  */
 
 export const SECURITY_QUESTIONS: ReadonlyArray<{ value: string; label: string }> = [
@@ -26,22 +27,38 @@ export function isValidUsername(username: string): boolean {
     return /^[a-zA-Z0-9_]+$/.test(username);
 }
 
-/** Returns the first problem with the password, or null if it is acceptable */
-export function passwordProblem(password: string): string | null {
-    if (password.length < 8 || password.length > 16) {
-        return 'Password must be between 8 and 16 characters long';
+export const PASSWORD_MIN = 8;
+export const PASSWORD_MAX = 64;
+/** From this length on, a password is a passphrase: any characters, no required mix */
+export const PASSPHRASE_LENGTH = 16;
+
+/**
+ * Returns the first problem with the password, or null if it is acceptable. 8 to 64 characters, of
+ * any kind (spaces too). Shorter than 16, it needs an uppercase and a lowercase letter, a number and
+ * a symbol; from 16 on, a passphrase of plain words is fine. Common passwords are refused, and so is
+ * one containing the username. The server also refuses passwords known from data breaches
+ * (lib/breached-password.ts).
+ */
+export function passwordProblem(password: string, username = ''): string | null {
+    const length = [...password].length;
+    if (length < PASSWORD_MIN) return `Password must be at least ${PASSWORD_MIN} characters long`;
+    // bcrypt reads only the first 72 bytes, so longer passwords would be cut silently
+    if (length > PASSWORD_MAX || new TextEncoder().encode(password).length > 72) {
+        return `Password must be at most ${PASSWORD_MAX} characters long`;
     }
-    if (!/[a-z]/.test(password)) {
-        return 'Password must contain at least one lowercase letter';
+    if (length < PASSPHRASE_LENGTH) {
+        if (!/[a-z]/.test(password)) return 'Password must contain at least one lowercase letter, or be 16 characters or longer';
+        if (!/[A-Z]/.test(password)) return 'Password must contain at least one uppercase letter, or be 16 characters or longer';
+        if (!/[0-9]/.test(password)) return 'Password must contain at least one number, or be 16 characters or longer';
+        if (!/[^A-Za-z0-9]/.test(password)) return 'Password must contain at least one symbol, or be 16 characters or longer';
     }
-    if (!/[A-Z]/.test(password)) {
-        return 'Password must contain at least one uppercase letter';
-    }
-    if (!/[0-9]/.test(password)) {
-        return 'Password must contain at least one number';
-    }
-    if (!/[_\-&@:]/.test(password)) {
-        return 'Password must contain at least one special character (_, -, @, :,or &)';
+    const simple = password.toLowerCase().replace(/[^a-z0-9]/g, '');
+    // Also with the usual swaps undone, so "P@ssw0rd!" counts as "password"
+    const unswapped = password.toLowerCase().replace(/@/g, 'a').replace(/\$/g, 's').replace(/[^a-z0-9]/g, '')
+        .replace(/0/g, 'o').replace(/1/g, 'i').replace(/3/g, 'e').replace(/4/g, 'a').replace(/5/g, 's').replace(/7/g, 't');
+    if (isCommonPassword(simple) || isCommonPassword(unswapped)) return 'This password is too common. Choose another.';
+    if (username.length >= 3 && password.toLowerCase().includes(username.toLowerCase())) {
+        return 'Password must not contain your username';
     }
     return null;
 }
@@ -79,7 +96,7 @@ export function validateRegistration(raw: RegistrationInput): RegistrationInput 
     if (!isValidEmail(data.email)) {
         throw new Error('Please enter a valid email address');
     }
-    const problem = passwordProblem(data.password);
+    const problem = passwordProblem(data.password, data.username);
     if (problem) {
         throw new Error(problem);
     }

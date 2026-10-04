@@ -1,14 +1,12 @@
-import { isHttps, jsonBody, withPublic } from '@/lib/api-route';
+import { jsonBody, withPublic } from '@/lib/api-route';
 import { db } from '@/lib/db';
+import { startPendingLogin } from '@/lib/login-flow';
 import { register } from '@/lib/services/auth';
-import { createSession, destroySession, SESSION_COOKIE, signedInHintCookie } from '@/lib/session';
 
-// Registration also logs the new user in, with a fresh session
+// Registration starts a pending login at two-factor setup: the new account is signed in once its
+// first code is confirmed (/api/two-factor/setup)
 export const POST = withPublic(async (request) => {
     const userId = await register(db(), await jsonBody(request));
-    await destroySession(db(), request.cookies.get(SESSION_COOKIE)?.value);
-    const cookie = await createSession(db(), userId, isHttps(request));
-    const headers = new Headers({ 'Set-Cookie': cookie });
-    headers.append('Set-Cookie', signedInHintCookie(isHttps(request)));
-    return Response.json({ success: true, userId }, { headers });
+    const headers = await startPendingLogin(request, userId, 'setup');
+    return Response.json({ success: true, userId, twoFactor: 'setup' }, { headers });
 }, { authLimited: true, errorMessage: 'Registration failed. Please try again.' });

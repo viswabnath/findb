@@ -11,7 +11,7 @@ const request = require('supertest');
 const { target, closeTarget } = require('./api-target');
 
 // Test helpers for database operations
-const { setupTestEnvironment, createTestUser, deleteTestUser, query } = require('../test-helpers');
+const { setupTestEnvironment, createTestUser, deleteTestUser, query, logIn } = require('../test-helpers');
 
 describe('Integration Tests - Server Endpoints', () => {
     let testUserId;
@@ -40,9 +40,7 @@ describe('Integration Tests - Server Endpoints', () => {
                 password: 'TestPass123&'
             };
 
-            const loginResponse = await request(target())
-                .post('/api/login')
-                .send(loginData);
+            const loginResponse = await logIn(() => request(target()), loginData.username, loginData.password);
 
             if (loginResponse.status === 200) {
                 sessionCookie = loginResponse.headers['set-cookie'];
@@ -110,15 +108,20 @@ describe('Integration Tests - Server Endpoints', () => {
             expect(response.body.error).toContain('Password must');
         });
 
-        test('POST /api/login should authenticate with valid credentials', async () => {
-            const loginData = {
-                username: 'testuser',
-                password: 'TestPass123&'
-            };
-
+        test('POST /api/login checks the password, then asks for the two-factor code', async () => {
             const response = await request(target())
                 .post('/api/login')
-                .send(loginData);
+                .send({ username: 'testuser', password: 'TestPass123&' });
+
+            expect(response.status).toBe(200);
+            expect(response.body).toEqual({ success: true, twoFactor: 'verify' });
+            // A pending login only, not yet a session
+            expect(String(response.headers['set-cookie'])).toContain('findb_login=');
+            expect(String(response.headers['set-cookie'])).not.toContain('sessionId=');
+        });
+
+        test('POST /api/login/two-factor with the code finishes the login', async () => {
+            const response = await logIn(() => request(target()), 'testuser', 'TestPass123&');
 
             expect(response.status).toBe(200);
             expect(response.body.success).toBe(true);
@@ -359,9 +362,7 @@ describe('Integration Tests - Server Endpoints', () => {
 
             try {
                 // Fresh login: the shared sessionCookie is logged out by earlier tests
-                const loginResponse = await request(target())
-                    .post('/api/login')
-                    .send({ username: 'testuser', password: 'TestPass123&' });
+                const loginResponse = await logIn(() => request(target()), 'testuser', 'TestPass123&');
                 expect(loginResponse.status).toBe(200);
 
                 const response = await request(target())

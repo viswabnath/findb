@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from 'crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'crypto';
 import type { Pool } from 'pg';
 
 /**
@@ -42,17 +42,32 @@ export function signSessionCookie(sid: string, secret: string): string {
     return encodeURIComponent(`s:${sid}.${sign(sid, secret)}`);
 }
 
-/**
- * The logged-in user's id for a request's session cookie, or null: no cookie, a bad signature,
- * an expired or deleted session, or no SESSION_SECRET configured.
- */
-export async function sessionUserId(pool: Pool, cookieValue: string | undefined): Promise<number | null> {
+/** The session id behind a signed cookie, or null */
+export function sessionIdFromCookie(cookieValue: string | undefined): string | null {
     const secret = process.env.SESSION_SECRET;
     if (!cookieValue || !secret) return null;
-    const sid = unsignSessionCookie(cookieValue, secret);
+    return unsignSessionCookie(cookieValue, secret);
+}
+
+/** A session's id as shown to its user (the session list): a hash, so the real id never leaves the server */
+export function publicSessionId(sid: string): string {
+    return createHash('sha256').update(sid).digest('hex').slice(0, 24);
+}
+
+/**
+ * The logged-in user's id for a request's session cookie, or null: no cookie, a bad signature,
+ * an expired or deleted session, a login still waiting for its two-factor code, or no
+ * SESSION_SECRET configured. Notes when the session was last used, at most every five minutes.
+ */
+export async function sessionUserId(pool: Pool, cookieValue: string | undefined): Promise<number | null> {
+    const sid = sessionIdFromCookie(cookieValue);
     if (!sid) return null;
     const result = await pool.query<{ sess: { userId?: unknown } }>(
-        'SELECT sess FROM session WHERE sid = $1 AND expire > NOW()',
+        `WITH seen AS (
+            UPDATE session SET last_seen_at = NOW()
+            WHERE sid = $1 AND expire > NOW() AND (last_seen_at IS NULL OR last_seen_at < NOW() - interval '5 minutes')
+         )
+         SELECT sess FROM session WHERE sid = $1 AND expire > NOW()`,
         [sid],
     );
     const userId = result.rows[0]?.sess?.userId;
@@ -71,7 +86,7 @@ function requireSecret(): string {
  * session id known before login is useless afterwards (express-session's regenerate did this).
  * The row matches connect-pg-simple's: sess JSON with the cookie and userId, and expire.
  */
-export async function createSession(pool: Pick<Pool, 'query'>, userId: number, secure: boolean): Promise<string> {
+export async function createSession(pool: Pick<Pool, 'query'>, userId: number, secure: boolean, userAgent?: string | null): Promise<string> {
     const secret = requireSecret();
     const sid = randomBytes(24).toString('base64url');
     const expires = new Date(Date.now() + SESSION_MAX_AGE_MS);
@@ -82,8 +97,9 @@ export async function createSession(pool: Pick<Pool, 'query'>, userId: number, s
         },
         userId,
     };
-    await pool.query('INSERT INTO session (sid, sess, expire) VALUES ($1, $2, to_timestamp($3))',
-        [sid, JSON.stringify(sess), expires.getTime() / 1000]);
+    await pool.query(
+        'INSERT INTO session (sid, sess, expire, user_id, user_agent, last_seen_at) VALUES ($1, $2, to_timestamp($3), $4, $5, NOW())',
+        [sid, JSON.stringify(sess), expires.getTime() / 1000, userId, userAgent?.slice(0, 300) ?? null]);
     // Expired sessions are removed here (connect-pg-simple pruned them on a timer); indexed on expire
     await pool.query('DELETE FROM session WHERE expire < NOW()');
     return [
@@ -120,4 +136,47 @@ export function signedInHintCookie(secure: boolean, now = Date.now()): string {
 /** Set-Cookie value that removes the signed-in hint */
 export function clearSignedInHintCookie(secure: boolean): string {
     return [`${SIGNED_IN_HINT_COOKIE}=`, 'Path=/', 'Expires=Thu, 01 Jan 1970 00:00:00 GMT', 'SameSite=Strict', ...(secure ? ['Secure'] : [])].join('; ');
+}
+
+// ----- A login between its password and its two-factor code -----
+
+/**
+ * After the right password, a login waits for its two-factor code (or for two-factor setup) in a
+ * pending login: a row in the session table with no userId, so it opens nothing (sessionUserId
+ * ignores it), behind its own short-lived cookie. Ten minutes to finish.
+ */
+export const PENDING_LOGIN_COOKIE = 'findb_login';
+const PENDING_LOGIN_MAX_AGE_MS = 10 * 60 * 1000;
+
+export type PendingStage = 'verify' | 'setup';
+export interface PendingLogin { sid: string; userId: number; stage: PendingStage }
+
+export async function createPendingLogin(pool: Pick<Pool, 'query'>, userId: number, stage: PendingStage, secure: boolean): Promise<string> {
+    const secret = requireSecret();
+    const sid = randomBytes(24).toString('base64url');
+    const expires = new Date(Date.now() + PENDING_LOGIN_MAX_AGE_MS);
+    await pool.query('INSERT INTO session (sid, sess, expire) VALUES ($1, $2, to_timestamp($3))',
+        [sid, JSON.stringify({ pendingLogin: { userId, stage } }), expires.getTime() / 1000]);
+    return [
+        `${PENDING_LOGIN_COOKIE}=${signSessionCookie(sid, secret)}`, 'Path=/', `Expires=${expires.toUTCString()}`,
+        'HttpOnly', 'SameSite=Strict', ...(secure ? ['Secure'] : []),
+    ].join('; ');
+}
+
+export async function pendingLogin(pool: Pick<Pool, 'query'>, cookieValue: string | undefined): Promise<PendingLogin | null> {
+    const sid = sessionIdFromCookie(cookieValue);
+    if (!sid) return null;
+    const result = await pool.query<{ sess: { pendingLogin?: { userId?: unknown; stage?: unknown } } }>(
+        'SELECT sess FROM session WHERE sid = $1 AND expire > NOW()', [sid]);
+    const pending = result.rows[0]?.sess?.pendingLogin;
+    if (!pending || typeof pending.userId !== 'number' || (pending.stage !== 'verify' && pending.stage !== 'setup')) return null;
+    return { sid, userId: pending.userId, stage: pending.stage };
+}
+
+export async function destroyPendingLogin(pool: Pick<Pool, 'query'>, sid: string): Promise<void> {
+    await pool.query('DELETE FROM session WHERE sid = $1', [sid]);
+}
+
+export function clearPendingLoginCookie(secure: boolean): string {
+    return [`${PENDING_LOGIN_COOKIE}=`, 'Path=/', 'Expires=Thu, 01 Jan 1970 00:00:00 GMT', 'HttpOnly', 'SameSite=Strict', ...(secure ? ['Secure'] : [])].join('; ');
 }

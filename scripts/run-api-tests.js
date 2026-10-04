@@ -23,8 +23,12 @@ const ROOT = path.join(__dirname, '..');
 const PORT = Number(process.env.API_TEST_PORT || 3200);
 const NEXT_BIN = path.join('node_modules', 'next', 'dist', 'bin', 'next');
 
-/** The server settings every test server needs: test schema only, and no request limits */
-const TEST_SERVER_ENV = { DB_SCHEMA: 'balancetrack_test', REQUIRE_TEST_SCHEMA: 'true', DISABLE_RATE_LIMIT: 'true' };
+/** The server settings every test server needs: test schema only, no request limits, no outside calls */
+const TEST_SERVER_ENV = {
+    DB_SCHEMA: 'balancetrack_test', REQUIRE_TEST_SCHEMA: 'true', DISABLE_RATE_LIMIT: 'true',
+    // Tests never depend on an outside service (lib/breached-password.ts)
+    BREACHED_PASSWORD_CHECK: 'false',
+};
 
 async function waitUntilUp(url, timeoutMs = 120_000) {
     const deadline = Date.now() + timeoutMs;

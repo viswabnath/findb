@@ -191,7 +191,7 @@ export default function HomePage() {
                         </div>
                         <div className="trust-item reveal">
                             <KeyRound size={26} />
-                            <h3>Two-step login, next</h3>
+                            <h3>Two-step login</h3>
                             <p>A code from an authenticator app at every login. Free, with no SMS needed.</p>
                         </div>
                         <div className="trust-item reveal">

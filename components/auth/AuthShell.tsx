@@ -132,21 +132,23 @@ export function PasswordField({ id, label, aside, children, ...props }: Omit<Com
 /** The password rules (lib/auth-validation.ts), ticked off as the user types */
 export function PasswordRules({ password }: { password: string }) {
     const rules = [
-        { ok: password.length >= 8 && password.length <= 16, text: '8 to 16 characters' },
-        { ok: /[A-Z]/.test(password), text: 'An uppercase letter' },
-        { ok: /[a-z]/.test(password), text: 'A lowercase letter' },
-        { ok: /[0-9]/.test(password), text: 'A number' },
-        { ok: /[_\-&@:]/.test(password), text: 'One of _ - @ : &' },
+        { ok: password.length >= 8 && password.length <= 64, text: '8 to 64 characters' },
+        { ok: password.length >= 16 || (/[A-Z]/.test(password) && /[a-z]/.test(password)), text: 'Upper and lower case letters' },
+        { ok: password.length >= 16 || /[0-9]/.test(password), text: 'A number' },
+        { ok: password.length >= 16 || /[^A-Za-z0-9]/.test(password), text: 'A symbol, such as @ or #' },
     ];
     return (
-        <ul className="rules" aria-label="Password rules">
-            {rules.map(rule => (
-                <li key={rule.text} className={rule.ok ? 'ok' : undefined}>
-                    <Check aria-hidden="true" />
-                    {rule.text}
-                    <span className="sr-only">{rule.ok ? ', done' : ', not yet'}</span>
-                </li>
-            ))}
-        </ul>
+        <>
+            <ul className="rules" aria-label="Password rules">
+                {rules.map(rule => (
+                    <li key={rule.text} className={rule.ok ? 'ok' : undefined}>
+                        <Check aria-hidden="true" />
+                        {rule.text}
+                        <span className="sr-only">{rule.ok ? ', done' : ', not yet'}</span>
+                    </li>
+                ))}
+            </ul>
+            <small className="field-hint">Or use a passphrase of 16 characters or more, such as four unrelated words: then any characters will do.</small>
+        </>
     );
 }

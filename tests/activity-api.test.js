@@ -8,7 +8,7 @@ const request = require('supertest');
 
 
 const { target, closeTarget } = require('./api-target');
-const { createTestUser, deleteTestUser, query } = require('../test-helpers');
+const { createTestUser, deleteTestUser, query, logIn } = require('../test-helpers');
 
 const USERNAME = 'activity_api_user';
 const OTHER_USERNAME = 'activity_api_other';
@@ -20,7 +20,7 @@ beforeAll(async () => {
     await deleteTestUser(OTHER_USERNAME);
     await createTestUser({ username: USERNAME, password: PASSWORD, email: 'activity_api@example.com' });
     agent = request.agent(target());
-    expect((await agent.post('/api/login').send({ username: USERNAME, password: PASSWORD })).status).toBe(200);
+    expect((await logIn(agent, USERNAME, PASSWORD)).status).toBe(200);
 
     const bank = await agent.post('/api/banks').send({ name: '=SUM(1,2)', initialBalance: 100 });
     expect(bank.status).toBe(200);
@@ -84,7 +84,7 @@ test('the feed never shows another user\'s account name', async () => {
     // Another user's bank, whose id this user then sends with an income entry
     const other = request.agent(target());
     await createTestUser({ username: OTHER_USERNAME, password: PASSWORD, email: 'activity_api_other@example.com' });
-    expect((await other.post('/api/login').send({ username: OTHER_USERNAME, password: PASSWORD })).status).toBe(200);
+    expect((await logIn(other, OTHER_USERNAME, PASSWORD)).status).toBe(200);
     const secretBank = await other.post('/api/banks').send({ name: 'Secret Bank Name', initialBalance: 100 });
     expect(secretBank.status).toBe(200);
 

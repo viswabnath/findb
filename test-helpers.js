@@ -83,7 +83,9 @@ async function createTestUser(userData = {}) {
         email = 'test@example.com',
         securityQuestion = 'What is your pet name?',
         securityAnswer = 'fluffy',
-        trackingOption = 'both'
+        trackingOption = 'both',
+        // Two-factor login is required, so test users have it on with TEST_TOTP_SECRET
+        twoFactor = true
     } = userData;
 
     const client = await pool.connect();
@@ -97,6 +99,7 @@ async function createTestUser(userData = {}) {
              VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
             [username, hashedPassword, name, email, securityQuestion, hashedSecurityAnswer, trackingOption]
         );
+        if (twoFactor) await enableTestTwoFactor(result.rows[0].id);
 
         return result.rows[0];
     } finally {
@@ -195,6 +198,7 @@ async function setupTestEnvironment(customData = {}) {
         if (existingUser.rows.length > 0) {
             user = existingUser.rows[0];
             console.log('Reusing existing test user:', user.username);
+            if (!user.totp_enabled_at) await enableTestTwoFactor(user.id);
         }
     } catch {
         // User doesn't exist, we'll create one
@@ -271,6 +275,42 @@ async function deleteTestUser(username) {
     await pool.query('DELETE FROM users WHERE id = $1', [userId]);
 }
 
+// ----- Two-factor login for test users (docs/security.md) -----
+// The app's own TOTP and encryption code (TypeScript, which Jest's api project transforms), loaded
+// only when needed so Playwright's global teardown never loads it.
+
+/** The authenticator secret every test user has (base32, 20 bytes) */
+const TEST_TOTP_SECRET = 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP';
+
+async function enableTestTwoFactor(userId) {
+    const { encryptField } = require('./lib/field-encryption.ts');
+    await pool.query(
+        'UPDATE users SET totp_secret_enc = $1, totp_enabled_at = NOW(), totp_last_step = NULL WHERE id = $2',
+        [encryptField(TEST_TOTP_SECRET, `users.totp_secret:${userId}`), userId]
+    );
+}
+
+/** The code an authenticator app would show now */
+function currentTotpCode(secret = TEST_TOTP_SECRET) {
+    const { totpCode, totpStep } = require('./lib/totp.ts');
+    return totpCode(secret, totpStep());
+}
+
+/**
+ * Both steps of a login: the password, then the code. A code works once per 30 seconds, so the
+ * last accepted step is forgotten first (test users log in many times in a row). Returns the
+ * second step's response, whose Set-Cookie holds the session; a failed first step is returned as is.
+ * `agent` is a supertest agent (cookies kept) or a function giving a new request (request(target())).
+ */
+async function logIn(agent, username, password) {
+    const first = await (typeof agent === 'function' ? agent() : agent).post('/api/login').send({ username, password });
+    if (first.status !== 200) return first;
+    await pool.query('UPDATE users SET totp_last_step = NULL WHERE username = $1', [username]);
+    const second = typeof agent === 'function' ? agent().post('/api/login/two-factor').set('Cookie', first.headers['set-cookie'])
+        : agent.post('/api/login/two-factor');
+    return second.send({ code: currentTotpCode() });
+}
+
 /**
  * Execute a query using the shared pool
  */
@@ -292,6 +332,10 @@ async function closePool() {
 }
 
 module.exports = {
+    TEST_TOTP_SECRET,
+    enableTestTwoFactor,
+    currentTotpCode,
+    logIn,
     clearTestData,
     createTestUser,
     createTestBank,

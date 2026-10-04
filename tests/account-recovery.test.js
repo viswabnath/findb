@@ -10,7 +10,7 @@ const request = require('supertest');
 
 
 const { target, closeTarget } = require('./api-target');
-const { createTestUser, deleteTestUser, query } = require('../test-helpers');
+const { createTestUser, deleteTestUser, query, logIn } = require('../test-helpers');
 
 const USER = {
     username: 'recovery_user',
@@ -117,7 +117,7 @@ describe('password reset', () => {
 
     test('a reset changes the password, signs out every session, and is logged', async () => {
         const session = request.agent(target());
-        const login = await session.post('/api/login').send({ username: USER.username, password: USER.password });
+        const login = await logIn(session, USER.username, USER.password);
         expect(login.status).toBe(200);
         expect((await session.get('/api/banks')).status).toBe(200);
 

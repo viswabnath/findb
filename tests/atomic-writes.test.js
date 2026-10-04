@@ -19,7 +19,8 @@ const {
     createTestCreditCard,
     createTestCashBalance,
     deleteTestUser,
-    query
+    query,
+    logIn
 } = require('../test-helpers');
 
 const USERNAME = 'atomic_writes_user';
@@ -79,7 +80,7 @@ beforeAll(async () => {
     await createTestCashBalance(userId, 500);
 
     agent = request.agent(target());
-    const login = await agent.post('/api/login').send({ username: USERNAME, password: PASSWORD });
+    const login = await logIn(agent, USERNAME, PASSWORD);
     expect(login.status).toBe(200);
 });
 
@@ -253,7 +254,7 @@ describe('expenses-only users', () => {
         expensesBank = await createTestBank(expensesUserId, { name: 'EXPENSES ONLY BANK', balance: 100 });
 
         expensesAgent = request.agent(target());
-        const login = await expensesAgent.post('/api/login').send({ username: EXPENSES_USER, password: PASSWORD });
+        const login = await logIn(expensesAgent, EXPENSES_USER, PASSWORD);
         expect(login.status).toBe(200);
     });
 
