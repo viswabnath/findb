@@ -1,10 +1,12 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 import { CircleCheck, CircleDashed } from 'lucide-react';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: 'Security',
     description: 'How FinDB protects your account and your financial data, today and next.',
-};
+    path: '/security',
+});
 
 export default function SecurityPage() {
     return (

@@ -49,3 +49,27 @@ export function createNonce(): string {
     crypto.getRandomValues(bytes);
     return btoa(String.fromCharCode(...bytes));
 }
+
+/**
+ * Content-Security-Policy for the static website pages (lib/site-routes.ts). Static pages cannot
+ * carry a per-request nonce, and Next.js puts two small inline scripts on every page (its page
+ * data), so inline scripts are allowed here. That is acceptable because these pages hold no
+ * personal data and show no user input; everything else stays locked down, and every external
+ * script carries an integrity hash (experimental.sri in next.config.ts). The app's pages keep the
+ * strict nonce policy above.
+ */
+export function buildSiteContentSecurityPolicy({ isDevelopment }: { isDevelopment: boolean }): string {
+    return [
+        "default-src 'self'",
+        `script-src 'self' 'unsafe-inline'${isDevelopment ? " 'unsafe-eval'" : ''}`,
+        "script-src-attr 'none'",
+        "style-src 'self' 'unsafe-inline'",
+        "font-src 'self'",
+        "img-src 'self' data:",
+        "connect-src 'self'",
+        "base-uri 'self'",
+        "form-action 'self'",
+        "frame-ancestors 'self'",
+        "object-src 'none'",
+    ].join('; ');
+}

@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
 import type { Metadata, Viewport } from 'next';
-import { cookies, headers } from 'next/headers';
 import { Poppins, Source_Sans_3 } from 'next/font/google';
 import { SiteHeader } from '@/components/site/SiteHeader';
 import { MarketingFooter } from '@/components/site/MarketingFooter';
@@ -31,18 +30,20 @@ export const viewport: Viewport = {
 };
 
 /**
- * The root layout of the website (home, features, security, roadmap and the other public pages).
- * The app has its own root layout in app/(product), so the two stylesheets never mix.
- * Reading the request headers renders every page per request, with a fresh CSP nonce (proxy.ts).
+ * The root layout of the website (home, features, tools, security, roadmap and the other public
+ * pages). The app has its own root layout in app/(product), so the two stylesheets never mix.
+ *
+ * Every website page is static: built once and served from the CDN, which is fast for visitors and
+ * search engines and costs no function call per visit. So nothing here reads the request; the
+ * header learns from a cookie in the browser whether someone is signed in. These pages get their
+ * Content-Security-Policy from next.config.ts (no nonce), and proxy.ts does not run for them.
  */
-export default async function SiteLayout({ children }: { children: ReactNode }) {
-    await headers();
-    const signedIn = (await cookies()).has('sessionId');
+export default function SiteLayout({ children }: { children: ReactNode }) {
     return (
         <html lang="en-IN" className={`${head.variable} ${body.variable}`}>
             <body className="site">
                 <a className="skip-link" href="#main">Skip to content</a>
-                <SiteHeader signedIn={signedIn} />
+                <SiteHeader />
                 <main id="main">{children}</main>
                 <MarketingFooter />
             </body>

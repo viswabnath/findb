@@ -15,13 +15,21 @@ export const NAV_LINKS = [
     { href: '/download', label: 'Get the app' },
 ];
 
+/** Whether the browser holds the signed-in hint cookie set at login (lib/session.ts) */
+function hasSignedInHint(): boolean {
+    return document.cookie.split('; ').some(part => part === 'findb_signed_in=1');
+}
+
 /**
  * The website's top bar: a Features menu grouped by category, the other links, and the sign-in
  * actions. On phones the links fold into a full-screen menu, and "Start free" moves to a bar fixed
- * to the bottom of the screen. `signedIn` (from the session cookie) shows "Open FinDB" instead.
+ * to the bottom of the screen. Someone signed in sees "Open FinDB" instead; the pages are static,
+ * so that is read from a cookie in the browser after the page loads.
  */
-export function SiteHeader({ signedIn }: { signedIn: boolean }) {
+export function SiteHeader() {
     const pathname = usePathname();
+    const [signedIn, setSignedIn] = useState(false);
+    useEffect(() => setSignedIn(hasSignedInHint()), []);
     const [menuOpen, setMenuOpen] = useState(false);
     const [featuresOpen, setFeaturesOpen] = useState(false);
     const featuresRef = useRef<HTMLDivElement>(null);

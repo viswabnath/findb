@@ -1,7 +1,7 @@
 /**
  * Unit tests for lib/csp.ts
  */
-import { buildContentSecurityPolicy, createNonce } from '../../lib/csp';
+import { buildContentSecurityPolicy, buildSiteContentSecurityPolicy, createNonce } from '../../lib/csp';
 
 function directives(policy: string): Map<string, string> {
     return new Map(policy.split('; ').map(part => {
@@ -46,5 +46,24 @@ describe('createNonce', () => {
         expect(first).toMatch(/^[A-Za-z0-9+/]+=*$/);
         expect(first).not.toBe(second);
         expect(Buffer.from(first, 'base64')).toHaveLength(16);
+    });
+});
+
+describe('buildSiteContentSecurityPolicy (static website pages)', () => {
+    test('allows only this site\'s scripts and Next.js inline page data, never handlers, frames or plugins', () => {
+        const policy = directives(buildSiteContentSecurityPolicy({ isDevelopment: false }));
+        expect(policy.get('default-src')).toBe("'self'");
+        expect(policy.get('script-src')).toBe("'self' 'unsafe-inline'");
+        expect(policy.get('script-src-attr')).toBe("'none'");
+        expect(policy.get('connect-src')).toBe("'self'");
+        expect(policy.get('object-src')).toBe("'none'");
+        expect(policy.get('base-uri')).toBe("'self'");
+        expect(policy.get('form-action')).toBe("'self'");
+        expect(policy.get('frame-ancestors')).toBe("'self'");
+    });
+
+    test('allows eval only in development', () => {
+        expect(directives(buildSiteContentSecurityPolicy({ isDevelopment: true })).get('script-src')).toContain("'unsafe-eval'");
+        expect(directives(buildSiteContentSecurityPolicy({ isDevelopment: false })).get('script-src')).not.toContain("'unsafe-eval'");
     });
 });

@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: 'Privacy',
     description: 'What FinDB collects, why, where it is kept, and your rights over it.',
-};
+    path: '/privacy',
+});
 
 export default function PrivacyPage() {
     return (

@@ -1,11 +1,13 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 import { ROADMAP } from '@/components/site/content';
 import { StatusBadge } from '@/components/site/StatusBadge';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: 'Roadmap',
     description: 'What FinDB does today, what is being built now, and what comes next.',
-};
+    path: '/roadmap',
+});
 
 export default function RoadmapPage() {
     return (

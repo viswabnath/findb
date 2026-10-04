@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: 'Terms',
     description: 'The terms for using FinDB, in plain language.',
-};
+    path: '/terms',
+});
 
 export default function TermsPage() {
     return (

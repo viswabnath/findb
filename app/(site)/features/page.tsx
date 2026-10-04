@@ -1,14 +1,16 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { FEATURES, GROUPS } from '@/components/site/content';
 import { FeatureIcon } from '@/components/site/FeatureIcon';
 import { StatusBadge } from '@/components/site/StatusBadge';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: 'Features',
     description: 'Everything FinDB tracks: accounts, spending, statement import, loans, chit funds, credit cards, gold, property, savings, insurance, tax and your net worth.',
-};
+    path: '/features',
+});
 
 export default function FeaturesPage() {
     return (

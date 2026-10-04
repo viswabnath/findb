@@ -41,6 +41,13 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] The website (`app/(site)`): home, features with a page each, eight free calculators, roadmap, get the app (install button and QR code), questions, security, privacy, terms and about; light and dark; phone, tablet and desktop
 - [x] Sign-in screens restyled to match the website
 - [x] Installable from the browser (web app manifest and icons)
+- [x] The website is static and served from the CDN.
+- [x] Search engines and AI assistants are covered:
+  - canonical addresses and link preview images;
+  - structured data (organisation, app, FAQ, calculators, breadcrumbs);
+  - `llms.txt` and `llms-full.txt`;
+  - robots rules that welcome search and AI crawlers to the website only.
+- [x] Costs: a database size alert, monthly grouped dependency updates, and `docs/costs.md`.
 
 ## Testing
 

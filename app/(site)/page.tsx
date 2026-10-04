@@ -1,4 +1,6 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
+import { pageMetadata } from '@/components/site/page-metadata';
 import {
     ArrowRight, Ban, ChartColumn, CircleCheck, History, KeyRound, LockKeyhole, ServerOff, ShieldCheck, Wallet, Receipt,
 } from 'lucide-react';
@@ -11,6 +13,12 @@ import { QrCode } from '@/components/site/QrCode';
 import { InstallButton } from '@/components/site/InstallButton';
 import { StoreBadges } from '@/components/site/StoreBadges';
 import { SITE_URL } from '@/lib/site-url';
+import { JsonLd, ORGANIZATION } from '@/components/site/JsonLd';
+
+export const metadata: Metadata = pageMetadata({
+    description: 'FinDB is a free personal finance app made for India. Track bank accounts, cards, cash, loans, gold and savings in plain words, and use free EMI, FD, RD, SIP and chit fund calculators. No ads; your data is never sold.',
+    path: '/',
+});
 
 /** What works in the app today, in the words a new user would use */
 const TODAY = [
@@ -24,6 +32,24 @@ export default function HomePage() {
     const coming = FEATURES.filter(feature => feature.status !== 'available');
     return (
         <>
+            <JsonLd data={{
+                '@graph': [
+                    ORGANIZATION,
+                    { '@type': 'WebSite', '@id': `${SITE_URL}/#website`, name: 'FinDB', url: SITE_URL, inLanguage: 'en-IN', publisher: { '@id': `${SITE_URL}/#organization` } },
+                    {
+                        '@type': 'WebApplication',
+                        name: 'FinDB',
+                        url: SITE_URL,
+                        applicationCategory: 'FinanceApplication',
+                        operatingSystem: 'Any (web browser); installable on Android, iPhone, iPad and computers',
+                        description: 'A free personal finance dashboard made for India: bank accounts, cards, cash, income and expenses today, with loans, chit funds, gold, property, savings and tax planned.',
+                        offers: { '@type': 'Offer', price: '0', priceCurrency: 'INR' },
+                        isAccessibleForFree: true,
+                        inLanguage: 'en-IN',
+                        publisher: { '@id': `${SITE_URL}/#organization` },
+                    },
+                ],
+            }} />
             <section className="hero">
                 <div className="wrap hero-grid">
                     <div className="hero-copy">

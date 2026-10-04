@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
+import { pageMetadata } from '@/components/site/page-metadata';
 import Link from 'next/link';
 import { ArrowRight } from 'lucide-react';
 import { LogoMark } from '@/components/site/Logo';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = pageMetadata({
     title: 'About',
     description: 'Why FinDB exists, what it believes, and who builds it.',
-};
+    path: '/about',
+});
 
 const PRINCIPLES = [
     { title: 'Honest numbers', text: 'Money is recorded the way an accountant would, so nothing is counted twice and every balance can be checked.' },
