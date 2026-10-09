@@ -282,3 +282,47 @@ test('a repeating bill waits to be confirmed, and is recorded with the amount it
     await expect(row).toContainText('Bills and utilities');
     await expect(page.locator('#repeating-due li', { hasText: 'Electricity' })).toHaveCount(0);
 });
+
+test('money owed back is not spending until a reimbursement is closed with some still unpaid', async ({ page }) => {
+    await newUser(page);
+    await addBank(page, 'Office Bank', 30000);
+    await showSection(page, 'transactions');
+
+    await page.locator('[data-action="newReimbursement"]').click();
+    await page.locator('#reimbursement-description').fill('Client dinner');
+    await page.locator('#reimbursement-amount').fill('4000');
+    await page.locator('#reimbursement-from').fill('Employer');
+    await page.locator('#reimbursement-account').selectOption({ label: 'OFFICE BANK' });
+    await page.locator('#reimbursement-category').selectOption({ label: 'Restaurants and food delivery' });
+    await page.locator('[data-action="save-reimbursement"]').click();
+    await expect(page.locator('#reimbursements-owed')).toHaveText(`${rupees(4000)} to come back`);
+    await expect(page.locator('.stat', { hasText: 'Money out' }).locator('.stat-value')).toHaveText(rupees(0));
+
+    await page.locator('#reimbursements-list [data-action="repay"]').click();
+    await page.locator('#repay-amount').fill('3000');
+    await page.locator('#repay-close').check();
+    await page.locator('[data-action="save-repay"]').click();
+    await expect(page.locator('#reimbursements-list li', { hasText: 'Client dinner' })).toContainText(`${rupees(1000)} counted as your spending`);
+
+    await showSection(page, 'summary');
+    await expect(page.locator('.summary-card.expense .summary-amount')).toHaveText(rupees(1000));
+});
+
+test('reconciling a bank against its statement finds the difference and finishes at zero', async ({ page }) => {
+    await newUser(page);
+    await addBank(page, 'Statement Bank', 5000);
+    await page.locator('[data-action="goReconcile"]').click();
+    await expect(page.locator('#reconcile-section')).toBeVisible();
+    await page.locator('#reconcile-account').selectOption({ label: 'STATEMENT BANK' });
+    // The statement shows 4800: a 200 charge FinDB does not know about yet
+    await page.locator('#reconcile-balance').fill('4800');
+    await page.locator('[data-action="startReconcile"]').click();
+    await expect(page.locator('#reconcile-difference')).toHaveText(`Difference ${rupees(4800)}`);
+    // The tick shows once the server has recorded it
+    await page.locator('#reconcile-lines li', { hasText: 'Opening balance' }).locator('[data-action="tickLine"]').click();
+    await expect(page.locator('#reconcile-difference')).toHaveText(`Difference ${rupees(-200)}`);
+    await expect(page.locator('[data-action="finishReconcile"]')).toBeDisabled();
+    await page.locator('[data-action="adjustReconcile"]').click();
+    await expect(toast(page, 'matches the statement')).toBeVisible();
+    await expect(page.locator('#reconcile-history')).toContainText(rupees(4800));
+});

@@ -1,6 +1,7 @@
 import type { Pool, QueryResultRow } from 'pg';
 import { RequestError } from '../transaction';
 import { balances, flows, fromPaise } from '../ledger';
+import { owedBack } from './reimbursements';
 
 /**
  * Monthly summary and activity feed: the report routes moved from the former Express app (N3),
@@ -158,6 +159,8 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
         discretionarySpending: spendingWhere(item => item.essential === false),
         uncategorisedSpending: spendingWhere(item => item.essential === null),
         oneOffSpending,
+        // Paid by the user and still to be paid back (reimbursements): not spending, and not in wealth either
+        owedToYou: (await owedBack(pool, userId)) / 100,
         regularSpending: monthExpenses - oneOffSpending,
         cash: { balance: cashRow.cash_balance_at_month_end || 0, initial_balance: cashRow.initial_balance || 0 },
         selectedMonth,

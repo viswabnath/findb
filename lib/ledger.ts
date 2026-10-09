@@ -13,8 +13,8 @@ import type { PoolClient } from 'pg';
 
 type Client = Pick<PoolClient, 'query'>;
 
-export type SystemAccount = 'cash' | 'income' | 'expense' | 'opening_balance' | 'adjustment';
-export type EntryType = 'opening_balance' | 'income' | 'expense' | 'adjustment' | 'transfer';
+export type SystemAccount = 'cash' | 'income' | 'expense' | 'opening_balance' | 'adjustment' | 'reimbursements';
+export type EntryType = 'opening_balance' | 'income' | 'expense' | 'adjustment' | 'transfer' | 'reimbursable' | 'reimbursement';
 export type SourceTable = 'banks' | 'credit_cards' | 'cash_balance' | 'income_entries' | 'expenses';
 
 const SYSTEM_ACCOUNTS: Record<SystemAccount, { kind: string; subtype: string; name: string }> = {
@@ -23,6 +23,7 @@ const SYSTEM_ACCOUNTS: Record<SystemAccount, { kind: string; subtype: string; na
     expense: { kind: 'expense', subtype: 'expense', name: 'Uncategorised' },
     opening_balance: { kind: 'equity', subtype: 'opening_balance', name: 'Opening balances' },
     adjustment: { kind: 'equity', subtype: 'adjustment', name: 'Balance adjustments' },
+    reimbursements: { kind: 'asset', subtype: 'receivable', name: 'Reimbursements due' },
 };
 
 /**
@@ -113,6 +114,8 @@ export interface NewEntry {
     eventId?: number | null;
     /** A repeating entry this records, and the date it was due (migration 0013) */
     recurring?: { id: number; on: string } | null;
+    /** The reimbursement this entry belongs to (migration 0014) */
+    reimbursementId?: number | null;
     lines: EntryLine[];
 }
 
@@ -128,10 +131,10 @@ export async function postEntry(client: Client, entry: NewEntry): Promise<number
         throw new Error(`Journal entry does not balance: ${entry.description}`);
     }
     const created = await client.query(
-        `INSERT INTO journal_entries (user_id, entry_date, description, entry_type, source_table, source_id, event_id, recurring_id, recurring_on)
-         VALUES ($1, COALESCE($2::date, CURRENT_DATE), $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+        `INSERT INTO journal_entries (user_id, entry_date, description, entry_type, source_table, source_id, event_id, recurring_id, recurring_on, reimbursement_id)
+         VALUES ($1, COALESCE($2::date, CURRENT_DATE), $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
         [entry.userId, entry.date ?? null, entry.description, entry.type, entry.source?.table ?? null, entry.source?.id ?? null,
-            entry.eventId ?? null, entry.recurring?.id ?? null, entry.recurring?.on ?? null],
+            entry.eventId ?? null, entry.recurring?.id ?? null, entry.recurring?.on ?? null, entry.reimbursementId ?? null],
     );
     const entryId = Number(created.rows[0].id);
     for (const line of lines) {

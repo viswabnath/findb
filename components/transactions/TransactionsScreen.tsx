@@ -8,6 +8,7 @@ import { useFormMessage } from '@/components/useFormMessage';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { filterYears, MONTH_NAMES, todayUtcIso } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
+import { ReimbursementsCard } from './ReimbursementsCard';
 import { RepeatingCard } from './RepeatingCard';
 
 /**
@@ -35,6 +36,8 @@ interface Entry {
 interface Draft {
     id: number; type: EntryType; description: string; amount: string; accountId: string; toAccountId: string; date: string;
     categoryId: string; tags: string; eventId: string;
+    /** Set when the API says the entry is in a reconciled statement: shows a confirmation */
+    reconciledWarning?: string; confirmReconciled?: boolean;
 }
 
 function EventOptions({ events }: { events: EventChoice[] }) {
@@ -138,6 +141,7 @@ export function TransactionsScreen() {
 
     const [edit, setEdit] = useState<Draft | null>(null);
     const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
+    const [deleteWarning, setDeleteWarning] = useState<{ text: string; confirmed: boolean } | null>(null);
 
     const loadEntries = useCallback(async (month: number, year: number) => {
         const result = await apiGet<Entry[]>(`/api/entries?${new URLSearchParams({ month: String(month), year: String(year) })}`);
@@ -290,13 +294,17 @@ export function TransactionsScreen() {
 
     async function saveEdit() {
         if (!edit) return;
-        const { id, type, description, amount, accountId, toAccountId, date, categoryId, tags, eventId } = edit;
+        const { id, type, description, amount, accountId, toAccountId, date, categoryId, tags, eventId, confirmReconciled } = edit;
         if (!description || !amount || !date || !accountId || (type === 'transfer' && !toAccountId)) return toast('error', 'Please fill all fields');
         const result = await apiPut(`/api/entries/${id}`, {
-            type, description, amount, accountId: Number(accountId), date, tags: tagList(tags), eventId: eventValue(eventId),
+            type, description, amount, accountId: Number(accountId), date, tags: tagList(tags), eventId: eventValue(eventId), confirmReconciled,
             ...(type === 'transfer' ? { toAccountId: Number(toAccountId) } : { categoryId: categoryId ? Number(categoryId) : undefined }),
         });
         if (redirectIfUnauthorized(result)) return;
+        if (result.status === 409) {
+            setEdit(draft => draft && { ...draft, reconciledWarning: httpError(result), confirmReconciled: false });
+            return;
+        }
         if (!result.ok) return toast('error', httpError(result));
         setEdit(null);
         toast('success', `${ENTRY_NAMES[type]} transaction updated successfully!`);
@@ -325,8 +333,14 @@ export function TransactionsScreen() {
 
     async function confirmDelete() {
         if (!pendingDelete) return;
-        const result = await apiDelete(`/api/entries/${pendingDelete.id}`);
+        const confirm = deleteWarning?.confirmed ? '?confirmReconciled=true' : '';
+        const result = await apiDelete(`/api/entries/${pendingDelete.id}${confirm}`);
         if (redirectIfUnauthorized(result)) return;
+        if (result.status === 409) {
+            setDeleteWarning({ text: httpError(result), confirmed: false });
+            return;
+        }
+        setDeleteWarning(null);
         if (!result.ok) return toast('error', 'Failed to delete transaction');
         toast('success', `${ENTRY_NAMES[pendingDelete.type]} transaction deleted successfully!`);
         setPendingDelete(null);
@@ -562,6 +576,7 @@ export function TransactionsScreen() {
             </div>
 
             <RepeatingCard accounts={accounts} categories={categories} onRecorded={() => loadEntries(period.month, period.year)} />
+            <ReimbursementsCard accounts={accounts} categories={categories} onChange={() => loadEntries(period.month, period.year)} />
 
             <div id="transactions-history" className="histories">
                 <section id="income-history" className="card" style={{ display: showIncome ? undefined : 'none' }} aria-labelledby="income-history-title">
@@ -715,6 +730,16 @@ export function TransactionsScreen() {
                             <input type="date" id={`edit-${edit.type}-date`} required value={edit.date}
                                 onChange={event => setEdit(draft => draft && { ...draft, date: event.target.value })} />
                         </div>
+                        {edit.reconciledWarning ? (
+                            <div className="notice warn" id="edit-reconciled-warning">
+                                {edit.reconciledWarning}
+                                <label className="check-line">
+                                    <input type="checkbox" id="edit-confirm-reconciled" checked={edit.confirmReconciled === true}
+                                        onChange={event => setEdit(draft => draft && { ...draft, confirmReconciled: event.target.checked })} />
+                                    Change it anyway
+                                </label>
+                            </div>
+                        ) : null}
                     </div>
                 ) : null}
             </Modal>
@@ -742,7 +767,7 @@ export function TransactionsScreen() {
             </Modal>
 
             <Modal id="delete-confirmation-modal" title="Delete this entry?" small open={pendingDelete !== null} closeAction="close-delete"
-                onClose={() => setPendingDelete(null)}
+                onClose={() => { setPendingDelete(null); setDeleteWarning(null); }}
                 footer={(
                     <>
                         <button type="button" data-action="close-delete" className="btn btn-secondary" onClick={() => setPendingDelete(null)}>Cancel</button>
@@ -763,6 +788,16 @@ export function TransactionsScreen() {
                     ) : 'Are you sure you want to delete this transaction?'}
                 </p>
                 <p>This cannot be undone. The account balance is adjusted back.</p>
+                {deleteWarning ? (
+                    <div className="notice warn" id="delete-reconciled-warning">
+                        {deleteWarning.text}
+                        <label className="check-line">
+                            <input type="checkbox" id="delete-confirm-reconciled" checked={deleteWarning.confirmed}
+                                onChange={event => setDeleteWarning(current => current && { ...current, confirmed: event.target.checked })} />
+                            Delete it anyway
+                        </label>
+                    </div>
+                ) : null}
             </Modal>
         </div>
     );
