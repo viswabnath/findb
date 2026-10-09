@@ -36,3 +36,7 @@ Export (everything marked `exported`) and erasure (the account and everything th
 - A named grievance officer and response times.
 - The notice in the other languages of the Eighth Schedule, on request at least (DPDP section 5(3)).
 - Self-service export and erasure (Phase 5), and a written plan for handling a breach.
+
+## Profile
+
+`lib/services/profile.ts`: date of birth, city, tax residency and dependants are kept as given; PAN and demat or broker account IDs are encrypted with `lib/field-encryption.ts`, bound to the user, and only returned masked, so the full values never reach a browser after they are saved. Aadhaar is at most its last four digits: a full number is refused, as the Aadhaar Act restricts keeping it. The activity log names the fields that changed, never their values.

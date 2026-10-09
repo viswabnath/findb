@@ -13,7 +13,7 @@ export interface ActivityLabel {
     className: string;
 }
 
-type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating' | 'reimbursement' | 'reconciliation';
+type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating' | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant';
 
 const CREATED: Record<Entity, ActivityLabel> = {
     cash_balance: { icon: 'banknote', text: 'Cash Balance Set', className: 'action-cash-add' },
@@ -28,6 +28,8 @@ const CREATED: Record<Entity, ActivityLabel> = {
     repeating: { icon: 'refresh-cw', text: 'Repeating Entry Added', className: 'action-create' },
     reimbursement: { icon: 'refresh-cw', text: 'Reimbursement Added', className: 'action-create' },
     reconciliation: { icon: 'landmark', text: 'Reconciliation Started', className: 'action-bank-update' },
+    profile: { icon: 'pencil', text: 'Profile Updated', className: 'action-update' },
+    dependant: { icon: 'plus', text: 'Dependant Added', className: 'action-create' },
 };
 
 const UPDATED: Record<Entity, ActivityLabel> = {
@@ -43,6 +45,8 @@ const UPDATED: Record<Entity, ActivityLabel> = {
     repeating: { icon: 'refresh-cw', text: 'Repeating Entry Updated', className: 'action-update' },
     reimbursement: { icon: 'refresh-cw', text: 'Reimbursement Updated', className: 'action-update' },
     reconciliation: { icon: 'landmark', text: 'Account Reconciled', className: 'action-bank-update' },
+    profile: { icon: 'pencil', text: 'Profile Updated', className: 'action-update' },
+    dependant: { icon: 'pencil', text: 'Dependant Updated', className: 'action-update' },
 };
 
 const DELETED: Record<Entity, ActivityLabel> = {
@@ -58,6 +62,8 @@ const DELETED: Record<Entity, ActivityLabel> = {
     repeating: { icon: 'trash-2', text: 'Repeating Entry Deleted', className: 'action-delete' },
     reimbursement: { icon: 'trash-2', text: 'Reimbursement Deleted', className: 'action-delete' },
     reconciliation: { icon: 'trash-2', text: 'Reconciliation Removed', className: 'action-delete' },
+    profile: { icon: 'trash-2', text: 'Profile Cleared', className: 'action-delete' },
+    dependant: { icon: 'trash-2', text: 'Dependant Removed', className: 'action-delete' },
 };
 
 const isEntity = (value: string): value is Entity => Object.prototype.hasOwnProperty.call(CREATED, value);

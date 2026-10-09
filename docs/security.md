@@ -35,7 +35,7 @@ Every login needs a code from an authenticator app (TOTP, RFC 6238: HMAC-SHA1, 6
 
 `lib/field-encryption.ts`: AES-256-GCM in the application, with a 96-bit random IV per value and the value bound to a context (the column and the user's id) as additional data, so a value copied to another row does not decrypt. A stored value is `v<key version>.<iv>.<tag>.<ciphertext>`.
 
-Keys come from `FIELD_ENCRYPTION_KEYS`, `version:base64key` entries, comma-separated, newest first. Today it protects the two-factor secrets (`users.totp_secret_enc`, `users.totp_pending_secret_enc`); PAN, account numbers and similar details will use it when the features that hold them arrive.
+Keys come from `FIELD_ENCRYPTION_KEYS`, `version:base64key` entries, comma-separated, newest first. It protects the two-factor secrets (`users.totp_secret_enc`, `users.totp_pending_secret_enc`), the PAN (`profiles.pan_enc`) and demat or broker account IDs (`profiles.demat_accounts_enc`); bank account numbers and policy numbers will use it when the features that hold them arrive.
 
 - Make a key: `node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"`
 - Every environment has its own key: production (Vercel Production and `.env`) and tests (`.env.test`, and Vercel Preview).

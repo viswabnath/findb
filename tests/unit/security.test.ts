@@ -88,3 +88,18 @@ describe('describeUserAgent', () => {
         expect(describeUserAgent(ua)).toBe(expected);
     });
 });
+
+describe('profile masking', () => {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { maskId, isValidPan } = require('../../lib/services/profile');
+
+    test('shows the first two and last two characters', () => {
+        expect(maskId('ABCDE1234F')).toBe('AB******4F');
+        expect(maskId('AB12')).toBe('****');
+    });
+
+    test('PAN format', () => {
+        expect(isValidPan('ABCDE1234F')).toBe(true);
+        expect(isValidPan('ABCDE12345')).toBe(false);
+    });
+});

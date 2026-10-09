@@ -78,3 +78,18 @@ test('sign-up shows the privacy notice, and withdrawing consent locks the app un
     await expect(page.locator('#setup-section')).toBeVisible();
     await expect(page.locator('#consent-section')).toHaveCount(0);
 });
+
+test('a PAN saved in the profile is only ever shown masked', async ({ page }) => {
+    const user = uniqueUser();
+    await register(page, user);
+    await chooseTracking(page, 'both');
+    await page.goto('/settings');
+    await page.locator('#profile-pan').fill('abcde1234f');
+    await page.locator('#profile-city').fill('Chennai');
+    await page.locator('[data-action="saveProfile"]').click();
+    await expect(page.locator('#profile-pan-masked')).toHaveText('(saved: AB******4F)');
+    await expect(page.locator('#profile-pan')).toHaveValue('');
+    await page.reload();
+    await expect(page.locator('#profile-city')).toHaveValue('Chennai');
+    await expect(page.locator('body')).not.toContainText('ABCDE1234F');
+});
