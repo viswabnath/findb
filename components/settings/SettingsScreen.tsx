@@ -7,6 +7,7 @@ import { useToast } from '@/components/Toast';
 import { apiDelete, apiError, apiGet, apiPost, redirectIfUnauthorized } from '@/lib/api-client';
 import { PRIVACY_CONTACT } from '@/lib/privacy-notice';
 import { CategoriesCard } from './CategoriesCard';
+import { ProfileCard } from './ProfileCard';
 
 /**
  * Account security (docs/security.md): two-factor login and recovery codes, the devices signed
@@ -120,6 +121,8 @@ export function SettingsScreen() {
             </div>
 
             <div className="stack">
+                <ProfileCard />
+
                 <CategoriesCard />
 
                 <section className="card" aria-labelledby="two-factor-title">

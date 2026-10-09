@@ -34,6 +34,7 @@ export default function SecurityPage() {
                             <li><CircleCheck size={18} /><span><strong>Database-enforced privacy.</strong> Every request runs as a restricted database role that the database itself limits to your rows, so even a mistake in FinDB&apos;s code could not show you someone else&apos;s data. The database is encrypted at rest by our hosting provider.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Two-step login for everyone.</strong> Every login needs a code from an authenticator app such as Google Authenticator, with one-time recovery codes for a lost phone. Free, with no SMS.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Safe sessions you can see.</strong> HTTP-only, same-site cookies that expire after 2 hours; every device signed in is listed in Settings, with &ldquo;sign out everywhere&rdquo; and your recent logins.</span></li>
+                            <li><CircleCheck size={18} /><span><strong>Sensitive details encrypted.</strong> Your PAN and demat or broker account IDs are encrypted before they are saved and only ever shown masked; FinDB keeps at most the last four digits of Aadhaar.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Strong passwords.</strong> Long passphrases are welcome, and common or known leaked passwords are refused. The leak check sends only the first five characters of a scrambled form of the password, never the password.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Limits on guessing.</strong> Repeated failed logins from one address are paused, and so are an account&apos;s two-step codes after five wrong ones.</span></li>
                             <li><CircleCheck size={18} /><span><strong>Strict browser rules.</strong> A Content Security Policy and standard security headers on every page.</span></li>
@@ -45,7 +46,7 @@ export default function SecurityPage() {
                     <div className="panel coming reveal">
                         <h2 style={{ fontSize: '1.5rem' }}>Being added next</h2>
                         <ul>
-                            <li><CircleDashed size={18} /><span><strong>Encrypted sensitive details:</strong> PAN, account, policy and folio numbers are encrypted before they are saved, and shown masked. The encryption is in place and already protects your two-step login key; these details arrive with the features that use them.</span></li>
+                            <li><CircleDashed size={18} /><span><strong>More encrypted details:</strong> bank account, policy and folio numbers will be encrypted before they are saved and shown masked, like your PAN and demat IDs already are, as the features that hold them arrive.</span></li>
                         </ul>
                     </div>
                 </div>

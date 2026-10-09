@@ -512,6 +512,7 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 #repeating-notice { margin-bottom: 16px; }
 #reconcile-difference.ok { color: var(--primary-text); }
 #reconcile-section .card { margin-bottom: 20px; }
+.profile-actions { flex-direction: row; display: flex; gap: 10px; align-items: flex-end; }
 #repeating-section, #reimbursements-section { margin-bottom: 20px; }
 .event-tag { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
 .select-entry { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }

@@ -123,6 +123,22 @@ On success:
 
 A weak `newPassword` returns the password rule error. A failed answer returns the generic `400`.
 
+## Profile
+
+All optional. PAN and demat or broker account IDs are encrypted before they are stored and only ever returned masked (the first two and last two characters); Aadhaar is at most its last four digits.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/profile` | – | `{ "dateOfBirth", "city", "taxResidency", "panMasked", "aadhaarLast4", "dematAccounts": [{ "broker", "accountMasked" }] }` |
+| PUT | `/api/profile` | `{ "dateOfBirth"?, "city"?, "taxResidency"?: "resident \| nri \| rnor", "pan"?, "aadhaarLast4"?, "dematAccounts"?: [{ "broker", "accountId" }] }` | the profile; left out stays, null or empty clears |
+| POST | `/api/profile/demat` | `{ "broker", "accountId" }` | the profile, with the account added |
+| DELETE | `/api/profile/demat/:index` | – | the profile, with that account removed |
+| GET | `/api/profile/dependants` | – | `[{ "id", "relationship", "name", "dateOfBirth" }]` |
+| POST | `/api/profile/dependants` | `{ "relationship": "spouse \| child \| parent \| other", "name", "dateOfBirth"? }` | the dependant |
+| PUT, DELETE | `/api/profile/dependants/:id` | the same fields | the dependant; `{ "success": true }` |
+
+A PAN must be five letters, four digits and a letter. A full twelve-digit Aadhaar number is refused. Dates of birth cannot be in the future. The activity log records which profile fields changed, never their values.
+
 ## Banks
 
 | Method | Path | Body | Response |

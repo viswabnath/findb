@@ -25,6 +25,16 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         purpose: 'Your account and logging in', retention: 'Until you delete your account',
     },
     {
+        table: 'profiles', category: 'account', exported: true,
+        holds: 'Date of birth, city, tax residency; PAN and demat account IDs, encrypted; the last four digits of Aadhaar at most',
+        purpose: 'Age-based rules, tax and the financial review', retention: 'Until you delete it or your account',
+    },
+    {
+        table: 'dependants', category: 'account', exported: true,
+        holds: 'Your spouse, children and parents: name, relationship and date of birth',
+        purpose: 'Insurance, goals and the household view', retention: 'Until you delete them or your account',
+    },
+    {
         table: 'banks', category: 'money', exported: true,
         holds: 'Bank account names and balances you enter', purpose: 'Showing your money', retention: 'Until you delete it or your account',
     },
