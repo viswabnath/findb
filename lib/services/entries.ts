@@ -391,7 +391,7 @@ function readEntry(body: Body): EntryInput {
  * Users who also track income cannot overspend: the account money leaves must hold it, or a card
  * must have the limit left. Expenses-only users skip this (as with the former routes).
  */
-async function checkCanSpend(client: Client, userId: number, account: MoneyAccount, paise: number): Promise<void> {
+export async function checkCanSpend(client: Client, userId: number, account: MoneyAccount, paise: number): Promise<void> {
     const user = await client.query('SELECT tracking_option FROM users WHERE id = $1', [userId]);
     if ((user.rows[0]?.tracking_option || 'both') === 'expenses') return;
     if (account.type === 'credit_card') {

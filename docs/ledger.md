@@ -109,3 +109,7 @@ Since migration 0012 (`lib/services/events.ts`, `/api/events`): an event is a na
 ## Repeating entries
 
 Since migration 0013 (`src/core/schedule.ts`, `lib/services/recurring.ts`): a repeating entry keeps the entry's fields and a schedule, with `next_due`. `runDue` (the app calls it on opening, so no scheduled job is needed) records due automatic ones through `recordNewEntry`, each with `recurring_id` and `recurring_on`; the unique index `journal_entries_recurring_once` lets a date be recorded only once, and `FOR UPDATE SKIP LOCKED` lets two pages opening together share the work. Confirm-mode ones wait for `confirm` (which can change the amount) or `skip`. Each repeating entry is processed in its own savepoint, so one that fails (a removed account) does not stop the others.
+
+## Reimbursements
+
+Since migration 0014 (`lib/services/reimbursements.ts`): paying for something someone will repay is an entry of type `reimbursable` into the built-in "Reimbursements due" account (`system_key` `reimbursements`, an asset of subtype `receivable`), so it is not spending. A repayment (`reimbursement`) moves money from it to the account that receives it. Closing one posts the part never repaid as an `expense` from it into the chosen category. Every entry of a reimbursement carries `reimbursement_id`.

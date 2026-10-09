@@ -106,11 +106,12 @@ export const FEATURES: Feature[] = [
             'Your own categories and tags, and putting many entries in a category at once',
             'Marking spending as essential or optional, to see what you really need each month',
             'Repeating entries for salary, rent, EMIs, SIPs and subscriptions: recorded automatically, or confirmed with one tap, with a reminder before they are due',
+            'Reimbursements: money your office or insurer will pay back is not counted as your spending; whatever never comes back is',
             'A monthly summary: income, spending by category, savings and total wealth',
             'An activity log of every change, with the old and new values, and a CSV export',
         ],
         next: [
-            'Reimbursements: money your office or insurer will pay back is not counted as your spending',
+            'Statement import, so most of this fills itself in (see Import)',
         ],
         example: {
             title: 'A normal month',

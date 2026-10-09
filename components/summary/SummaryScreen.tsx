@@ -28,6 +28,7 @@ interface Summary {
     discretionarySpending?: Amount;
     uncategorisedSpending?: Amount;
     oneOffSpending?: Amount;
+    owedToYou?: Amount;
     regularSpending?: Amount;
 }
 
@@ -209,6 +210,11 @@ function SummaryView({ data, month, year }: { data: Summary; month: number; year
                     {parseFloat(String(data.oneOffSpending ?? 0)) > 0 ? (
                         <p className="breakdown-note" id="regular-spending">
                             Regular spending {formatRupees(data.regularSpending ?? 0)}, leaving out {formatRupees(data.oneOffSpending ?? 0)} on one-off events.
+                        </p>
+                    ) : null}
+                    {parseFloat(String(data.owedToYou ?? 0)) > 0 ? (
+                        <p className="breakdown-note" id="owed-to-you">
+                            {formatRupees(data.owedToYou ?? 0)} you paid is still to be paid back to you; it is not counted as spending.
                         </p>
                     ) : null}
                     <p className="breakdown-note">Transfers between your own accounts, such as an ATM withdrawal or a card bill payment, are neither income nor spending.</p>

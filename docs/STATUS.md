@@ -24,6 +24,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] Cash balance with separate initial and running balance
 - [x] Wallets and meal cards, and bank details (bank, account type, savings interest rate)
 - [x] Categories (defaults, your own, essential or discretionary), suggested from the title and learning from your choices; tags; categorising many entries at once; spending by category in the summary
+- [x] Reimbursements: money paid and owed back is not spending; repayments come back into an account; what is never repaid becomes spending in its category
 - [x] Repeating entries: daily, weekly, monthly or yearly; recorded automatically or confirmed with one tap (amount editable) or skipped; reminders before they fall due
 - [x] Events and projects: any entry can carry one; each shows spending by category, receipts, net cost, budget, who paid and a timeline; one-off events are left out of regular spending
 - [x] Moving money between your own accounts (transfers), counted as neither income nor spending; net savings = income - expenses

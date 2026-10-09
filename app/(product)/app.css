@@ -510,6 +510,7 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .due-amount { width: 120px; }
 #repeating-list li.paused .what { color: var(--muted); }
 #repeating-notice { margin-bottom: 16px; }
+#repeating-section, #reimbursements-section { margin-bottom: 20px; }
 .event-tag { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
 .select-entry { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .select-entry input { width: 16px; height: 16px; accent-color: var(--primary); }

@@ -266,6 +266,19 @@ Weekly needs `dayOfWeek` (0 Sunday to 6 Saturday); monthly `dayOfMonth` (1 to 31
 
 `run` (the app calls it when it opens) records every automatic one that has fallen due, catching up on missed dates (up to 62 at a time), each date at most once even when several pages call it together. One that cannot be recorded (its account removed, say) is listed in `problems` and left as it is. `pending` lists the confirm-mode dates now due; `upcoming` what falls due within each one's `remindDays`. A confirmed entry gets the spending check like any new entry; automatic ones do not. Dates are counted in India's time zone.
 
+## Reimbursements
+
+An expense paid now that someone will pay back (an employer, an insurer). While pending it is money owed to the user, not spending.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/reimbursements` | – | every reimbursement, the open ones first |
+| POST | `/api/reimbursements` | `{ "description", "amount", "accountId", "date", "fromWhom"?, "categoryId"?, "eventId"? }` | the new reimbursement |
+| POST | `/api/reimbursements/:id/repay` | `{ "amount", "accountId", "date", "close"? }` | the reimbursement after the repayment |
+| DELETE | `/api/reimbursements/:id` | – | `{ "success": true }`: only while nothing has been repaid; the payment is undone |
+
+A reimbursement: `{ "id", "description", "fromWhom", "amount", "received", "outstanding", "keptAsSpending", "category", "event", "paidFrom", "paidOn", "status": "pending | partly repaid | repaid | closed", "repayments": [{ "date", "amount", "account" }] }`. The payment gets the spending check. A repayment cannot be more than what is still owed; repaying it all closes it, and `close: true` closes it early: what was not repaid becomes an expense in its category (Uncategorised without one), dated that day. The summary's `owedToYou` is what is still to come back.
+
 ## Income
 
 | Method | Path | Body / Query | Response |
@@ -337,7 +350,7 @@ Weekly needs `dayOfWeek` (0 Sunday to 6 Saturday); monthly `dayOfMonth` (1 to 31
   "message": null
 }
 ```
-Income and expenses are the entries dated in the month; transfers count as neither. `netSavings` is `monthlyIncome - totalExpenses`. Balances are as at the month's last day, from the ledger, and `totalCurrentWealth` is banks, cash, wallets and meal cards. `regularSpending` leaves out spending on one-off events (`oneOffSpending`). When the month has no transactions, `message` is `"No transactions found for this month"` and the totals are 0.
+Income and expenses are the entries dated in the month; transfers count as neither. `netSavings` is `monthlyIncome - totalExpenses`. Balances are as at the month's last day, from the ledger, and `totalCurrentWealth` is banks, cash, wallets and meal cards. `regularSpending` leaves out spending on one-off events (`oneOffSpending`). `owedToYou` is money paid and still to be paid back (reimbursements), counted neither as spending nor in wealth. When the month has no transactions, `message` is `"No transactions found for this month"` and the totals are 0.
 
 ## Activity log
 

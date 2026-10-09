@@ -13,7 +13,7 @@ export interface ActivityLabel {
     className: string;
 }
 
-type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating';
+type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating' | 'reimbursement';
 
 const CREATED: Record<Entity, ActivityLabel> = {
     cash_balance: { icon: 'banknote', text: 'Cash Balance Set', className: 'action-cash-add' },
@@ -26,6 +26,7 @@ const CREATED: Record<Entity, ActivityLabel> = {
     category: { icon: 'plus', text: 'Category Added', className: 'action-create' },
     event: { icon: 'plus', text: 'Event Added', className: 'action-create' },
     repeating: { icon: 'refresh-cw', text: 'Repeating Entry Added', className: 'action-create' },
+    reimbursement: { icon: 'refresh-cw', text: 'Reimbursement Added', className: 'action-create' },
 };
 
 const UPDATED: Record<Entity, ActivityLabel> = {
@@ -39,6 +40,7 @@ const UPDATED: Record<Entity, ActivityLabel> = {
     category: { icon: 'pencil', text: 'Category Updated', className: 'action-update' },
     event: { icon: 'pencil', text: 'Event Updated', className: 'action-update' },
     repeating: { icon: 'refresh-cw', text: 'Repeating Entry Updated', className: 'action-update' },
+    reimbursement: { icon: 'refresh-cw', text: 'Reimbursement Updated', className: 'action-update' },
 };
 
 const DELETED: Record<Entity, ActivityLabel> = {
@@ -52,6 +54,7 @@ const DELETED: Record<Entity, ActivityLabel> = {
     category: { icon: 'trash-2', text: 'Category Removed', className: 'action-delete' },
     event: { icon: 'trash-2', text: 'Event Removed', className: 'action-delete' },
     repeating: { icon: 'trash-2', text: 'Repeating Entry Deleted', className: 'action-delete' },
+    reimbursement: { icon: 'trash-2', text: 'Reimbursement Deleted', className: 'action-delete' },
 };
 
 const isEntity = (value: string): value is Entity => Object.prototype.hasOwnProperty.call(CREATED, value);

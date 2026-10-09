@@ -8,6 +8,7 @@ import { useFormMessage } from '@/components/useFormMessage';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { filterYears, MONTH_NAMES, todayUtcIso } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
+import { ReimbursementsCard } from './ReimbursementsCard';
 import { RepeatingCard } from './RepeatingCard';
 
 /**
@@ -562,6 +563,7 @@ export function TransactionsScreen() {
             </div>
 
             <RepeatingCard accounts={accounts} categories={categories} onRecorded={() => loadEntries(period.month, period.year)} />
+            <ReimbursementsCard accounts={accounts} categories={categories} onChange={() => loadEntries(period.month, period.year)} />
 
             <div id="transactions-history" className="histories">
                 <section id="income-history" className="card" style={{ display: showIncome ? undefined : 'none' }} aria-labelledby="income-history-title">
