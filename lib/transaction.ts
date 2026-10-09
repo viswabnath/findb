@@ -47,6 +47,22 @@ function timed(client: PoolClient): PoolClient['query'] {
     }) as PoolClient['query'];
 }
 
+/**
+ * Whether an error came from the connection rather than from Postgres or the app: a query that
+ * timed out on the client (lib/db.ts), or a connection that broke. After one, nothing more may be sent on the connection: a ROLLBACK or
+ * COMMIT would wait behind the stuck query (20 s each), and the connection would go back to the
+ * pool still stuck, stalling later requests. It is closed instead, which ends its transaction.
+ */
+export function isConnectionError(error: unknown): boolean {
+    if (!(error instanceof Error) || error instanceof RequestError) return false;
+    const code = (error as { code?: unknown }).code;
+    // A Postgres error: the connection is fine, the transaction can be rolled back as usual
+    if (typeof code === 'string' && /^[0-9A-Z]{5}$/.test(code)) return false;
+    // Node's network errors (ECONNRESET, ETIMEDOUT, EPIPE...) and pg's own connection messages
+    return (typeof code === 'string' && /^E[A-Z]+$/.test(code))
+        || /Query read timeout|Connection terminated|Client has encountered a connection error|Connection is not open/i.test(error.message);
+}
+
 /** Marks the database handle of a user's request (withUserScope): its transactions become savepoints */
 const SCOPED = Symbol('findb.userScope');
 type Scoped = { [SCOPED]: { nextSavepoint: number } };
@@ -76,13 +92,14 @@ export async function withTransaction<T>(
             await client.query(`RELEASE SAVEPOINT ${savepoint}`);
             return result;
         } catch (error) {
-            await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
+            // After a connection error, withUserScope closes the connection; nothing more is sent
+            if (!isConnectionError(error)) await client.query(`ROLLBACK TO SAVEPOINT ${savepoint}`);
             throw error;
         }
     }
     const client = await pool.connect();
-    // Set when ROLLBACK fails: the connection's state is then unknown (for example a query that
-    // timed out may still be running), so it is closed instead of going back to the pool
+    // Set when the connection's state is unknown (a connection error, or a failed ROLLBACK): it is
+    // then closed instead of going back to the pool
     let broken: Error | undefined;
     try {
         await client.query(`BEGIN; ${TRANSACTION_LIMITS}`);
@@ -90,8 +107,12 @@ export async function withTransaction<T>(
         await client.query('COMMIT');
         return result;
     } catch (error) {
-        // A failed ROLLBACK must not hide the original error
-        await client.query('ROLLBACK').catch((rollbackError: Error) => { broken = rollbackError; });
+        if (isConnectionError(error)) {
+            broken = error as Error;
+        } else {
+            // A failed ROLLBACK must not hide the original error
+            await client.query('ROLLBACK').catch((rollbackError: Error) => { broken = rollbackError; });
+        }
         throw error;
     } finally {
         client.release(broken);
@@ -133,7 +154,11 @@ export async function withUserScope<T>(pool: Pool, userId: number, fn: (scoped: 
         try {
             result = await fn(scoped);
         } catch (error) {
-            // Committed all the same (see above)
+            // Committed all the same (see above), unless the connection itself failed
+            if (isConnectionError(error)) {
+                broken = error as Error;
+                throw error;
+            }
             await client.query('COMMIT');
             closed = true;
             throw error;
@@ -142,9 +167,10 @@ export async function withUserScope<T>(pool: Pool, userId: number, fn: (scoped: 
         closed = true;
         return result;
     } catch (error) {
+        if (isConnectionError(error)) broken ??= error as Error;
         // Only while the transaction may still be open (BEGIN or COMMIT failed): after a COMMIT,
         // a ROLLBACK would only draw "there is no transaction in progress"
-        if (!closed) await client.query('ROLLBACK').catch((rollbackError: Error) => { broken = rollbackError; });
+        if (!closed && !broken) await client.query('ROLLBACK').catch((rollbackError: Error) => { broken = rollbackError; });
         throw error;
     } finally {
         client.release(broken);

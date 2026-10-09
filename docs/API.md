@@ -187,12 +187,31 @@ Income, expenses and transfers on any money account, in the ledger. A transfer m
   "description": "max 200",
   "amount": "positive, up to 2 decimals",
   "accountId": 1,
-  "toAccountId": 2
+  "toAccountId": 2,
+  "categoryId": 7,
+  "tags": ["goa trip", "work"]
 }
 ```
+`categoryId` is for income and expenses and must be a category of the same kind; left out, it is the fallback ("Uncategorised", "Other income"), or on an edit, the entry's own. `tags` is an array or a comma-separated text, at most 10 of up to 30 characters, repeats ignored; left out on an edit, the entry keeps its tags.
 `accountId` is where income arrives, or where an expense or transfer is paid from; `toAccountId` is a transfer's destination. Income cannot go onto a credit card. For users who also track income, a new expense or transfer must fit the account's balance (`Insufficient bank balance`, `Insufficient cash balance`, `Insufficient balance in <name>`) or a card's limit (`Insufficient credit limit`); edits are not checked, as with the routes below.
 
-An entry: `{ "id", "type", "date", "description", "amount", "account": { "id", "name", "type" }, "toAccount", "category": { "id", "name" }, "legacy" }`. `legacy` marks income and expenses recorded through the routes below; editing or deleting one here also removes its row there.
+An entry: `{ "id", "type", "date", "description", "amount", "account": { "id", "name", "type" }, "toAccount", "category": { "id", "name" }, "tags", "legacy" }`. `tags` is a sorted array of names. `legacy` marks income and expenses recorded through the routes below; editing or deleting one here also removes its row there.
+
+## Categories
+
+Income and spending categories are income and expense accounts in the ledger. Each user has the defaults (`lib/categories.ts`: 18 spending, 10 income), made the first time they are needed, plus the built-in fallbacks "Uncategorised" and "Other income".
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/categories` | – | array of categories: spending first, in the default order, then the user's own, the fallback last |
+| POST | `/api/categories` | `{ "kind": "income" \| "expense", "name", "essential"? }` | the new category |
+| PUT | `/api/categories/:id` | `{ "name"?, "essential"? }` | the updated category |
+| DELETE | `/api/categories/:id` | – | `{ "success": true }`: removed from the lists; entries keep it |
+| GET | `/api/categories/suggest` | `?kind=income\|expense&description=...` | `{ "category": {...} \| null, "reason": "history" \| "keyword" \| null }` |
+
+A category: `{ "id", "kind", "name", "key", "essential", "fallback" }`. `key` is the default it started as (`groceries`), null for the user's own; `essential` is for spending (null for income and the fallback). Names are unique per kind, up to 60 characters. The fallbacks cannot be renamed, marked or removed. A suggestion is the category the user chose last time for the same title, then for a title starting with the same word, then a default by keyword ("Swiggy" means restaurants).
+
+**POST** `/api/entries/categorise` with `{ "entryIds": [...], "categoryId" }` puts up to 200 entries of the category's kind in it at once (each gets a new id, as with an edit) and returns `{ "changed": n }`.
 
 ## Income
 
@@ -250,6 +269,10 @@ An entry: `{ "id", "type", "date", "description", "amount", "account": { "id", "
   "banks": [],
   "creditCards": [],
   "otherAccounts": [{ "id": 9, "type": "wallet", "name": "Paytm Wallet", "current_balance": "250.00" }],
+  "spendingByCategory": [{ "id": 12, "name": "Groceries", "amount": "9400.00", "essential": true }],
+  "essentialSpending": 9400,
+  "discretionarySpending": 0,
+  "uncategorisedSpending": 0,
   "cash": { "balance": 0, "initial_balance": 0 },
   "selectedMonth": 7,
   "selectedYear": 2025,

@@ -6,6 +6,7 @@ import { RecoveryCodes } from '@/components/auth/TwoFactor';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiError, apiGet, apiPost, redirectIfUnauthorized } from '@/lib/api-client';
 import { PRIVACY_CONTACT } from '@/lib/privacy-notice';
+import { CategoriesCard } from './CategoriesCard';
 
 /**
  * Account security (docs/security.md): two-factor login and recovery codes, the devices signed
@@ -119,6 +120,8 @@ export function SettingsScreen() {
             </div>
 
             <div className="stack">
+                <CategoriesCard />
+
                 <section className="card" aria-labelledby="two-factor-title">
                     <div className="card-head">
                         <h3 id="two-factor-title"><span className="icon-tile t-bank" aria-hidden="true"><KeyRound /></span>Two-factor login</h3>

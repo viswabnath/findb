@@ -98,18 +98,19 @@ export const FEATURES: Feature[] = [
         status: 'available',
         short: 'Record what comes in and what goes out, and see every month at a glance.',
         summary:
-            'Add your salary and other income, and every expense paid by cash, bank or card. The monthly summary shows what you earned, what you spent, what you saved, and where each account stood at the end of the month.',
+            'Add your salary and other income, and every expense paid by cash, bank, card, wallet or meal card, in a category. The monthly summary shows what you earned, what you spent and on what, what you saved, and where each account stood at the end of the month.',
         points: [
-            'Income into a bank account or cash',
-            'Expenses paid by cash, bank or credit card',
-            'A monthly summary: income, spending, savings and total wealth',
+            'Income into a bank account, cash, a wallet or a meal card',
+            'Expenses paid by cash, bank, credit card, wallet or meal card',
+            'Categories such as Groceries, Fuel and Restaurants, suggested from the title ("Swiggy" means Restaurants) and learning from your own choices',
+            'Your own categories and tags, and putting many entries in a category at once',
+            'Marking spending as essential or optional, to see what you really need each month',
+            'A monthly summary: income, spending by category, savings and total wealth',
             'An activity log of every change, with the old and new values, and a CSV export',
         ],
         next: [
-            'Categories such as Groceries, Fuel and Restaurants, suggested from the title ("Swiggy" means Restaurants)',
             'Repeating entries for rent, EMIs, SIPs and subscriptions, confirmed with one tap',
             'Reimbursements: money your office or insurer will pay back is not counted as your spending',
-            'Marking spending as essential or optional, to see what you really need each month',
         ],
         example: {
             title: 'A normal month',
@@ -553,6 +554,7 @@ export const ROADMAP: RoadmapStage[] = [
         items: [
             'Bank accounts, credit cards, wallets, meal cards and cash',
             'Income, expenses and money moved between your accounts',
+            'Categories and tags, suggested from the title',
             'Accountant-grade records that never double-count',
             'Monthly summary',
             'Activity log with CSV export',
@@ -565,7 +567,7 @@ export const ROADMAP: RoadmapStage[] = [
         summary: 'The base every later feature is built on.',
         items: [
             'A new design for phones, tablets and computers, in light and dark',
-            'Categories, tags, events and repeating entries',
+            'Events and repeating entries',
             'Choose what you want to track',
         ],
     },

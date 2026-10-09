@@ -116,7 +116,7 @@ describe('entries', () => {
             .send({ type: 'income', description: 'Meal benefit', amount: 2200, accountId: mealCard.id, date: DAY });
         expect(income.status).toBe(200);
         expect(income.body).toMatchObject({ type: 'income', amount: '2200.00', account: { id: mealCard.id, type: 'meal_card' }, legacy: false });
-        expect(income.body.category.name).toBe('Income');
+        expect(income.body.category.name).toBe('Other income');
 
         const expense = await agent.post('/api/entries')
             .send({ type: 'expense', description: 'Swiggy', amount: '150.50', accountId: wallet.id, date: DAY });

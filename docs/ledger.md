@@ -91,3 +91,13 @@ Since migration 0010 the ledger holds things the former tables cannot (`lib/serv
 - **Income and spending** in the summary are the lines on accounts of kind `income` and `expense` (`flows`), so transfers never count, and **net savings = income - expenses** (v2 plan).
 - **Older entries** made through `/api/income` and `/api/expenses` keep their rows there. Editing or deleting one through `/api/entries` removes its row and records the entry in the ledger alone, so `ledger_entry_check` stays empty.
 - An edit voids the entry and records a new one under a new id; nothing is ever deleted from the ledger.
+
+## Categories and tags
+
+Since migration 0011 (`lib/categories.ts`, `lib/services/categories.ts`):
+
+- A **category** is an income or expense account (`kind` `income` or `expense`), so an entry's category is the account its other line uses, and categorising an entry is recording it again against another account. Defaults carry a `category_key`; spending categories carry `essential`. The built-in accounts are the fallbacks: "Uncategorised" (`system_key` `expense`) and "Other income" (`system_key` `income`).
+- Defaults are made by `ensureCategories` the first time categories are listed or suggested; a removed default (archived) is not made again.
+- **Suggestions** come from the user's own past entries first (same title, then same first word), then keywords.
+- **Tags** (`tags`, `entry_tags`) belong to an entry; an edit or a categorisation carries them to the new entry.
+- The summary's `spendingByCategory` sums the month's lines on expense accounts.

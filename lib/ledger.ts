@@ -19,7 +19,7 @@ export type SourceTable = 'banks' | 'credit_cards' | 'cash_balance' | 'income_en
 
 const SYSTEM_ACCOUNTS: Record<SystemAccount, { kind: string; subtype: string; name: string }> = {
     cash: { kind: 'asset', subtype: 'cash', name: 'Cash' },
-    income: { kind: 'income', subtype: 'income', name: 'Income' },
+    income: { kind: 'income', subtype: 'income', name: 'Other income' },
     expense: { kind: 'expense', subtype: 'expense', name: 'Uncategorised' },
     opening_balance: { kind: 'equity', subtype: 'opening_balance', name: 'Opening balances' },
     adjustment: { kind: 'equity', subtype: 'adjustment', name: 'Balance adjustments' },

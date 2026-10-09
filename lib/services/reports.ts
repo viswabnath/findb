@@ -64,6 +64,22 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
     const firstDay = `${selectedYear}-${pad(selectedMonth)}-01`;
     const lastDay = `${selectedYear}-${pad(selectedMonth)}-${pad(new Date(Date.UTC(selectedYear, selectedMonth, 0)).getUTCDate())}`;
     const monthFlows = await flows(pool, userId, firstDay, lastDay);
+    // Spending by category this month, largest first, and how much of it is essential
+    const byCategory = await pool.query(
+        `SELECT a.id, a.name, a.essential, a.system_key, SUM(l.amount_paise)::bigint AS paise
+         FROM journal_lines l
+         JOIN journal_entries e ON e.user_id = l.user_id AND e.id = l.entry_id
+         JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
+         WHERE l.user_id = $1 AND e.voided_at IS NULL AND e.entry_date BETWEEN $2::date AND $3::date AND a.kind = 'expense'
+         GROUP BY a.id HAVING SUM(l.amount_paise) <> 0 ORDER BY paise DESC, lower(a.name)`,
+        [userId, firstDay, lastDay]);
+    const spendingByCategory = byCategory.rows.map(row => ({
+        id: Number(row.id), name: row.name, amount: fromPaise(row.paise),
+        // Uncategorised spending is neither, until it is categorised
+        essential: row.system_key === null ? row.essential === true : null,
+    }));
+    const spendingWhere = (test: (item: { essential: boolean | null }) => boolean) =>
+        byCategory.rows.filter((row, index) => test(spendingByCategory[index]!)).reduce((sum, row) => sum + Number(row.paise), 0) / 100;
     // Balances at the end of the month: every entry dated on or before its last day
     const ledger = await balances(pool, userId, lastDay);
 
@@ -126,6 +142,10 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
         banks: bankResult.rows.map((bank) => ({ ...bank, current_balance: bank.balance_at_month_end })),
         creditCards,
         otherAccounts,
+        spendingByCategory,
+        essentialSpending: spendingWhere(item => item.essential === true),
+        discretionarySpending: spendingWhere(item => item.essential === false),
+        uncategorisedSpending: spendingWhere(item => item.essential === null),
         cash: { balance: cashRow.cash_balance_at_month_end || 0, initial_balance: cashRow.initial_balance || 0 },
         selectedMonth,
         selectedYear,

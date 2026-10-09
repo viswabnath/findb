@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import { logActivity } from '../activity-log';
 import { fromPaise, postEntry, systemAccount, toPaise, voidEntry, type EntryLine } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
+import { lockedCategory } from './categories';
 import { entryDate } from './transactions';
 
 /**
@@ -227,8 +228,10 @@ export interface Entry {
     account: { id: number; name: string; type: MoneyAccountType };
     /** Transfers: where the money went */
     toAccount: { id: number; name: string; type: MoneyAccountType } | null;
-    /** Income and expenses: the income or expense account (Uncategorised until categories arrive) */
+    /** Income and expenses: the category (an income or expense account) */
     category: { id: number; name: string } | null;
+    /** Free-form labels, sorted */
+    tags: string[];
     /** Recorded through the former routes, with a row in income_entries or expenses */
     legacy: boolean;
 }
@@ -254,6 +257,7 @@ function toEntry(row: Record<string, unknown>): Entry {
         account: ref(main ?? money[0])!,
         toAccount: type === 'transfer' ? ref(into) : null,
         category: other ? { id: Number(other.account), name: other.name } : null,
+        tags: (row.tags as string[] | null) ?? [],
         legacy: row.source_table !== null,
     };
 }
@@ -261,7 +265,10 @@ function toEntry(row: Record<string, unknown>): Entry {
 const ENTRY_QUERY = `
     SELECT e.id, e.entry_type, e.entry_date::text AS entry_date, e.description, e.source_table, e.source_id,
            json_agg(json_build_object('account', l.account_id, 'paise', l.amount_paise, 'kind', a.kind,
-                                      'subtype', a.subtype, 'name', a.name) ORDER BY l.id) AS lines
+                                      'subtype', a.subtype, 'name', a.name) ORDER BY l.id) AS lines,
+           (SELECT coalesce(json_agg(t.name ORDER BY lower(t.name)), '[]'::json)
+            FROM entry_tags et JOIN tags t ON t.user_id = et.user_id AND t.id = et.tag_id
+            WHERE et.user_id = e.user_id AND et.entry_id = e.id) AS tags
     FROM journal_entries e
     JOIN journal_lines l ON l.user_id = e.user_id AND l.entry_id = e.id
     JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
@@ -310,7 +317,44 @@ function amountPaise(value: unknown, allowZero = false): number {
     return paise;
 }
 
-interface EntryInput { type: EntryKind; date: string; description: string; paise: number; accountId: unknown; toAccountId: unknown }
+interface EntryInput {
+    type: EntryKind; date: string; description: string; paise: number; accountId: unknown; toAccountId: unknown;
+    /** Income and expenses; left out, the fallback ("Uncategorised", "Other income") or, on an edit, the entry's own */
+    categoryId: unknown;
+    /** Left out on an edit, the entry keeps its tags */
+    tags: string[] | undefined;
+}
+
+const MAX_TAGS = 10;
+
+/** Tags from an array or a comma-separated text: trimmed, without repeats (ignoring case), at most 10 of up to 30 characters */
+function readTags(value: unknown): string[] | undefined {
+    if (value === undefined || value === null) return undefined;
+    const raw = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : null;
+    if (!raw || raw.some(tag => typeof tag !== 'string')) throw new RequestError(400, 'Tags must be text');
+    const tags: string[] = [];
+    for (const tag of (raw as string[]).map(item => item.trim()).filter(Boolean)) {
+        if (tag.length > 30) throw new RequestError(400, 'A tag can be at most 30 characters');
+        if (!tags.some(existing => existing.toLowerCase() === tag.toLowerCase())) tags.push(tag);
+    }
+    if (tags.length > MAX_TAGS) throw new RequestError(400, `At most ${MAX_TAGS} tags on an entry`);
+    return tags;
+}
+
+/** Put these tags on an entry, making any that are new; replaces its tags */
+async function setEntryTags(client: Client, userId: number, entryId: number, tags: string[]): Promise<void> {
+    await client.query('DELETE FROM entry_tags WHERE user_id = $1 AND entry_id = $2', [userId, entryId]);
+    if (tags.length === 0) return;
+    await client.query(
+        `INSERT INTO tags (user_id, name) SELECT $1, t FROM unnest($2::text[]) AS t
+         WHERE NOT EXISTS (SELECT 1 FROM tags WHERE user_id = $1 AND lower(name) = lower(t))`,
+        [userId, tags]);
+    await client.query(
+        `INSERT INTO entry_tags (user_id, entry_id, tag_id)
+         SELECT $1, $2, id FROM tags WHERE user_id = $1 AND lower(name) = ANY(SELECT lower(t) FROM unnest($3::text[]) AS t)
+         ON CONFLICT DO NOTHING`,
+        [userId, entryId, tags]);
+}
 
 function readEntry(body: Body): EntryInput {
     const type = body.type;
@@ -322,7 +366,10 @@ function readEntry(body: Body): EntryInput {
     if (!date) throw new RequestError(400, 'Invalid date format');
     const description = optionalText(body.description, 'Description', 200);
     if (!description) throw new RequestError(400, 'Description is required');
-    return { type: type as EntryKind, date: date.date, description, paise: amountPaise(body.amount), accountId: body.accountId, toAccountId: body.toAccountId };
+    return {
+        type: type as EntryKind, date: date.date, description, paise: amountPaise(body.amount),
+        accountId: body.accountId, toAccountId: body.toAccountId, categoryId: body.categoryId, tags: readTags(body.tags),
+    };
 }
 
 /**
@@ -342,38 +389,60 @@ async function checkCanSpend(client: Client, userId: number, account: MoneyAccou
     throw new RequestError(400, `Insufficient balance in ${account.name}`);
 }
 
-/** Validate the accounts and record the entry; returns its id */
-async function record(client: Client, userId: number, input: EntryInput, checkSpending: boolean): Promise<{ id: number; account: MoneyAccount; toAccount: MoneyAccount | null }> {
+/** The category account for income or an expense: the one chosen, or the fallback */
+async function categoryAccount(client: Client, userId: number, kind: 'income' | 'expense', categoryId: unknown): Promise<{ id: number; name: string }> {
+    if (categoryId === undefined || categoryId === null || categoryId === '') {
+        const id = await systemAccount(client, userId, kind);
+        return { id, name: kind === 'income' ? 'Other income' : 'Uncategorised' };
+    }
+    const category = await lockedCategory(client, userId, categoryId, kind);
+    return { id: category.id, name: category.name };
+}
+
+/** Validate the accounts and record the entry with its tags; returns its id */
+async function record(client: Client, userId: number, input: EntryInput, checkSpending: boolean)
+    : Promise<{ id: number; account: MoneyAccount; toAccount: MoneyAccount | null; category: { id: number; name: string } | null }> {
     const account = await lockedMoneyAccount(client, userId, input.accountId);
     let toAccount: MoneyAccount | null = null;
+    let category: { id: number; name: string } | null = null;
     let lines: EntryLine[];
     if (input.type === 'income') {
         if (account.type === 'credit_card') throw new RequestError(400, 'Income goes into a bank, cash, a wallet or a meal card');
-        lines = [{ accountId: account.id, paise: input.paise }, { accountId: await systemAccount(client, userId, 'income'), paise: -input.paise }];
+        category = await categoryAccount(client, userId, 'income', input.categoryId);
+        lines = [{ accountId: account.id, paise: input.paise }, { accountId: category.id, paise: -input.paise }];
     } else if (input.type === 'expense') {
+        category = await categoryAccount(client, userId, 'expense', input.categoryId);
         if (checkSpending) await checkCanSpend(client, userId, account, input.paise);
-        lines = [{ accountId: await systemAccount(client, userId, 'expense'), paise: input.paise }, { accountId: account.id, paise: -input.paise }];
+        lines = [{ accountId: category.id, paise: input.paise }, { accountId: account.id, paise: -input.paise }];
     } else {
         toAccount = await lockedMoneyAccount(client, userId, input.toAccountId, 'Destination account');
         if (toAccount.id === account.id) throw new RequestError(400, 'Choose two different accounts for a transfer');
         if (checkSpending) await checkCanSpend(client, userId, account, input.paise);
         lines = [{ accountId: toAccount.id, paise: input.paise }, { accountId: account.id, paise: -input.paise }];
     }
-    const id = await postEntry(client, { userId, date: input.date, description: input.description, type: input.type, lines });
-    return { id: id!, account, toAccount };
+    const id = (await postEntry(client, { userId, date: input.date, description: input.description, type: input.type, lines }))!;
+    await setEntryTags(client, userId, id, input.tags ?? []);
+    return { id, account, toAccount, category };
 }
 
-const activityValues = (input: EntryInput, account: MoneyAccount, toAccount: MoneyAccount | null) => ({
+const activityValues = (input: EntryInput, account: MoneyAccount, toAccount: MoneyAccount | null, category: { name: string } | null) => ({
     type: input.type, description: input.description, amount: fromPaise(input.paise), date: input.date,
     accountName: account.name, ...(toAccount ? { toAccountName: toAccount.name } : {}),
+    ...(category ? { categoryName: category.name } : {}), ...(input.tags?.length ? { tags: input.tags } : {}),
+});
+
+const oldValues = (old: Entry) => ({
+    type: old.type, description: old.description, amount: old.amount, date: old.date, accountName: old.account.name,
+    ...(old.toAccount ? { toAccountName: old.toAccount.name } : {}), ...(old.category ? { categoryName: old.category.name } : {}),
+    ...(old.tags.length ? { tags: old.tags } : {}),
 });
 
 export async function createEntry(pool: Pool, userId: number, body: Body): Promise<Entry> {
     const input = readEntry(body);
     return withTransaction(pool, async (client) => {
-        const { id, account, toAccount } = await record(client, userId, input, true);
+        const { id, account, toAccount, category } = await record(client, userId, input, true);
         await logActivity(client, userId, 'created', input.type, id, `Added ${input.type}: ${input.description}`, fromPaise(input.paise), null,
-            activityValues(input, account, toAccount));
+            activityValues(input, account, toAccount, category));
         return publicEntry(await lockedEntry(client, userId, id));
     });
 }
@@ -394,11 +463,15 @@ export async function updateEntry(pool: Pool, userId: number, id: string, body: 
         const old = await lockedEntry(client, userId, id);
         await removeFormerRow(client, userId, old);
         await voidEntry(client, userId, old.id);
-        const { id: newId, account, toAccount } = await record(client, userId, input, false);
+        // Left out, the category and tags stay as they were
+        const kept: EntryInput = {
+            ...input,
+            categoryId: input.categoryId === undefined && input.type === old.type ? old.category?.id : input.categoryId,
+            tags: input.tags ?? old.tags,
+        };
+        const { id: newId, account, toAccount, category } = await record(client, userId, kept, false);
         await logActivity(client, userId, 'updated', input.type, newId, `Updated ${input.type}: ${input.description}`, fromPaise(input.paise),
-            { type: old.type, description: old.description, amount: old.amount, date: old.date, accountName: old.account.name,
-                ...(old.toAccount ? { toAccountName: old.toAccount.name } : {}) },
-            activityValues(input, account, toAccount));
+            oldValues(old), activityValues(kept, account, toAccount, category));
         return publicEntry(await lockedEntry(client, userId, newId));
     });
 }
@@ -408,8 +481,44 @@ export async function deleteEntry(pool: Pool, userId: number, id: string): Promi
         const old = await lockedEntry(client, userId, id);
         await removeFormerRow(client, userId, old);
         await voidEntry(client, userId, old.id);
-        await logActivity(client, userId, 'deleted', old.type, old.id, `Deleted ${old.type}: ${old.description}`, old.amount,
-            { type: old.type, description: old.description, amount: old.amount, date: old.date, accountName: old.account.name,
-                ...(old.toAccount ? { toAccountName: old.toAccount.name } : {}) }, null);
+        await logActivity(client, userId, 'deleted', old.type, old.id, `Deleted ${old.type}: ${old.description}`, old.amount, oldValues(old), null);
+    });
+}
+
+const MAX_BULK = 200;
+
+/**
+ * { entryIds, categoryId }: put several entries in one category at once (existing spending starts
+ * as "Uncategorised"). Each changed entry is voided and recorded again with the new category, under
+ * a new id; entries of the other kind are refused. Returns how many changed.
+ */
+export async function categoriseEntries(pool: Pool, userId: number, body: Body): Promise<{ changed: number }> {
+    const ids = body.entryIds;
+    if (!Array.isArray(ids) || ids.length === 0 || ids.some(id => !/^\d+$/.test(String(id)))) {
+        throw new RequestError(400, 'Choose the entries to categorise');
+    }
+    if (ids.length > MAX_BULK) throw new RequestError(400, `At most ${MAX_BULK} entries at a time`);
+    return withTransaction(pool, async (client) => {
+        const category = await lockedCategory(client, userId, body.categoryId);
+        let changed = 0;
+        for (const id of [...new Set(ids.map(String))]) {
+            const old = await lockedEntry(client, userId, id);
+            if (old.type !== category.kind) {
+                throw new RequestError(400, `${old.description} is ${old.type === 'transfer' ? 'a transfer' : old.type}; ${category.name} is for ${category.kind === 'income' ? 'income' : 'spending'}`);
+            }
+            if (old.category?.id === category.id) continue;
+            await removeFormerRow(client, userId, old);
+            await voidEntry(client, userId, old.id);
+            await record(client, userId, {
+                type: old.type, date: old.date, description: old.description, paise: toPaise(old.amount),
+                accountId: old.account.id, toAccountId: null, categoryId: category.id, tags: old.tags,
+            }, false);
+            changed++;
+        }
+        if (changed > 0) {
+            await logActivity(client, userId, 'updated', 'category', category.id, `Put ${changed} ${changed === 1 ? 'entry' : 'entries'} in ${category.name}`,
+                null, null, { categoryName: category.name, entries: changed });
+        }
+        return { changed };
     });
 }

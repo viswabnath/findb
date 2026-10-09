@@ -189,3 +189,44 @@ test('a wallet is added on Accounts, money moves into it, and the move is neithe
     await expect(page.locator('#other-accounts-list tr', { hasText: 'Paytm Wallet' })).toContainText(rupees(750));
     await expect(page.locator('#banks-list tr', { hasText: 'CANARA MAIN' })).toContainText(rupees(4250));
 });
+
+test('a title suggests the category, tags show on the entry, and entries can be categorised together', async ({ page }) => {
+    await newUser(page);
+    await addBank(page, 'Category Bank', 9000);
+    await showSection(page, 'transactions');
+
+    await page.locator('#expense-title').fill('Swiggy dinner');
+    await page.locator('#expense-amount').fill('450');
+    const suggested = page.waitForResponse(response => new URL(response.url()).pathname === '/api/categories/suggest');
+    await page.locator('#expense-amount').focus();
+    await suggested;
+    await expect(page.locator('#expense-category option:checked')).toHaveText('Restaurants and food delivery');
+    await page.locator('#expense-tags').fill('friday, team');
+    await selectAccount(page, 'expense-payment-method', 'CATEGORY BANK');
+    await page.locator('[data-action="addExpense"]').click();
+    await expect(page.locator('#transactions-message')).toHaveText('Expense added successfully!');
+    const swiggy = page.locator('#expense-table-body tr', { hasText: 'Swiggy dinner' });
+    await expect(swiggy).toContainText('Restaurants and food delivery');
+    await expect(swiggy.locator('.tag')).toHaveText(['friday', 'team']);
+
+    // Two more, with titles no keyword matches, then categorised together
+    for (const title of ['Odd thing', 'Stray item']) {
+        await page.locator('#expense-title').fill(title);
+        await page.locator('#expense-amount').fill('100');
+        await selectAccount(page, 'expense-payment-method', 'CATEGORY BANK');
+        await page.locator('[data-action="addExpense"]').click();
+        await expect(page.locator('#expense-table-body tr', { hasText: title })).toContainText('Uncategorised');
+    }
+    await page.locator('#expense-table-body tr', { hasText: 'Odd thing' }).locator('[data-action="select-entry"]').check();
+    await page.locator('#expense-table-body tr', { hasText: 'Stray item' }).locator('[data-action="select-entry"]').check();
+    await expect(page.locator('#bulk-categorise')).toContainText('2 selected');
+    await page.locator('#bulk-category').selectOption({ label: 'Shopping' });
+    await page.locator('[data-action="bulkCategorise"]').click();
+    await expect(toast(page, '2 entries put in Shopping')).toBeVisible();
+    await expect(page.locator('#expense-table-body tr', { hasText: 'Stray item' })).toContainText('Shopping');
+
+    await showSection(page, 'summary');
+    const byCategory = page.locator('#spending-by-category');
+    await expect(byCategory.locator('li', { hasText: 'Restaurants and food delivery' })).toContainText(rupees(450));
+    await expect(byCategory.locator('li', { hasText: 'Shopping' })).toContainText(rupees(200));
+});

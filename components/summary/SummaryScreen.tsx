@@ -23,6 +23,10 @@ interface Summary {
     banks?: { id?: number; name?: string; current_balance?: Amount }[];
     creditCards?: { id?: number; name?: string; credit_limit?: Amount; current_balance?: Amount }[];
     otherAccounts?: { id?: number; type?: string; name?: string; current_balance?: Amount }[];
+    spendingByCategory?: { id: number; name: string; amount: Amount; essential: boolean | null }[];
+    essentialSpending?: Amount;
+    discretionarySpending?: Amount;
+    uncategorisedSpending?: Amount;
 }
 
 type Shown =
@@ -164,6 +168,33 @@ function SummaryView({ data, month, year }: { data: Summary; month: number; year
                     }) : null}
                 </div>
             </section>
+
+            {(data.spendingByCategory ?? []).length > 0 ? (
+                <section id="spending-by-category" className="card" aria-labelledby="by-category-title">
+                    <div className="card-head">
+                        <h3 id="by-category-title">Spending by category</h3>
+                        <span className="meta">
+                            Essential {formatRupees(data.essentialSpending ?? 0)}, discretionary {formatRupees(data.discretionarySpending ?? 0)}
+                            {parseFloat(String(data.uncategorisedSpending ?? 0)) > 0 ? `, not categorised ${formatRupees(data.uncategorisedSpending ?? 0)}` : ''}
+                        </span>
+                    </div>
+                    <ul className="category-bars">
+                        {(data.spendingByCategory ?? []).map(item => {
+                            const share = expenses > 0 ? Math.min(parseFloat(String(item.amount)) / expenses, 1) : 0;
+                            return (
+                                <li key={item.id} data-category={item.id}>
+                                    <span className="category-name">
+                                        {item.name}
+                                        {item.essential === true ? <span className="tag">Essential</span> : null}
+                                    </span>
+                                    <span className="meter"><i style={{ width: `${share * 100}%` }} /></span>
+                                    <span className="category-amount">{formatRupees(item.amount)}</span>
+                                </li>
+                            );
+                        })}
+                    </ul>
+                </section>
+            ) : null}
 
             {showBreakdown ? (
                 <section className="card breakdown">
