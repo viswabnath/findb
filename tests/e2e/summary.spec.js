@@ -78,7 +78,7 @@ test('a month with entries shows the cards, account balances and the breakdown',
     await expect(display(page)).toContainText(`${month} ${new Date().getFullYear()} Financial Summary`);
     await expect(page.locator('.summary-card.income .summary-amount')).toHaveText(rupees(3000));
     await expect(page.locator('.summary-card.expense .summary-amount')).toHaveText(rupees(500));
-    await expect(page.locator('.summary-card.wealth .summary-subtitle')).toHaveText('Banks + Cash as of now');
+    await expect(page.locator('.summary-card.wealth .summary-subtitle')).toHaveText('Banks, cash and wallets as of now');
 
     const bank = page.locator('.account-card.bank');
     await expect(bank).toContainText('KOTAK <B>MAIN</B>');

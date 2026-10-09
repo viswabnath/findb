@@ -80,3 +80,14 @@ Never edit a migration that has run anywhere; add a new one.
 Production rollout for a migration: run the backup workflow and confirm it succeeded, run `node scripts/migrate.js --production`, run `npm run ledger:check`, then merge (the app code expects the tables to exist).
 
 Through Supabase's transaction pooler, never change session settings with a plain `SET`: the setting stays on a shared server connection and reaches other clients. Use `SET LOCAL` or a transaction option such as `BEGIN TRANSACTION READ ONLY`.
+
+## Entries, transfers, wallets and meal cards
+
+Since migration 0010 the ledger holds things the former tables cannot (`lib/services/entries.ts`, `/api/accounts`, `/api/entries`):
+
+- **Wallets and meal cards** are money accounts that live only in the ledger (`subtype` `wallet` or `meal_card`), with their starting balance as an opening entry. An empty one can be archived; its history stays.
+- **Bank details** are kept on the bank's ledger account: `institution`, `account_type` (savings, current, salary, NRE, NRO) and `interest_rate` (percent a year).
+- **Entries** (income, expenses and transfers) are recorded straight in the ledger on any money account. A **transfer** (`entry_type` `transfer`) has two lines on money accounts, so it touches no income or expense account: it changes balances but is neither income nor spending.
+- **Income and spending** in the summary are the lines on accounts of kind `income` and `expense` (`flows`), so transfers never count, and **net savings = income - expenses** (v2 plan).
+- **Older entries** made through `/api/income` and `/api/expenses` keep their rows there. Editing or deleting one through `/api/entries` removes its row and records the entry in the ledger alone, so `ledger_entry_check` stays empty.
+- An edit voids the entry and records a new one under a new id; nothing is ever deleted from the ledger.

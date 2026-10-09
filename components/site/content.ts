@@ -65,16 +65,16 @@ export const FEATURES: Feature[] = [
         status: 'available',
         short: 'Every bank account, card, wallet and rupee of cash in one place, always up to date.',
         summary:
-            'Add your bank accounts, credit cards and cash once, with the balance they have today. From then on, every entry you add updates the right balance automatically, so you always know how much money is where.',
+            'Add your bank accounts, credit cards, wallets, meal cards and cash once, with the balance they have today. From then on, every entry you add updates the right balance automatically, so you always know how much money is where.',
         points: [
-            'Bank accounts with their starting balance',
+            'Bank accounts with their starting balance, account type and savings interest rate',
             'Credit cards with their limit and how much is used',
+            'Meal cards such as Pluxee (formerly Sodexo) and UPI or prepaid wallets',
             'Cash in hand',
+            'Moving money between your own accounts, such as an ATM withdrawal or a card bill payment, without counting it as spending',
             'Every balance changes the moment you add, edit or delete an entry',
         ],
         next: [
-            'Meal cards such as Pluxee (formerly Sodexo) and UPI or prepaid wallets',
-            'Moving money between your own accounts, such as an ATM withdrawal or a card bill payment, without counting it as spending',
             'Checking a balance against your bank statement, with the difference explained entry by entry',
         ],
         example: {
@@ -550,18 +550,22 @@ export const ROADMAP: RoadmapStage[] = [
         title: 'Available today',
         status: 'available',
         summary: 'The core: your accounts and your month.',
-        items: ['Bank accounts, credit cards and cash', 'Income and expenses', 'Monthly summary', 'Activity log with CSV export'],
+        items: [
+            'Bank accounts, credit cards, wallets, meal cards and cash',
+            'Income, expenses and money moved between your accounts',
+            'Accountant-grade records that never double-count',
+            'Monthly summary',
+            'Activity log with CSV export',
+            'Two-step login with an authenticator app',
+        ],
     },
     {
         title: 'A stronger foundation',
         status: 'building',
         summary: 'The base every later feature is built on.',
         items: [
-            'Accountant-grade records that never double-count',
             'A new design for phones, tablets and computers, in light and dark',
             'Categories, tags, events and repeating entries',
-            'Meal cards and wallets',
-            'Two-step login with an authenticator app',
             'Choose what you want to track',
         ],
     },

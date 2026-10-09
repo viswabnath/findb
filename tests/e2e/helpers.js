@@ -109,7 +109,7 @@ async function logout(page) {
 // sections are still in the legacy app.
 const SECTION_REQUESTS = {
     setup: ['/api/banks', '/api/credit-cards', '/api/cash-balance'],
-    transactions: ['/api/banks', '/api/credit-cards', '/api/income', '/api/expenses'],
+    transactions: ['/api/accounts', '/api/entries'],
     summary: ['/api/monthly-summary'],
     activity: ['/api/activity'],
 };
