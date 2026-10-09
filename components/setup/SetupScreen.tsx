@@ -6,11 +6,31 @@ import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { formatRupees } from '@/lib/format';
+import { OtherAccounts } from './OtherAccounts';
 import { useFormMessage, type FormMessageState } from '@/components/useFormMessage';
 
 interface Bank { id: number; name: string; initial_balance: string; current_balance: string }
 interface Card { id: number; name: string; credit_limit: string; used_limit: string }
 interface Cash { initial_balance?: string | number }
+/** A bank's details, kept on its ledger account (/api/accounts) */
+interface BankDetails { ledgerId: number; institution: string; accountType: string; interestRate: string }
+interface LedgerAccount { id: number; type: string; sourceId: number | null; institution: string | null; accountType: string | null; interestRate: string | null }
+
+const ACCOUNT_TYPES: { value: string; label: string }[] = [
+    { value: 'savings', label: 'Savings' }, { value: 'current', label: 'Current' }, { value: 'salary', label: 'Salary' },
+    { value: 'nre', label: 'NRE' }, { value: 'nro', label: 'NRO' },
+];
+
+/** "Savings, 3.25% interest" from a bank's details */
+function detailsText(details: BankDetails | undefined): string {
+    if (!details) return '';
+    const parts = [
+        details.institution,
+        ACCOUNT_TYPES.find(type => type.value === details.accountType)?.label,
+        details.interestRate ? `${Number(details.interestRate)}% interest` : '',
+    ].filter(Boolean);
+    return parts.join(', ');
+}
 
 /** The legacy number checks: empty is allowed where the legacy form allowed it */
 const isNegativeOrInvalid = (value: string) => value !== '' && (isNaN(Number(value)) || parseFloat(value) < 0);
@@ -41,15 +61,22 @@ export function SetupScreen() {
     const cardMessage = useFormMessage(3000);
     const cashMessage = useFormMessage(3000);
 
-    const [editBank, setEditBank] = useState<{ id: number; name: string; balance: string } | null>(null);
+    const [bankDetails, setBankDetails] = useState<Map<number, BankDetails>>(new Map());
+    const [editBank, setEditBank] = useState<{ id: number; name: string; balance: string; details: BankDetails | null } | null>(null);
     const [editCard, setEditCard] = useState<{ id: number; name: string; limit: string; used: string } | null>(null);
     const [editCash, setEditCash] = useState<string | null>(null);
     const [pendingDelete, setPendingDelete] = useState<{ type: 'bank' | 'credit-card'; id: number } | null>(null);
 
     const loadBanks = useCallback(async () => {
-        const result = await apiGet<Bank[]>('/api/banks');
-        if (redirectIfUnauthorized(result)) return;
+        const [result, ledger] = await Promise.all([apiGet<Bank[]>('/api/banks'), apiGet<LedgerAccount[]>('/api/accounts')]);
+        if (redirectIfUnauthorized(result) || redirectIfUnauthorized(ledger)) return;
         if (result.ok) setBanks(result.data);
+        if (ledger.ok) {
+            setBankDetails(new Map(ledger.data.filter(account => account.type === 'bank' && account.sourceId !== null).map(account => [
+                account.sourceId!,
+                { ledgerId: account.id, institution: account.institution ?? '', accountType: account.accountType ?? '', interestRate: account.interestRate ?? '' },
+            ])));
+        }
     }, []);
     const loadCards = useCallback(async () => {
         const result = await apiGet<Card[]>('/api/credit-cards');
@@ -117,8 +144,18 @@ export function SetupScreen() {
         if (!editBank.balance || isNaN(Number(editBank.balance)) || parseFloat(editBank.balance) < 0) {
             return toast('error', 'Valid initial balance is required');
         }
+        const { details } = editBank;
+        if (details?.interestRate && (isNaN(Number(details.interestRate)) || Number(details.interestRate) < 0 || Number(details.interestRate) > 100)) {
+            return toast('error', 'Interest rate must be a percentage between 0 and 100');
+        }
         const result = await apiPut(`/api/banks/${editBank.id}`, { name, initialBalance: parseFloat(editBank.balance) });
         if (!result.ok) return toast('error', httpError(result));
+        if (details) {
+            const saved = await apiPut(`/api/accounts/${details.ledgerId}`, {
+                institution: details.institution, accountType: details.accountType, interestRate: details.interestRate,
+            });
+            if (!saved.ok) return toast('error', httpError(saved));
+        }
         toast('success', 'Bank updated successfully');
         setEditBank(null);
         await loadBanks();
@@ -235,13 +272,19 @@ export function SetupScreen() {
                                 <tbody>
                                     {banks.map(bank => (
                                         <tr key={bank.id}>
-                                            <td className="name"><span className="cell-with-icon"><span className="icon-tile t-bank" aria-hidden="true"><Landmark /></span>{bank.name}</span></td>
+                                            <td className="name">
+                                                <span className="cell-with-icon"><span className="icon-tile t-bank" aria-hidden="true"><Landmark /></span>{bank.name}</span>
+                                                {detailsText(bankDetails.get(bank.id)) ? <span className="sub bank-details">{detailsText(bankDetails.get(bank.id))}</span> : null}
+                                            </td>
                                             <td className="amount" data-label="Starting balance">{formatRupees(bank.initial_balance)}</td>
                                             <td className="amount out" data-label="Current balance">{formatRupees(bank.current_balance)}</td>
                                             <td className="actions">
                                                 <span className="row-actions">
                                                     <button type="button" className="icon-btn" data-action="edit-bank" data-id={bank.id}
-                                                        onClick={() => setEditBank({ id: bank.id, name: bank.name, balance: String(parseFloat(bank.initial_balance)) })}>
+                                                        onClick={() => setEditBank({
+                                                            id: bank.id, name: bank.name, balance: String(parseFloat(bank.initial_balance)),
+                                                            details: bankDetails.get(bank.id) ?? null,
+                                                        })}>
                                                         <Pencil aria-hidden="true" /> Edit
                                                     </button>
                                                     <button type="button" className="icon-btn danger" data-action="delete-bank" data-id={bank.id}
@@ -345,6 +388,8 @@ export function SetupScreen() {
                         </button>
                     </div>
                 </section>
+
+                <OtherAccounts />
             </div>
 
             <Modal id="edit-bank-modal" title="Edit bank" open={editBank !== null} closeAction="close-edit-bank" onClose={() => setEditBank(null)}
@@ -361,6 +406,29 @@ export function SetupScreen() {
                             onChange={event => setEditBank(current => current && { ...current, balance: event.target.value })} />
                     </div>
                     <div className="notice warn">Changing the starting balance moves the current balance by the same difference.</div>
+                    {editBank?.details ? (
+                        <>
+                            <div className="field">
+                                <label htmlFor="edit-bank-institution">Bank (optional)</label>
+                                <input type="text" id="edit-bank-institution" placeholder="For example HDFC Bank" value={editBank.details.institution}
+                                    onChange={event => setEditBank(current => current && current.details && { ...current, details: { ...current.details, institution: event.target.value } })} />
+                            </div>
+                            <div className="field">
+                                <label htmlFor="edit-bank-account-type">Account type (optional)</label>
+                                <select id="edit-bank-account-type" value={editBank.details.accountType}
+                                    onChange={event => setEditBank(current => current && current.details && { ...current, details: { ...current.details, accountType: event.target.value } })}>
+                                    <option value="">Not set</option>
+                                    {ACCOUNT_TYPES.map(type => <option key={type.value} value={type.value}>{type.label}</option>)}
+                                </select>
+                            </div>
+                            <div className="field">
+                                <label htmlFor="edit-bank-interest-rate">Savings interest, % a year (optional)</label>
+                                <input type="number" id="edit-bank-interest-rate" inputMode="decimal" step="0.001" min="0" max="100" placeholder="3.25"
+                                    value={editBank.details.interestRate}
+                                    onChange={event => setEditBank(current => current && current.details && { ...current, details: { ...current.details, interestRate: event.target.value } })} />
+                            </div>
+                        </>
+                    ) : null}
                 </form>
             </Modal>
 

@@ -22,6 +22,7 @@ interface Summary {
     cash?: { balance?: Amount } | null;
     banks?: { id?: number; name?: string; current_balance?: Amount }[];
     creditCards?: { id?: number; name?: string; credit_limit?: Amount; current_balance?: Amount }[];
+    otherAccounts?: { id?: number; type?: string; name?: string; current_balance?: Amount }[];
 }
 
 type Shown =
@@ -86,8 +87,7 @@ function SummaryView({ data, month, year }: { data: Summary; month: number; year
     const netSavingsNegative = present(data.netSavings) && parseFloat(String(data.netSavings)) < 0;
     const cashBalance = data.cash ? data.cash.balance : undefined;
     const cashAvailable = present(cashBalance) && !Number.isNaN(Number(cashBalance));
-    const showBreakdown = present(data.netSavings) && data.totalInitialBalance !== undefined
-        && data.monthlyIncome !== undefined && data.totalExpenses !== undefined;
+    const showBreakdown = present(data.netSavings) && data.monthlyIncome !== undefined && data.totalExpenses !== undefined;
     const income = parseFloat(String(data.monthlyIncome ?? 0)) || 0;
     const expenses = parseFloat(String(data.totalExpenses ?? 0)) || 0;
     const largest = Math.max(income, expenses, 1);
@@ -101,7 +101,7 @@ function SummaryView({ data, month, year }: { data: Summary; month: number; year
                 <SummaryCard kind="expense" tile="t-expense" icon={TrendingDown} title="Expenses" amount={data.totalExpenses}
                     subtitle="Money spent this month" missingSubtitle="No expense data available" />
                 <SummaryCard kind="wealth" tile="t-wealth" icon={Gem} title="Total wealth" amount={data.totalCurrentWealth}
-                    subtitle={`Banks + Cash ${timeReference}`} missingSubtitle="Unable to calculate wealth" />
+                    subtitle={`Banks, cash and wallets ${timeReference}`} missingSubtitle="Unable to calculate wealth" />
                 <SummaryCard kind="savings" tile={netSavingsNegative ? 't-expense' : 't-income'} icon={PiggyBank}
                     title="Net savings" amount={data.netSavings}
                     subtitle="Income - Expenses + Initial" missingSubtitle="Unable to calculate savings" />
@@ -142,6 +142,13 @@ function SummaryView({ data, month, year }: { data: Summary; month: number; year
                             <div className="account-balance">{present(bank.current_balance) ? formatRupees(bank.current_balance) : 'Unavailable'}</div>
                         </div>
                     ))}
+                    {(data.otherAccounts ?? []).map((account, index) => (
+                        <div key={account.id ?? `other-${index}`} className="account-card wallet">
+                            <h4><span className="icon-tile t-cash" aria-hidden="true"><Wallet /></span> {account.name || 'Wallet'}</h4>
+                            <div className="account-balance">{formatRupees(account.current_balance ?? 0)}</div>
+                            <div className="account-note">{account.type === 'meal_card' ? 'Meal card' : 'Wallet'}</div>
+                        </div>
+                    ))}
                     {showCards ? (data.creditCards ?? []).map((card, index) => {
                         const limit = parseFloat(String(card.credit_limit || 0));
                         const used = parseFloat(String(card.current_balance || 0));
@@ -162,11 +169,11 @@ function SummaryView({ data, month, year }: { data: Summary; month: number; year
                 <section className="card breakdown">
                     <h4><List size={18} aria-hidden="true" /> Calculation Breakdown</h4>
                     <div>
-                        Net savings = starting balance ({formatRupees(data.totalInitialBalance || 0)}) +{' '}
-                        income ({formatRupees(data.monthlyIncome || 0)}) -{' '}
+                        Net savings = income ({formatRupees(data.monthlyIncome || 0)}) -{' '}
                         expenses ({formatRupees(data.totalExpenses || 0)}) ={' '}
                         <strong>{formatRupees(data.netSavings)}</strong>
                     </div>
+                    <p className="breakdown-note">Transfers between your own accounts, such as an ATM withdrawal or a card bill payment, are neither income nor spending.</p>
                 </section>
             ) : null}
         </div>

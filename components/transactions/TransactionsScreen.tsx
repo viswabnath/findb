@@ -1,51 +1,51 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeftRight, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useFormMessage } from '@/components/useFormMessage';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
-import { filterYears, MONTH_NAMES, toDateInputValue, todayUtcIso } from '@/lib/dates';
+import { filterYears, MONTH_NAMES, todayUtcIso } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
 
-interface Account { id: number; name: string }
-interface Income {
-    id: number; source: string; amount: string; date: string;
-    credited_to_type: 'bank' | 'cash'; credited_to_id: number | null; credited_to_name?: string;
-}
-interface Expense {
-    id: number; title: string; amount: string; date: string;
-    payment_method: 'cash' | 'bank' | 'credit_card'; payment_source_id: number | null; payment_source_name?: string;
-}
-interface IncomeDraft { id: number; source: string; amount: string; creditedTo: string; date: string }
-interface ExpenseDraft { id: number; title: string; amount: string; paymentMethod: string; date: string }
-interface PendingDelete { type: 'income' | 'expense'; id: number; label: string; name: string; amount: string }
+/**
+ * Income, expenses and transfers, recorded in the ledger (/api/entries) on any money account
+ * (/api/accounts): banks, cash, credit cards, wallets and meal cards. A transfer moves money
+ * between the user's own accounts (an ATM withdrawal, a card bill payment) and is neither income
+ * nor spending. The ids and data-action hooks are the former screen's (the end-to-end tests use them).
+ */
 
-/** Dropdown values are "cash" or "<type>-<id>" (bank-3, credit_card-7), as in the legacy forms */
-function splitAccount(value: string): [string, string | null] {
-    if (value === 'cash') return ['cash', null];
-    const dash = value.indexOf('-');
-    return [value.slice(0, dash), value.slice(dash + 1)];
+type AccountType = 'bank' | 'cash' | 'credit_card' | 'wallet' | 'meal_card';
+interface Account { id: number; type: AccountType; name: string }
+type EntryType = 'income' | 'expense' | 'transfer';
+interface Entry {
+    id: number; type: EntryType; date: string; description: string; amount: string;
+    account: { id: number; name: string; type: AccountType };
+    toAccount: { id: number; name: string; type: AccountType } | null;
 }
+interface Draft { id: number; type: EntryType; description: string; amount: string; accountId: string; toAccountId: string; date: string }
 
-function accountValue(type: string, id: number | null): string {
-    return type === 'cash' ? 'cash' : `${type}-${id}`;
-}
+const GROUPS: { type: AccountType; label: string }[] = [
+    { type: 'bank', label: 'Banks' }, { type: 'cash', label: 'Cash' }, { type: 'credit_card', label: 'Credit cards' },
+    { type: 'wallet', label: 'Wallets' }, { type: 'meal_card', label: 'Meal cards' },
+];
 
-/** Legacy toast when an edited entry's new date falls outside the month on screen */
-function movedMessage(date: string, month: number, year: number): string | null {
-    const edited = new Date(date);
-    if (edited.getMonth() + 1 === month && edited.getFullYear() === year) return null;
-    return `Transaction moved to ${edited.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}. Change filter to view it.`;
-}
+/** The accounts an entry of this type can use: income cannot go onto a credit card */
+const usable = (accounts: Account[], type: EntryType) => accounts.filter(account => type !== 'income' || account.type !== 'credit_card');
 
-function AccountOptions({ banks, cards }: { banks: Account[]; cards?: Account[] }) {
+function AccountOptions({ accounts }: { accounts: Account[] }) {
     return (
         <>
-            <option value="cash">Cash</option>
-            {banks.map(bank => <option key={`bank-${bank.id}`} value={`bank-${bank.id}`}>{bank.name}</option>)}
-            {cards?.map(card => <option key={`credit_card-${card.id}`} value={`credit_card-${card.id}`}>{card.name}</option>)}
+            {GROUPS.map(group => {
+                const inGroup = accounts.filter(account => account.type === group.type);
+                if (inGroup.length === 0) return null;
+                return (
+                    <optgroup key={group.type} label={group.label}>
+                        {inGroup.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
+                    </optgroup>
+                );
+            })}
         </>
     );
 }
@@ -58,167 +58,151 @@ function EmptyRow({ text }: { text: string }) {
     );
 }
 
-/** An entry's date as "3 Oct 2026" */
-const shortDate = (date: string) => new Date(date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+/** Toast when an edited entry's new date falls outside the month on screen */
+function movedMessage(date: string, month: number, year: number): string | null {
+    const [y, m] = date.split('-').map(Number);
+    if (m === month && y === year) return null;
+    const name = new Date(Date.UTC(y!, m! - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+    return `Transaction moved to ${name}. Change filter to view it.`;
+}
+
+/** An entry's date (YYYY-MM-DD) as "3 Oct 2026" */
+const shortDate = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 const sum = (rows: { amount: string }[]) => rows.reduce((total, row) => total + (parseFloat(row.amount) || 0), 0);
+const ENTRY_NAMES: Record<EntryType, string> = { income: 'Income', expense: 'Expense', transfer: 'Transfer' };
 
 export function TransactionsScreen() {
     const toast = useToast();
     const now = new Date();
     const [loaded, setLoaded] = useState(false);
     const [trackingOption, setTrackingOption] = useState('both');
-    const [banks, setBanks] = useState<Account[]>([]);
-    const [cards, setCards] = useState<Account[]>([]);
-    const [incomes, setIncomes] = useState<Income[]>([]);
-    const [expenses, setExpenses] = useState<Expense[]>([]);
+    const [accounts, setAccounts] = useState<Account[]>([]);
+    const [entries, setEntries] = useState<Entry[]>([]);
 
-    // The month on screen, and the filter controls (applied with "Filter Transactions")
+    // The month on screen, and the filter controls (applied with "Show")
     const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() });
     const [filterMonth, setFilterMonth] = useState(period.month);
     const [filterYear, setFilterYear] = useState(period.year);
 
-    const [incomeForm, setIncomeForm] = useState({ source: '', amount: '', creditedTo: 'cash', date: todayUtcIso() });
-    const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', paymentMethod: 'cash', date: todayUtcIso() });
+    const [incomeForm, setIncomeForm] = useState({ source: '', amount: '', accountId: '', date: todayUtcIso() });
+    const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', accountId: '', date: todayUtcIso() });
+    const [transferForm, setTransferForm] = useState({ note: '', amount: '', fromId: '', toId: '', date: todayUtcIso() });
     const formMessage = useFormMessage(5000);
 
-    const [editIncome, setEditIncome] = useState<IncomeDraft | null>(null);
-    const [editExpense, setEditExpense] = useState<ExpenseDraft | null>(null);
-    const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
+    const [edit, setEdit] = useState<Draft | null>(null);
+    const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
 
-    const loadTransactions = useCallback(async (month: number, year: number) => {
-        const query = new URLSearchParams({ month: String(month), year: String(year) });
-        const [income, expense] = await Promise.all([
-            apiGet<Income[]>(`/api/income?${query}`),
-            apiGet<Expense[]>(`/api/expenses?${query}`),
-        ]);
-        if (redirectIfUnauthorized(income) || redirectIfUnauthorized(expense)) return;
-        if (!income.ok || !expense.ok) {
+    const loadEntries = useCallback(async (month: number, year: number) => {
+        const result = await apiGet<Entry[]>(`/api/entries?${new URLSearchParams({ month: String(month), year: String(year) })}`);
+        if (redirectIfUnauthorized(result)) return;
+        if (!result.ok) {
             toast('error', 'Failed to load transactions. Please try again.');
             return;
         }
-        setIncomes(income.data);
-        setExpenses(expense.data);
+        setEntries(result.data);
     }, [toast]);
+
+    const loadAccounts = useCallback(async () => {
+        const result = await apiGet<Account[]>('/api/accounts');
+        if (redirectIfUnauthorized(result) || !result.ok) return;
+        setAccounts(result.data);
+        // Cash first in the entry forms, as before
+        const cash = String(result.data.find(account => account.type === 'cash')?.id ?? result.data[0]?.id ?? '');
+        setIncomeForm(form => ({ ...form, accountId: form.accountId || cash }));
+        setExpenseForm(form => ({ ...form, accountId: form.accountId || cash }));
+        setTransferForm(form => ({ ...form, fromId: form.fromId || String(result.data[0]?.id ?? ''), toId: form.toId || cash }));
+    }, []);
 
     useEffect(() => {
         (async () => {
             const user = await apiGet<{ tracking_option?: string }>('/api/user');
             if (redirectIfUnauthorized(user)) return;
             setTrackingOption(user.data.tracking_option || 'both');
-            const [bankResult, cardResult] = await Promise.all([
-                apiGet<Account[]>('/api/banks'),
-                apiGet<Account[]>('/api/credit-cards'),
-                loadTransactions(period.month, period.year),
-            ]);
-            if (redirectIfUnauthorized(bankResult) || redirectIfUnauthorized(cardResult)) return;
-            if (bankResult.ok) setBanks(bankResult.data);
-            if (cardResult.ok) setCards(cardResult.data);
+            await Promise.all([loadAccounts(), loadEntries(period.month, period.year)]);
             setLoaded(true);
         })();
-        // Runs once on page load; later reloads go through loadTransactions directly
+        // Runs once on page load; later reloads go through loadEntries directly
     }, []);
 
     async function filterTransactions() {
         setPeriod({ month: filterMonth, year: filterYear });
         toast('info', `Loading transactions for ${MONTH_NAMES[filterMonth - 1]} ${filterYear}...`);
-        await loadTransactions(filterMonth, filterYear);
+        await loadEntries(filterMonth, filterYear);
+    }
+
+    /** Save a new entry; returns true when it was saved */
+    async function add(body: Record<string, unknown>, success: string): Promise<boolean> {
+        const result = await apiPost('/api/entries', body);
+        if (redirectIfUnauthorized(result)) return false;
+        if (!result.ok) {
+            formMessage.show('error', httpError(result));
+            return false;
+        }
+        formMessage.show('success', success);
+        await loadEntries(period.month, period.year);
+        return true;
     }
 
     async function addIncome() {
-        const { source, amount, creditedTo, date } = incomeForm;
-        if (!source || !amount || !date) return formMessage.show('error', 'Please fill all fields');
-        const [creditedToType, creditedToId] = splitAccount(creditedTo);
-        const result = await apiPost('/api/income', { source, amount: parseFloat(amount), creditedToType, creditedToId, date });
-        if (redirectIfUnauthorized(result)) return;
-        if (!result.ok) return formMessage.show('error', httpError(result));
-        setIncomeForm(form => ({ ...form, source: '', amount: '' }));
-        formMessage.show('success', 'Income added successfully!');
-        await loadTransactions(period.month, period.year);
+        const { source, amount, accountId, date } = incomeForm;
+        if (!source || !amount || !date || !accountId) return formMessage.show('error', 'Please fill all fields');
+        if (await add({ type: 'income', description: source, amount, accountId: Number(accountId), date }, 'Income added successfully!')) {
+            setIncomeForm(form => ({ ...form, source: '', amount: '' }));
+        }
     }
 
     async function addExpense() {
-        const { title, amount, paymentMethod, date } = expenseForm;
-        if (!title || !amount || !date) return formMessage.show('error', 'Please fill all fields');
-        const [method, paymentSourceId] = splitAccount(paymentMethod);
-        const result = await apiPost('/api/expenses', { title, amount: parseFloat(amount), paymentMethod: method, paymentSourceId, date });
-        if (redirectIfUnauthorized(result)) return;
-        if (!result.ok) return formMessage.show('error', httpError(result));
-        setExpenseForm(form => ({ ...form, title: '', amount: '' }));
-        formMessage.show('success', 'Expense added successfully!');
-        await loadTransactions(period.month, period.year);
+        const { title, amount, accountId, date } = expenseForm;
+        if (!title || !amount || !date || !accountId) return formMessage.show('error', 'Please fill all fields');
+        if (await add({ type: 'expense', description: title, amount, accountId: Number(accountId), date }, 'Expense added successfully!')) {
+            setExpenseForm(form => ({ ...form, title: '', amount: '' }));
+        }
     }
 
-    // Edit and delete fetch the entry first, like the legacy screen, so the dialog shows saved values
-    async function startEditIncome(id: number) {
-        const result = await apiGet<Income>(`/api/income/${id}`);
-        if (redirectIfUnauthorized(result)) return;
-        if (!result.ok) return toast('error', 'Failed to load income details for editing');
-        const income = result.data;
-        setEditIncome({
-            id, source: income.source, amount: String(income.amount),
-            creditedTo: accountValue(income.credited_to_type, income.credited_to_id), date: toDateInputValue(income.date),
+    async function addTransfer() {
+        const { note, amount, fromId, toId, date } = transferForm;
+        if (!amount || !date || !fromId || !toId) return formMessage.show('error', 'Please fill all fields');
+        if (fromId === toId) return formMessage.show('error', 'Choose two different accounts for a transfer');
+        const from = accounts.find(account => String(account.id) === fromId);
+        const to = accounts.find(account => String(account.id) === toId);
+        const description = note.trim() || `${from?.name ?? 'Account'} to ${to?.name ?? 'account'}`;
+        if (await add({ type: 'transfer', description, amount, accountId: Number(fromId), toAccountId: Number(toId), date }, 'Transfer added successfully!')) {
+            setTransferForm(form => ({ ...form, note: '', amount: '' }));
+        }
+    }
+
+    function startEdit(entry: Entry) {
+        setEdit({
+            id: entry.id, type: entry.type, description: entry.description, amount: entry.amount,
+            accountId: String(entry.account.id), toAccountId: String(entry.toAccount?.id ?? ''), date: entry.date,
         });
     }
 
-    async function startEditExpense(id: number) {
-        const result = await apiGet<Expense>(`/api/expenses/${id}`);
-        if (redirectIfUnauthorized(result)) return;
-        if (!result.ok) return toast('error', 'Failed to load expense details for editing');
-        const expense = result.data;
-        setEditExpense({
-            id, title: expense.title, amount: String(expense.amount),
-            paymentMethod: accountValue(expense.payment_method, expense.payment_source_id), date: toDateInputValue(expense.date),
+    async function saveEdit() {
+        if (!edit) return;
+        const { id, type, description, amount, accountId, toAccountId, date } = edit;
+        if (!description || !amount || !date || !accountId || (type === 'transfer' && !toAccountId)) return toast('error', 'Please fill all fields');
+        const result = await apiPut(`/api/entries/${id}`, {
+            type, description, amount, accountId: Number(accountId), date,
+            ...(type === 'transfer' ? { toAccountId: Number(toAccountId) } : {}),
         });
-    }
-
-    async function saveIncome() {
-        if (!editIncome) return;
-        const { id, source, amount, creditedTo, date } = editIncome;
-        if (!source || !amount || !date) return toast('error', 'Please fill all fields');
-        const [creditedToType, creditedToId] = splitAccount(creditedTo);
-        const result = await apiPut(`/api/income/${id}`, { source, amount: parseFloat(amount), creditedToType, creditedToId, date });
         if (redirectIfUnauthorized(result)) return;
-        if (!result.ok) return toast('error', 'Failed to update income transaction');
-        setEditIncome(null);
-        toast('success', 'Income transaction updated successfully!');
+        if (!result.ok) return toast('error', httpError(result));
+        setEdit(null);
+        toast('success', `${ENTRY_NAMES[type]} transaction updated successfully!`);
         const moved = movedMessage(date, period.month, period.year);
         if (moved) toast('info', moved);
-        await loadTransactions(period.month, period.year);
-    }
-
-    async function saveExpense() {
-        if (!editExpense) return;
-        const { id, title, amount, paymentMethod, date } = editExpense;
-        if (!title || !amount || !date) return toast('error', 'Please fill all fields');
-        const [method, paymentSourceId] = splitAccount(paymentMethod);
-        const result = await apiPut(`/api/expenses/${id}`, { title, amount: parseFloat(amount), paymentMethod: method, paymentSourceId, date });
-        if (redirectIfUnauthorized(result)) return;
-        if (!result.ok) return toast('error', 'Failed to update expense transaction');
-        setEditExpense(null);
-        toast('success', 'Expense transaction updated successfully!');
-        const moved = movedMessage(date, period.month, period.year);
-        if (moved) toast('info', moved);
-        await loadTransactions(period.month, period.year);
-    }
-
-    async function startDelete(type: 'income' | 'expense', id: number) {
-        const result = await apiGet<Income & Expense>(`/api/${type === 'income' ? 'income' : 'expenses'}/${id}`);
-        if (redirectIfUnauthorized(result)) return;
-        if (!result.ok) return toast('error', type === 'income' ? 'Failed to load income details' : 'Failed to load expense details');
-        setPendingDelete(type === 'income'
-            ? { type, id, label: 'Source', name: result.data.source, amount: result.data.amount }
-            : { type, id, label: 'Title', name: result.data.title, amount: result.data.amount });
+        await loadEntries(period.month, period.year);
     }
 
     async function confirmDelete() {
         if (!pendingDelete) return;
-        const { type, id } = pendingDelete;
-        const result = await apiDelete(`/api/${type === 'income' ? 'income' : 'expenses'}/${id}`);
+        const result = await apiDelete(`/api/entries/${pendingDelete.id}`);
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', 'Failed to delete transaction');
-        toast('success', type === 'income' ? 'Income transaction deleted successfully!' : 'Expense transaction deleted successfully!');
+        toast('success', `${ENTRY_NAMES[pendingDelete.type]} transaction deleted successfully!`);
         setPendingDelete(null);
-        await loadTransactions(period.month, period.year);
+        await loadEntries(period.month, period.year);
     }
 
     if (!loaded) {
@@ -228,34 +212,31 @@ export function TransactionsScreen() {
 
     const showIncome = trackingOption !== 'expenses';
     const showExpenses = trackingOption !== 'income';
+    const incomes = entries.filter(entry => entry.type === 'income');
+    const expenses = entries.filter(entry => entry.type === 'expense');
+    const transfers = entries.filter(entry => entry.type === 'transfer');
     const incomeTotal = sum(incomes);
     const expenseTotal = sum(expenses);
     const periodName = `${MONTH_NAMES[period.month - 1]} ${period.year}`;
-    const modalButtons = (saveAction: string, closeAction: string, onSave: () => void, onClose: () => void) => (
-        <>
-            <button type="button" data-action={closeAction} className="btn btn-secondary" onClick={onClose}>Cancel</button>
-            <button type="button" data-action={saveAction} className="btn btn-primary" onClick={onSave}>Save changes</button>
-        </>
-    );
-    const rowActions = (type: 'income' | 'expense', id: number) => (
+    const rowActions = (entry: Entry) => (
         <span className="row-actions">
-            <button type="button" className="icon-btn" data-action={`edit-${type}`} data-id={id}
-                onClick={() => (type === 'income' ? startEditIncome(id) : startEditExpense(id))}>
+            <button type="button" className="icon-btn" data-action={`edit-${entry.type}`} data-id={entry.id} onClick={() => startEdit(entry)}>
                 <Pencil aria-hidden="true" /> Edit
             </button>
-            <button type="button" className="icon-btn danger" data-action={`delete-${type}`} data-id={id}
-                onClick={() => startDelete(type, id)}>
+            <button type="button" className="icon-btn danger" data-action={`delete-${entry.type}`} data-id={entry.id} onClick={() => setPendingDelete(entry)}>
                 <Trash2 aria-hidden="true" /> Delete
             </button>
         </span>
     );
+    const descriptionLabel = (type: EntryType) => (type === 'income' ? 'Source' : type === 'expense' ? 'What for' : 'Note');
+    const accountLabel = (type: EntryType) => (type === 'income' ? 'Received in' : type === 'expense' ? 'Paid from' : 'From');
 
     return (
         <div id="transactions-section">
             <div className="page-header">
                 <div>
                     <h2>Transactions</h2>
-                    <p>Add what comes in and goes out. Showing {periodName}.</p>
+                    <p>Add what comes in, goes out, and moves between your accounts. Showing {periodName}.</p>
                 </div>
                 <div className="period-picker transaction-filters">
                     <div className="field">
@@ -316,9 +297,9 @@ export function TransactionsScreen() {
                         </div>
                         <div className="field">
                             <label htmlFor="income-credited-to">Received in</label>
-                            <select id="income-credited-to" value={incomeForm.creditedTo}
-                                onChange={event => setIncomeForm(form => ({ ...form, creditedTo: event.target.value }))}>
-                                <AccountOptions banks={banks} />
+                            <select id="income-credited-to" value={incomeForm.accountId}
+                                onChange={event => setIncomeForm(form => ({ ...form, accountId: event.target.value }))}>
+                                <AccountOptions accounts={usable(accounts, 'income')} />
                             </select>
                         </div>
                         <div className="field">
@@ -344,9 +325,9 @@ export function TransactionsScreen() {
                         </div>
                         <div className="field">
                             <label htmlFor="expense-payment-method">Paid from</label>
-                            <select id="expense-payment-method" value={expenseForm.paymentMethod}
-                                onChange={event => setExpenseForm(form => ({ ...form, paymentMethod: event.target.value }))}>
-                                <AccountOptions banks={banks} cards={cards} />
+                            <select id="expense-payment-method" value={expenseForm.accountId}
+                                onChange={event => setExpenseForm(form => ({ ...form, accountId: event.target.value }))}>
+                                <AccountOptions accounts={accounts} />
                             </select>
                         </div>
                         <div className="field">
@@ -356,6 +337,42 @@ export function TransactionsScreen() {
                         </div>
                     </div>
                     <button type="submit" className="btn btn-primary" data-action="addExpense"><Plus aria-hidden="true" /> Add expense</button>
+                </form>
+                <form id="transfer-form" className="card entry-form transfer" onSubmit={event => { event.preventDefault(); addTransfer(); }}>
+                    <h3><span className="icon-tile t-bank" aria-hidden="true"><ArrowLeftRight /></span>Move money</h3>
+                    <p className="form-note">Between your own accounts: an ATM withdrawal, a card bill payment, topping up a wallet. Not income or spending.</p>
+                    <div className="form-grid two">
+                        <div className="field">
+                            <label htmlFor="transfer-from">From</label>
+                            <select id="transfer-from" value={transferForm.fromId}
+                                onChange={event => setTransferForm(form => ({ ...form, fromId: event.target.value }))}>
+                                <AccountOptions accounts={accounts} />
+                            </select>
+                        </div>
+                        <div className="field">
+                            <label htmlFor="transfer-to">To</label>
+                            <select id="transfer-to" value={transferForm.toId}
+                                onChange={event => setTransferForm(form => ({ ...form, toId: event.target.value }))}>
+                                <AccountOptions accounts={accounts} />
+                            </select>
+                        </div>
+                        <div className="field">
+                            <label htmlFor="transfer-amount">Amount (₹)</label>
+                            <input type="number" id="transfer-amount" inputMode="decimal" placeholder="0.00" step="0.01" value={transferForm.amount}
+                                onChange={event => setTransferForm(form => ({ ...form, amount: event.target.value }))} />
+                        </div>
+                        <div className="field">
+                            <label htmlFor="transfer-date">Date</label>
+                            <input type="date" id="transfer-date" value={transferForm.date}
+                                onChange={event => setTransferForm(form => ({ ...form, date: event.target.value }))} />
+                        </div>
+                        <div className="field span-2">
+                            <label htmlFor="transfer-note">Note (optional)</label>
+                            <input type="text" id="transfer-note" placeholder="ATM withdrawal, card bill..." value={transferForm.note}
+                                onChange={event => setTransferForm(form => ({ ...form, note: event.target.value }))} />
+                        </div>
+                    </div>
+                    <button type="submit" className="btn btn-primary" data-action="addTransfer"><ArrowLeftRight aria-hidden="true" /> Move money</button>
                 </form>
             </div>
             <div id="transactions-message" className={formMessage.message?.kind ?? 'error'} role="status">{formMessage.message?.text ?? ''}</div>
@@ -372,13 +389,13 @@ export function TransactionsScreen() {
                                 <tr><th scope="col">Date</th><th scope="col">Source</th><th scope="col" className="amount">Amount</th><th scope="col">Received in</th><th scope="col" className="actions"><span className="sr-only">Actions</span></th></tr>
                             </thead>
                             <tbody id="income-table-body">
-                                {incomes.length === 0 ? <EmptyRow text="No income transactions found for this period" /> : incomes.map(income => (
-                                    <tr key={income.id}>
-                                        <td className="sub" data-label="Date">{shortDate(income.date)}</td>
-                                        <td className="name">{income.source}</td>
-                                        <td className="amount in" data-label="Amount">{formatRupees(income.amount)}</td>
-                                        <td className="sub" data-label="Received in">{income.credited_to_name || 'Unknown'}</td>
-                                        <td className="actions">{rowActions('income', income.id)}</td>
+                                {incomes.length === 0 ? <EmptyRow text="No income transactions found for this period" /> : incomes.map(entry => (
+                                    <tr key={entry.id}>
+                                        <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
+                                        <td className="name">{entry.description}</td>
+                                        <td className="amount in" data-label="Amount">{formatRupees(entry.amount)}</td>
+                                        <td className="sub" data-label="Received in">{entry.account.name}</td>
+                                        <td className="actions">{rowActions(entry)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -396,13 +413,39 @@ export function TransactionsScreen() {
                                 <tr><th scope="col">Date</th><th scope="col">What for</th><th scope="col" className="amount">Amount</th><th scope="col">Paid from</th><th scope="col" className="actions"><span className="sr-only">Actions</span></th></tr>
                             </thead>
                             <tbody id="expense-table-body">
-                                {expenses.length === 0 ? <EmptyRow text="No expense transactions found for this period" /> : expenses.map(expense => (
-                                    <tr key={expense.id}>
-                                        <td className="sub" data-label="Date">{shortDate(expense.date)}</td>
-                                        <td className="name">{expense.title}</td>
-                                        <td className="amount out" data-label="Amount">{formatRupees(expense.amount)}</td>
-                                        <td className="sub" data-label="Paid from">{expense.payment_source_name || 'Unknown'}</td>
-                                        <td className="actions">{rowActions('expense', expense.id)}</td>
+                                {expenses.length === 0 ? <EmptyRow text="No expense transactions found for this period" /> : expenses.map(entry => (
+                                    <tr key={entry.id}>
+                                        <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
+                                        <td className="name">{entry.description}</td>
+                                        <td className="amount out" data-label="Amount">{formatRupees(entry.amount)}</td>
+                                        <td className="sub" data-label="Paid from">{entry.account.name}</td>
+                                        <td className="actions">{rowActions(entry)}</td>
+                                    </tr>
+                                ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+                <section id="transfer-history" className="card" aria-labelledby="transfer-history-title">
+                    <div className="card-head">
+                        <h3 id="transfer-history-title">Money moved</h3>
+                        <span className="meta">{periodName}</span>
+                    </div>
+                    <div className="table-wrap scrollable-table">
+                        <table className="data-table stackable">
+                            <thead>
+                                <tr><th scope="col">Date</th><th scope="col">Note</th><th scope="col" className="amount">Amount</th><th scope="col">From and to</th><th scope="col" className="actions"><span className="sr-only">Actions</span></th></tr>
+                            </thead>
+                            <tbody id="transfer-table-body">
+                                {transfers.length === 0 ? <EmptyRow text="No money moved between your accounts in this period" /> : transfers.map(entry => (
+                                    <tr key={entry.id}>
+                                        <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
+                                        <td className="name">{entry.description}</td>
+                                        <td className="amount" data-label="Amount">{formatRupees(entry.amount)}</td>
+                                        <td className="sub" data-label="From and to">
+                                            {entry.account.name} <ArrowRight size={14} aria-label="to" /> {entry.toAccount?.name ?? ''}
+                                        </td>
+                                        <td className="actions">{rowActions(entry)}</td>
                                     </tr>
                                 ))}
                             </tbody>
@@ -411,62 +454,49 @@ export function TransactionsScreen() {
                 </section>
             </div>
 
-            <Modal id="edit-income-modal" title="Edit income" open={editIncome !== null} closeAction="close-edit-income"
-                onClose={() => setEditIncome(null)}
-                footer={modalButtons('save-income-edit', 'close-edit-income', saveIncome, () => setEditIncome(null))}>
-                <div className="form-grid">
-                    <div className="field">
-                        <label htmlFor="edit-income-source">Source</label>
-                        <input type="text" id="edit-income-source" required value={editIncome?.source ?? ''}
-                            onChange={event => setEditIncome(draft => draft && { ...draft, source: event.target.value })} />
+            <Modal id={`edit-${edit?.type ?? 'income'}-modal`} title={`Edit ${(edit?.type ?? 'income') === 'transfer' ? 'transfer' : edit?.type ?? 'income'}`}
+                open={edit !== null} closeAction={`close-edit-${edit?.type ?? 'income'}`} onClose={() => setEdit(null)}
+                footer={(
+                    <>
+                        <button type="button" data-action={`close-edit-${edit?.type ?? 'income'}`} className="btn btn-secondary" onClick={() => setEdit(null)}>Cancel</button>
+                        <button type="button" data-action={`save-${edit?.type ?? 'income'}-edit`} className="btn btn-primary" onClick={saveEdit}>Save changes</button>
+                    </>
+                )}>
+                {edit ? (
+                    <div className="form-grid">
+                        <div className="field">
+                            <label htmlFor={`edit-${edit.type}-${edit.type === 'expense' ? 'title' : edit.type === 'income' ? 'source' : 'note'}`}>{descriptionLabel(edit.type)}</label>
+                            <input type="text" id={`edit-${edit.type}-${edit.type === 'expense' ? 'title' : edit.type === 'income' ? 'source' : 'note'}`} required value={edit.description}
+                                onChange={event => setEdit(draft => draft && { ...draft, description: event.target.value })} />
+                        </div>
+                        <div className="field">
+                            <label htmlFor={`edit-${edit.type}-amount`}>Amount (₹)</label>
+                            <input type="number" id={`edit-${edit.type}-amount`} inputMode="decimal" step="0.01" min="0" required value={edit.amount}
+                                onChange={event => setEdit(draft => draft && { ...draft, amount: event.target.value })} />
+                        </div>
+                        <div className="field">
+                            <label htmlFor={`edit-${edit.type}-${edit.type === 'income' ? 'credited-to' : edit.type === 'expense' ? 'payment-method' : 'from'}`}>{accountLabel(edit.type)}</label>
+                            <select id={`edit-${edit.type}-${edit.type === 'income' ? 'credited-to' : edit.type === 'expense' ? 'payment-method' : 'from'}`} required value={edit.accountId}
+                                onChange={event => setEdit(draft => draft && { ...draft, accountId: event.target.value })}>
+                                <AccountOptions accounts={usable(accounts, edit.type)} />
+                            </select>
+                        </div>
+                        {edit.type === 'transfer' ? (
+                            <div className="field">
+                                <label htmlFor="edit-transfer-to">To</label>
+                                <select id="edit-transfer-to" required value={edit.toAccountId}
+                                    onChange={event => setEdit(draft => draft && { ...draft, toAccountId: event.target.value })}>
+                                    <AccountOptions accounts={accounts} />
+                                </select>
+                            </div>
+                        ) : null}
+                        <div className="field">
+                            <label htmlFor={`edit-${edit.type}-date`}>Date</label>
+                            <input type="date" id={`edit-${edit.type}-date`} required value={edit.date}
+                                onChange={event => setEdit(draft => draft && { ...draft, date: event.target.value })} />
+                        </div>
                     </div>
-                    <div className="field">
-                        <label htmlFor="edit-income-amount">Amount (₹)</label>
-                        <input type="number" id="edit-income-amount" inputMode="decimal" step="0.01" min="0" required value={editIncome?.amount ?? ''}
-                            onChange={event => setEditIncome(draft => draft && { ...draft, amount: event.target.value })} />
-                    </div>
-                    <div className="field">
-                        <label htmlFor="edit-income-credited-to">Received in</label>
-                        <select id="edit-income-credited-to" required value={editIncome?.creditedTo ?? 'cash'}
-                            onChange={event => setEditIncome(draft => draft && { ...draft, creditedTo: event.target.value })}>
-                            <AccountOptions banks={banks} />
-                        </select>
-                    </div>
-                    <div className="field">
-                        <label htmlFor="edit-income-date">Date</label>
-                        <input type="date" id="edit-income-date" required value={editIncome?.date ?? ''}
-                            onChange={event => setEditIncome(draft => draft && { ...draft, date: event.target.value })} />
-                    </div>
-                </div>
-            </Modal>
-
-            <Modal id="edit-expense-modal" title="Edit expense" open={editExpense !== null} closeAction="close-edit-expense"
-                onClose={() => setEditExpense(null)}
-                footer={modalButtons('save-expense-edit', 'close-edit-expense', saveExpense, () => setEditExpense(null))}>
-                <div className="form-grid">
-                    <div className="field">
-                        <label htmlFor="edit-expense-title">What for</label>
-                        <input type="text" id="edit-expense-title" required value={editExpense?.title ?? ''}
-                            onChange={event => setEditExpense(draft => draft && { ...draft, title: event.target.value })} />
-                    </div>
-                    <div className="field">
-                        <label htmlFor="edit-expense-amount">Amount (₹)</label>
-                        <input type="number" id="edit-expense-amount" inputMode="decimal" step="0.01" min="0" required value={editExpense?.amount ?? ''}
-                            onChange={event => setEditExpense(draft => draft && { ...draft, amount: event.target.value })} />
-                    </div>
-                    <div className="field">
-                        <label htmlFor="edit-expense-payment-method">Paid from</label>
-                        <select id="edit-expense-payment-method" required value={editExpense?.paymentMethod ?? 'cash'}
-                            onChange={event => setEditExpense(draft => draft && { ...draft, paymentMethod: event.target.value })}>
-                            <AccountOptions banks={banks} cards={cards} />
-                        </select>
-                    </div>
-                    <div className="field">
-                        <label htmlFor="edit-expense-date">Date</label>
-                        <input type="date" id="edit-expense-date" required value={editExpense?.date ?? ''}
-                            onChange={event => setEditExpense(draft => draft && { ...draft, date: event.target.value })} />
-                    </div>
-                </div>
+                ) : null}
             </Modal>
 
             <Modal id="delete-confirmation-modal" title="Delete this entry?" small open={pendingDelete !== null} closeAction="close-delete"
@@ -483,7 +513,10 @@ export function TransactionsScreen() {
                     {pendingDelete ? (
                         <>
                             Are you sure you want to delete this {pendingDelete.type} transaction?<br />
-                            <span className="sub">{pendingDelete.label}: {pendingDelete.name}<br />Amount: {formatRupees(pendingDelete.amount)}</span>
+                            <span className="sub">
+                                {descriptionLabel(pendingDelete.type) === 'What for' ? 'Title' : descriptionLabel(pendingDelete.type)}: {pendingDelete.description}
+                                <br />Amount: {formatRupees(pendingDelete.amount)}
+                            </span>
                         </>
                     ) : 'Are you sure you want to delete this transaction?'}
                 </p>

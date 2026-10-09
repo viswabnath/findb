@@ -70,9 +70,9 @@ test('form messages: missing fields, success, and an API refusal', async ({ page
     await expect(page.locator('#income-source')).toHaveValue('');
     await expect(incomeRow(page, 'Bonus')).toContainText(rupees(700));
 
-    // Users who track income too cannot spend cash they do not have
+    // Users who track income too cannot spend cash they do not have (the 700 went into cash)
     await page.locator('#expense-title').fill('Taxi');
-    await page.locator('#expense-amount').fill('100');
+    await page.locator('#expense-amount').fill('700.01');
     await page.locator('[data-action="addExpense"]').click();
     await expect(page.locator('#transactions-message')).toHaveText('Insufficient cash balance');
     await expect(page.locator('#expense-table-body')).toContainText('No expense transactions found for this period');
@@ -158,4 +158,34 @@ test('sources are shown as text, never as HTML', async ({ page }) => {
     const row = incomeRow(page, '<b>bold</b>');
     await expect(row).toHaveCount(1);
     await expect(row.locator('b')).toHaveCount(0);
+});
+
+test('a wallet is added on Accounts, money moves into it, and the move is neither income nor spending', async ({ page }) => {
+    await newUser(page);
+    await addBank(page, 'Canara Main', 5000);
+    await page.locator('#other-type').selectOption('wallet');
+    await page.locator('#other-name').fill('Paytm Wallet');
+    await page.locator('#other-balance').fill('0');
+    await page.locator('[data-action="addOtherAccount"]').click();
+    await expect(page.locator('#other-account-message')).toHaveText('Wallet added successfully!');
+    await expect(page.locator('#other-accounts-list tr', { hasText: 'Paytm Wallet' })).toContainText(rupees(0));
+
+    await showSection(page, 'transactions');
+    await selectAccount(page, 'transfer-from', 'CANARA MAIN');
+    await page.locator('#transfer-to').selectOption({ label: 'Paytm Wallet' });
+    await page.locator('#transfer-amount').fill('750');
+    await page.locator('#transfer-note').fill('Wallet top-up');
+    await page.locator('[data-action="addTransfer"]').click();
+    await expect(page.locator('#transactions-message')).toHaveText('Transfer added successfully!');
+    const row = page.locator('#transfer-table-body tr', { hasText: 'Wallet top-up' });
+    await expect(row).toContainText(rupees(750));
+    await expect(row).toContainText('CANARA MAIN');
+    await expect(row).toContainText('Paytm Wallet');
+    // Money in and out are unchanged by a transfer
+    await expect(page.locator('.stat', { hasText: 'Money in' }).locator('.stat-value')).toHaveText(rupees(0));
+    await expect(page.locator('.stat', { hasText: 'Money out' }).locator('.stat-value')).toHaveText(rupees(0));
+
+    await showSection(page, 'setup');
+    await expect(page.locator('#other-accounts-list tr', { hasText: 'Paytm Wallet' })).toContainText(rupees(750));
+    await expect(page.locator('#banks-list tr', { hasText: 'CANARA MAIN' })).toContainText(rupees(4250));
 });

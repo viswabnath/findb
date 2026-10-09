@@ -156,6 +156,44 @@ Card row: `id, user_id, name, credit_limit, used_limit, created_at`.
 ```
 Creates the row on first call. On update, sending both fields changes the setup values; sending only `balance` adjusts the running balance and keeps `initial_balance`. Returns the cash balance row.
 
+## Money accounts
+
+Every money account, straight from the ledger ([ledger.md](ledger.md)): banks, cash and credit cards (also managed through the routes below), wallets and meal cards (only here).
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/accounts` | – | array of accounts, banks first; cash is always included |
+| POST | `/api/accounts` | `{ "type": "wallet" \| "meal_card", "name", "institution"?, "notes"?, "openingBalance"? }` | the new account |
+| PUT | `/api/accounts/:id` | `{ "name"?, "institution"?, "accountType"?, "interestRate"?, "notes"? }` | the updated account |
+| DELETE | `/api/accounts/:id` | – | `{ "success": true }`: archives an empty wallet or meal card |
+
+An account: `{ "id", "type": "bank|cash|credit_card|wallet|meal_card", "name", "balance", "used", "creditLimit", "available", "institution", "accountType", "interestRate", "notes", "sourceId" }`. `balance` is the ledger balance (a card's is minus what is owed); `used`, `creditLimit` and `available` are for cards; `sourceId` is a bank's or card's id in `/api/banks` or `/api/credit-cards`. Only banks take `accountType` (`savings`, `current`, `salary`, `nre`, `nro`) and `interestRate` (percent a year, 0 to 100, up to three decimals); banks and cards are renamed through their own routes. A wallet or meal card name must be unique among them. Removing one with money in it returns `400`.
+
+## Entries
+
+Income, expenses and transfers on any money account, in the ledger. A transfer moves money between the user's own accounts (an ATM withdrawal, a card bill payment) and is neither income nor spending.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/entries` | `?month=1-12&year=YYYY` (required) | array of entries dated in that month, newest first |
+| POST | `/api/entries` | see below | the new entry |
+| PUT | `/api/entries/:id` | same as POST | the entry as changed, under a new id (the old one is kept, voided) |
+| DELETE | `/api/entries/:id` | – | `{ "success": true }` (the entry is voided) |
+
+```json
+{
+  "type": "income | expense | transfer",
+  "date": "YYYY-MM-DD",
+  "description": "max 200",
+  "amount": "positive, up to 2 decimals",
+  "accountId": 1,
+  "toAccountId": 2
+}
+```
+`accountId` is where income arrives, or where an expense or transfer is paid from; `toAccountId` is a transfer's destination. Income cannot go onto a credit card. For users who also track income, a new expense or transfer must fit the account's balance (`Insufficient bank balance`, `Insufficient cash balance`, `Insufficient balance in <name>`) or a card's limit (`Insufficient credit limit`); edits are not checked, as with the routes below.
+
+An entry: `{ "id", "type", "date", "description", "amount", "account": { "id", "name", "type" }, "toAccount", "category": { "id", "name" }, "legacy" }`. `legacy` marks income and expenses recorded through the routes below; editing or deleting one here also removes its row there.
+
 ## Income
 
 | Method | Path | Body / Query | Response |
@@ -211,6 +249,7 @@ Creates the row on first call. On update, sending both fields changes the setup 
   "totalInitialBalance": 0,
   "banks": [],
   "creditCards": [],
+  "otherAccounts": [{ "id": 9, "type": "wallet", "name": "Paytm Wallet", "current_balance": "250.00" }],
   "cash": { "balance": 0, "initial_balance": 0 },
   "selectedMonth": 7,
   "selectedYear": 2025,
@@ -220,7 +259,7 @@ Creates the row on first call. On update, sending both fields changes the setup 
   "message": null
 }
 ```
-When the month has no transactions, `message` is `"No transactions found for this month"` and the totals are 0.
+Income and expenses are the entries dated in the month; transfers count as neither. `netSavings` is `monthlyIncome - totalExpenses`. Balances are as at the month's last day, from the ledger, and `totalCurrentWealth` is banks, cash, wallets and meal cards. When the month has no transactions, `message` is `"No transactions found for this month"` and the totals are 0.
 
 ## Activity log
 

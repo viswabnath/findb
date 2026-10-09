@@ -14,7 +14,7 @@ import type { PoolClient } from 'pg';
 type Client = Pick<PoolClient, 'query'>;
 
 export type SystemAccount = 'cash' | 'income' | 'expense' | 'opening_balance' | 'adjustment';
-export type EntryType = 'opening_balance' | 'income' | 'expense' | 'adjustment';
+export type EntryType = 'opening_balance' | 'income' | 'expense' | 'adjustment' | 'transfer';
 export type SourceTable = 'banks' | 'credit_cards' | 'cash_balance' | 'income_entries' | 'expenses';
 
 const SYSTEM_ACCOUNTS: Record<SystemAccount, { kind: string; subtype: string; name: string }> = {
@@ -151,6 +151,11 @@ export async function voidEntries(client: Client, userId: number, table: SourceT
     );
 }
 
+/** Void one entry by its id (an entry recorded directly in the ledger, with no former row) */
+export async function voidEntry(client: Client, userId: number, entryId: number): Promise<void> {
+    await client.query('UPDATE journal_entries SET voided_at = now() WHERE id = $1 AND user_id = $2 AND voided_at IS NULL', [entryId, userId]);
+}
+
 /** An account's balance in paise, from the entries that still count */
 export async function accountBalance(client: Client, accountId: number): Promise<number> {
     const result = await client.query(
@@ -163,6 +168,8 @@ export async function accountBalance(client: Client, accountId: number): Promise
 }
 
 export interface Balances {
+    /** By ledger account id, every account */
+    accounts: Map<number, number>;
     /** By bank id: positive is money in the bank */
     banks: Map<number, number>;
     /** By card id: negative is money owed on the card */
@@ -177,7 +184,7 @@ export interface Balances {
  */
 export async function balances(client: Client, userId: number, asOf?: string): Promise<Balances> {
     const result = await client.query(
-        `SELECT a.source_table, a.source_id, a.system_key,
+        `SELECT a.id, a.source_table, a.source_id, a.system_key,
                 COALESCE(SUM(l.amount_paise) FILTER (WHERE e.voided_at IS NULL AND ($2::date IS NULL OR e.entry_date <= $2::date)), 0)::bigint AS paise
          FROM ledger_accounts a
          LEFT JOIN journal_lines l ON l.user_id = a.user_id AND l.account_id = a.id
@@ -186,9 +193,10 @@ export async function balances(client: Client, userId: number, asOf?: string): P
          GROUP BY a.id`,
         [userId, asOf ?? null],
     );
-    const found: Balances = { banks: new Map(), cards: new Map(), system: {} };
+    const found: Balances = { accounts: new Map(), banks: new Map(), cards: new Map(), system: {} };
     for (const row of result.rows) {
         const paise = Number(row.paise);
+        found.accounts.set(Number(row.id), paise);
         if (row.source_table === 'banks') found.banks.set(Number(row.source_id), paise);
         else if (row.source_table === 'credit_cards') found.cards.set(Number(row.source_id), paise);
         else if (row.system_key) found.system[row.system_key as SystemAccount] = paise;
@@ -196,19 +204,23 @@ export async function balances(client: Client, userId: number, asOf?: string): P
     return found;
 }
 
-/** Income and spending in paise between two dates (YYYY-MM-DD, both included), from the entries that still count */
+/**
+ * Income and spending in paise between two dates (YYYY-MM-DD, both included), from the entries that
+ * still count: the lines on income and expense accounts. Transfers move money between the user's
+ * own accounts, so they touch neither and count as neither (v2 plan: net savings = income - expenses).
+ */
 export async function flows(client: Client, userId: number, from: string, to: string): Promise<{ income: number; expenses: number }> {
     const result = await client.query(
-        `SELECT a.system_key, COALESCE(SUM(l.amount_paise), 0)::bigint AS paise
+        `SELECT a.kind, COALESCE(SUM(l.amount_paise), 0)::bigint AS paise
          FROM journal_lines l
          JOIN journal_entries e ON e.user_id = l.user_id AND e.id = l.entry_id
          JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
          WHERE l.user_id = $1 AND e.voided_at IS NULL AND e.entry_date BETWEEN $2::date AND $3::date
-           AND a.system_key IN ('income', 'expense')
-         GROUP BY a.system_key`,
+           AND a.kind IN ('income', 'expense')
+         GROUP BY a.kind`,
         [userId, from, to],
     );
-    const by = Object.fromEntries(result.rows.map(row => [row.system_key, Number(row.paise)]));
+    const by = Object.fromEntries(result.rows.map(row => [row.kind, Number(row.paise)]));
     // Income accounts are credited (negative) when money comes in
     return { income: -(by.income ?? 0), expenses: by.expense ?? 0 };
 }

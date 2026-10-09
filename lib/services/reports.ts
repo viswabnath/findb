@@ -75,9 +75,18 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
     };
 
     const cashResult = await pool.query('SELECT COALESCE(initial_balance, 0) AS initial_balance FROM cash_balance WHERE user_id = $1', [userId]);
-    const cashRow: QueryResultRow = cashResult.rows.length === 0
-        ? { initial_balance: 0, cash_balance_at_month_end: 0 }
-        : { ...cashResult.rows[0], cash_balance_at_month_end: fromPaise(ledger.system.cash ?? 0) };
+    // Cash is the ledger's, also when it was never set on the Accounts screen (an ATM withdrawal adds cash)
+    const cashRow: QueryResultRow = {
+        initial_balance: cashResult.rows[0]?.initial_balance ?? 0,
+        cash_balance_at_month_end: fromPaise(ledger.system.cash ?? 0),
+    };
+
+    // Wallets and meal cards (ledger only) added by the month's end
+    const others = await pool.query(
+        `SELECT id, subtype AS type, name FROM ledger_accounts
+         WHERE user_id = $1 AND subtype IN ('wallet', 'meal_card') AND archived_at IS NULL AND created_at <= $2 ORDER BY lower(name)`,
+        [userId, endOfMonth]);
+    const otherAccounts = others.rows.map(account => ({ ...account, current_balance: fromPaise(ledger.accounts.get(Number(account.id)) ?? 0) }));
 
     let creditCards: QueryResultRow[] = [];
     if (trackingOption === 'expenses' || trackingOption === 'both') {
@@ -92,13 +101,15 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
     const monthIncome = monthFlows.income / 100;
     const monthExpenses = monthFlows.expenses / 100;
     const totalBankBalance = bankResult.rows.reduce((sum, bank) => sum + parseFloat(bank.balance_at_month_end || 0), 0);
-    const totalCurrentWealth = totalBankBalance + parseFloat(cashRow.cash_balance_at_month_end || 0);
+    const totalOther = otherAccounts.reduce((sum, account) => sum + parseFloat(account.current_balance), 0);
+    const totalCurrentWealth = totalBankBalance + parseFloat(cashRow.cash_balance_at_month_end || 0) + totalOther;
     const totalInitialBankBalance = bankResult.rows.reduce((sum, bank) => sum + parseFloat(bank.initial_balance || 0), 0);
     const totalInitialBalance = totalInitialBankBalance + parseFloat(cashRow.initial_balance || 0);
-    const netSavings = totalInitialBalance + monthIncome - monthExpenses;
+    // v2 plan: net savings = income - expenses. Transfers are neither, so they never change it
+    const netSavings = (monthFlows.income - monthFlows.expenses) / 100;
 
     // Registered, but no entries this month and no accounts set up yet
-    const hasNoAccountsSetup = bankResult.rows.length === 0 && (cashRow.initial_balance || 0) === 0;
+    const hasNoAccountsSetup = bankResult.rows.length === 0 && otherAccounts.length === 0 && (cashRow.initial_balance || 0) === 0;
     if (monthIncome === 0 && monthExpenses === 0 && hasNoAccountsSetup) {
         return {
             ...EMPTY_SUMMARY, trackingOption, isCurrentMonth, isMonthCompleted,
@@ -114,6 +125,7 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
         totalInitialBalance,
         banks: bankResult.rows.map((bank) => ({ ...bank, current_balance: bank.balance_at_month_end })),
         creditCards,
+        otherAccounts,
         cash: { balance: cashRow.cash_balance_at_month_end || 0, initial_balance: cashRow.initial_balance || 0 },
         selectedMonth,
         selectedYear,
@@ -133,6 +145,11 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
  */
 const activityAccountInfo = `
     CASE
+        -- Entries and accounts recorded in the ledger (/api/entries, /api/accounts) carry the name
+        WHEN new_values ? 'toAccountName' THEN (new_values->>'accountName') || ' to ' || (new_values->>'toAccountName')
+        WHEN new_values ? 'accountName' THEN new_values->>'accountName'
+        WHEN old_values ? 'toAccountName' THEN (old_values->>'accountName') || ' to ' || (old_values->>'toAccountName')
+        WHEN old_values ? 'accountName' THEN old_values->>'accountName'
         WHEN entity_type = 'cash_balance' THEN 'Cash'
         WHEN entity_type = 'bank' THEN
             COALESCE((SELECT name FROM banks WHERE id = entity_id AND user_id = activity_log.user_id), 'Bank')
