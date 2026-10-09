@@ -10,7 +10,7 @@ const request = require('supertest');
 
 
 const { target, closeTarget } = require('./api-target');
-const { createTestUser, deleteTestUser, query, logIn } = require('../test-helpers');
+const { createTestUser, deleteTestUser, ledgerBalances, logIn, query } = require('../test-helpers');
 
 const OWNER = 'ownership_owner';
 const OTHER = 'ownership_other';
@@ -48,9 +48,8 @@ afterAll(async () => {
 });
 
 const ownerBalances = async () => {
-    const bank = await query('SELECT current_balance FROM banks WHERE id = $1', [ownerBank.id]);
-    const card = await query('SELECT used_limit FROM credit_cards WHERE id = $1', [ownerCard.id]);
-    return { bank: bank.rows[0].current_balance, card: card.rows[0].used_limit };
+    const ledger = await ledgerBalances(ownerBank.user_id);
+    return { bank: ledger.banks[ownerBank.id], card: ledger.cards[ownerCard.id] };
 };
 
 test('income cannot be credited to another user\'s bank', async () => {

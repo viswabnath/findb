@@ -21,7 +21,8 @@ const {
     deleteTestUser,
     getPool,
     query,
-    logIn
+    logIn,
+    ledgerBalances
 } = require('../test-helpers');
 
 const USERNAME = 'atomic_writes_user';
@@ -34,17 +35,10 @@ let bankA;
 let bankB;
 let card;
 
+/** Balances from the ledger, where every balance lives */
 async function balances() {
-    const banks = await query('SELECT id, current_balance FROM banks WHERE user_id = $1', [userId]);
-    const cash = await query('SELECT balance FROM cash_balance WHERE user_id = $1', [userId]);
-    const cards = await query('SELECT used_limit FROM credit_cards WHERE user_id = $1', [userId]);
-    const byId = Object.fromEntries(banks.rows.map(row => [row.id, row.current_balance]));
-    return {
-        bankA: byId[bankA.id],
-        bankB: byId[bankB.id],
-        cash: cash.rows[0].balance,
-        cardUsed: cards.rows[0].used_limit
-    };
+    const ledger = await ledgerBalances(userId);
+    return { bankA: ledger.banks[bankA.id], bankB: ledger.banks[bankB.id], cash: ledger.cash, cardUsed: ledger.cards[card.id] };
 }
 
 async function activityCount() {
@@ -145,7 +139,6 @@ describe('failed writes leave no partial changes', () => {
              VALUES ($1, $2, 120, 'credit_card', $3, '2026-09-12', 9, 2026) RETURNING id`,
             [userId, `${FAIL_MARKER} flight`, card.id]
         );
-        await query('UPDATE credit_cards SET used_limit = used_limit + 120 WHERE id = $1', [card.id]);
         const before = await balances();
 
         const response = await agent.delete(`/api/expenses/${inserted.rows[0].id}`);
@@ -264,8 +257,7 @@ describe('expenses-only users', () => {
     });
 
     async function bankBalance() {
-        const result = await query('SELECT current_balance FROM banks WHERE id = $1', [expensesBank.id]);
-        return Number(result.rows[0].current_balance);
+        return Number((await ledgerBalances(expensesUserId)).banks[expensesBank.id]);
     }
 
     test('adding, editing and deleting an expense always changes the balance, even past zero', async () => {

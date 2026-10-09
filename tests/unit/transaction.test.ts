@@ -145,7 +145,8 @@ describe('withUserScope', () => {
             throw failure;
         })).rejects.toBe(failure);
 
-        expect(statements.slice(1, 3)).toEqual(['INSERT wrong_code event', 'COMMIT']);
+        // Exactly: no ROLLBACK after the COMMIT
+        expect(statements.slice(1)).toEqual(['INSERT wrong_code event', 'COMMIT']);
     });
 
     test('refuses a user id that is not a whole number', async () => {

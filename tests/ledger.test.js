@@ -1,17 +1,18 @@
 /**
  * Ledger tests (real database, balancetrack_test schema; docs/ledger.md)
  *
- * Every change to banks, cards, cash, income and expenses also writes the double-entry ledger in
- * the same transaction. After each kind of change, the balances stored in the former tables must
- * equal the ledger's (the view ledger_balance_check), and every entry must balance. The database
- * itself refuses an entry that does not add up to zero, or a line on another user's account.
+ * Every change to banks, cards, cash, income and expenses writes the double-entry ledger in the
+ * same transaction, and every balance comes from it. After each kind of change, every income and
+ * expense row must have exactly one matching ledger record (the view ledger_entry_check), and every
+ * entry must balance. The database itself refuses an entry that does not add up to zero, or a line
+ * on another user's account.
  * @jest-environment node
  */
 
 const request = require('supertest');
 
 const { target, closeTarget } = require('./api-target');
-const { createTestUser, deleteTestUser, getPool, query, logIn } = require('../test-helpers');
+const { createTestUser, deleteTestUser, getPool, ledgerBalances, query, logIn } = require('../test-helpers');
 
 const USER = 'ledger_user';
 const OTHER = 'ledger_other';
@@ -37,13 +38,9 @@ afterAll(async () => {
     await closeTarget();
 });
 
-/** The user's stored balances that differ from the ledger's; empty when the two agree */
+/** The user's income and expense rows whose ledger record is missing, doubled or different; empty when they agree */
 async function mismatches() {
-    const result = await query(
-        `SELECT account_type, label, account_id, target_balance_paise, ledger_balance_paise FROM ledger_balance_check
-         WHERE user_id = $1 AND (account_id IS NULL OR target_balance_paise <> ledger_balance_paise)`,
-        [user.id],
-    );
+    const result = await query('SELECT source_table, label, amount_paise, ledger_amount_paise FROM ledger_entry_check WHERE user_id = $1', [user.id]);
     return result.rows;
 }
 
@@ -209,25 +206,35 @@ describe('balances and the summary are read from the ledger', () => {
     });
 
     test('the lists show the ledger\'s balance, not the former column', async () => {
-        // Tamper with the former columns: the API must not notice
+        // The former columns are no longer kept (0009): whatever they hold, the API must not notice
         await query('UPDATE banks SET current_balance = 1 WHERE id = $1', [bank.id]);
         await query('UPDATE credit_cards SET used_limit = 1 WHERE id = $1', [card.id]);
-        try {
-            const banks = (await agent.get('/api/banks')).body;
-            expect(banks.find(row => row.id === bank.id).current_balance).toBe('1350.00');
-            const cards = (await agent.get('/api/credit-cards')).body;
-            expect(cards.find(row => row.id === card.id).used_limit).toBe('120.00');
-        } finally {
-            await query('UPDATE banks SET current_balance = 1350 WHERE id = $1', [bank.id]);
-            await query('UPDATE credit_cards SET used_limit = 120 WHERE id = $1', [card.id]);
-        }
+        const banks = (await agent.get('/api/banks')).body;
+        expect(banks.find(row => row.id === bank.id).current_balance).toBe('1350.00');
+        const cards = (await agent.get('/api/credit-cards')).body;
+        expect(cards.find(row => row.id === card.id).used_limit).toBe('120.00');
+        await expectLedgerAgrees();
+    });
+
+    test('the former balance columns are no longer written, and the card limit check uses the ledger', async () => {
+        const income = await agent.post('/api/income')
+            .send({ source: 'Column probe', amount: 10, creditedToType: 'bank', creditedToId: bank.id, date: thisMonth });
+        expect(income.status).toBe(200);
+        // Still the value the previous test left there
+        const column = await query('SELECT current_balance FROM banks WHERE id = $1', [bank.id]);
+        expect(column.rows[0].current_balance).toBe('1.00');
+        expect((await agent.delete(`/api/income/${income.body.id}`)).status).toBe(200);
+
+        // The column says 1 used; the ledger says 120, so a limit of 100 is refused
+        const lowered = await agent.put(`/api/credit-cards/${card.id}`).send({ name: 'Reads Card', creditLimit: 100 });
+        expect(lowered.status).toBe(400);
+        expect(lowered.body.error).toContain('₹120.00');
         await expectLedgerAgrees();
     });
 
     test('cash shows the ledger\'s balance', async () => {
         const cash = (await agent.get('/api/cash-balance')).body;
-        const stored = await query('SELECT balance FROM cash_balance WHERE user_id = $1', [user.id]);
-        expect(cash.balance).toBe(stored.rows[0].balance);
+        expect(cash.balance).toBe((await ledgerBalances(user.id)).cash);
     });
 
     test('the summary counts what is dated within the month, and balances as at its last day', async () => {

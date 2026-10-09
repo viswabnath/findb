@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Checks the ledger (docs/ledger.md) and changes nothing:
- *   - every bank, card and cash balance in the former tables equals the ledger's (ledger_balance_check)
+ *   - every income and expense row has exactly one matching ledger record (ledger_entry_check)
  *   - every journal entry has at least two lines that add up to zero
  *
  *   npm run ledger:check         production (.env, schema public); read-only
@@ -33,10 +33,8 @@ async function main() {
         await client.query('BEGIN TRANSACTION READ ONLY');
 
         const mismatches = (await client.query(
-            `SELECT user_id, account_type, source_id, label, account_id, target_balance_paise, ledger_balance_paise
-             FROM ledger_balance_check
-             WHERE account_id IS NULL OR target_balance_paise <> ledger_balance_paise
-             ORDER BY user_id, account_type, source_id`,
+            `SELECT user_id, source_table, source_id, label, amount_paise, ledger_entries, ledger_amount_paise
+             FROM ledger_entry_check ORDER BY user_id, source_table, source_id`,
         )).rows;
         const unbalanced = (await client.query(
             `SELECT e.id, e.user_id, count(l.id) AS lines, coalesce(sum(l.amount_paise), 0) AS total
@@ -52,18 +50,17 @@ async function main() {
         console.log(`${counts.accounts} accounts, ${counts.entries} entries (${counts.voided} voided)`);
 
         for (const row of mismatches) {
-            const ledger = row.account_id === null ? 'no ledger account' : `ledger ${row.ledger_balance_paise} paise`;
-            console.log(`Mismatch: user ${row.user_id} ${row.account_type} ${row.source_id} (${row.label}): `
-                + `stored ${row.target_balance_paise} paise, ${ledger}`);
+            console.log(`Mismatch: user ${row.user_id} ${row.source_table} ${row.source_id} (${row.label}): `
+                + `${row.amount_paise} paise, ${row.ledger_entries} ledger records of ${row.ledger_amount_paise ?? 'none'} paise`);
         }
         for (const row of unbalanced) {
             console.log(`Unbalanced: entry ${row.id} of user ${row.user_id}: ${row.lines} lines, total ${row.total} paise`);
         }
         if (mismatches.length || unbalanced.length) {
-            console.log(`Error: ${mismatches.length} balance mismatches, ${unbalanced.length} unbalanced entries`);
+            console.log(`Error: ${mismatches.length} entry mismatches, ${unbalanced.length} unbalanced entries`);
             process.exitCode = 1;
         } else {
-            console.log('The ledger agrees with every stored balance, and every entry balances');
+            console.log('Every income and expense has its ledger record, and every entry balances');
         }
     } finally {
         await client.query('ROLLBACK').catch(() => {});

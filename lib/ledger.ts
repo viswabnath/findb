@@ -3,10 +3,12 @@ import type { PoolClient } from 'pg';
 /**
  * The double-entry ledger (db/migrations/0001_ledger.sql, docs/ledger.md).
  *
- * While the former tables (banks, credit_cards, cash_balance, income_entries, expenses) remain,
- * every change to them also writes the ledger, in the same transaction, so the two always agree;
- * the view ledger_balance_check proves it, and the tests check it after every kind of change.
- * Amounts in the ledger are whole paise. Every function here runs on the caller's transaction.
+ * Every change to the former tables (banks, credit_cards, cash_balance, income_entries, expenses)
+ * also writes the ledger, in the same transaction, and every balance comes from the ledger alone:
+ * the former balance columns are no longer written (migration 0009). The view ledger_entry_check
+ * proves each income and expense row has its one ledger record, and the tests check it after every
+ * kind of change. Amounts in the ledger are whole paise. Every function here runs on the caller's
+ * transaction.
  */
 
 type Client = Pick<PoolClient, 'query'>;
