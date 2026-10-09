@@ -88,7 +88,8 @@
           "<rootDir>/tests/categories.test.js",
           "<rootDir>/tests/events.test.js",
           "<rootDir>/tests/recurring.test.js",
-          "<rootDir>/tests/reimbursements.test.js"
+          "<rootDir>/tests/reimbursements.test.js",
+          "<rootDir>/tests/reconciliation.test.js"
         ],
         "setupFiles": [
           "<rootDir>/tests/env.js"

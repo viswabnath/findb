@@ -279,6 +279,21 @@ An expense paid now that someone will pay back (an employer, an insurer). While 
 
 A reimbursement: `{ "id", "description", "fromWhom", "amount", "received", "outstanding", "keptAsSpending", "category", "event", "paidFrom", "paidOn", "status": "pending | partly repaid | repaid | closed", "repayments": [{ "date", "amount", "account" }] }`. The payment gets the spending check. A repayment cannot be more than what is still owed; repaying it all closes it, and `close: true` closes it early: what was not repaid becomes an expense in its category (Uncategorised without one), dated that day. The summary's `owedToYou` is what is still to come back.
 
+## Reconciliation
+
+Checking an account against a statement. Amounts follow the statement: money in the account, or for a credit card, the amount owed.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/reconciliations` | `?accountId=` (optional) | reconciliations, the latest first, without their lines |
+| POST | `/api/reconciliations` | `{ "accountId", "statementDate", "statementBalance" }` | the reconciliation: an account's open one (restarted with this statement) or a new one |
+| GET | `/api/reconciliations/:id` | – | the reconciliation with its lines |
+| POST | `/api/reconciliations/:id/tick` | `{ "lineIds": [...], "ticked": true \| false }` | the reconciliation |
+| POST | `/api/reconciliations/:id/finish` | `{ "adjust"? }` | the finished reconciliation |
+| DELETE | `/api/reconciliations/:id` | – | `{ "success": true }`: an open one is given up and its ticks removed |
+
+A reconciliation: `{ "id", "account", "statementDate", "statementBalance", "status": "open | done", "previouslyCleared", "clearedBalance", "difference", "lines": [{ "lineId", "entryId", "date", "description", "amount", "ticked" }], "completedAt" }`. The lines are the account's lines up to the statement date not cleared by another reconciliation. `difference` is the statement balance less the cleared balance; `finish` refuses unless it is zero, or with `adjust: true` records it as an adjustment entry. Editing or deleting an entry cleared by a finished reconciliation returns `409` unless `confirmReconciled: true` is sent (a query parameter for `DELETE /api/entries/:id`), except an edit that keeps the account and amount, whose tick moves with it.
+
 ## Income
 
 | Method | Path | Body / Query | Response |

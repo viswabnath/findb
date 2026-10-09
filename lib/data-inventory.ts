@@ -74,6 +74,11 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         purpose: 'Keeping money owed to you out of your spending', retention: 'Until you delete your account',
     },
     {
+        table: 'reconciliations', category: 'money', exported: true,
+        holds: 'Statement balances you checked an account against, and when', purpose: 'Making sure FinDB matches your bank',
+        retention: 'Until you delete your account',
+    },
+    {
         table: 'tags', category: 'money', exported: true,
         holds: 'The tags you put on entries', purpose: 'Grouping your entries your way', retention: 'Until you delete your account',
     },

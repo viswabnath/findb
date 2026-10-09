@@ -484,6 +484,38 @@ async function removeFormerRow(client: Client, userId: number, entry: { sourceTa
  * Change an entry: the old one is voided (kept as history) and the new one recorded, under a new id.
  * Like the former edit routes, an edit does not run the overspending check.
  */
+/**
+ * Move the reconciliation ticks of an entry being replaced onto the new one, line by line, where
+ * the account and amount are the same (lib/services/reconciliation.ts). Returns the description of
+ * a finished reconciliation whose ticked line has no match: the edit would change a balance the
+ * user matched to a statement.
+ */
+async function carryCleared(client: Client, userId: number, oldEntryId: number, newEntryId: number | null): Promise<string | null> {
+    const cleared = await client.query(
+        `SELECT l.account_id, l.amount_paise, l.reconciliation_id, r.status, a.name, r.statement_date::text AS date
+         FROM journal_lines l JOIN reconciliations r ON r.user_id = l.user_id AND r.id = l.reconciliation_id
+         JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
+         WHERE l.user_id = $1 AND l.entry_id = $2`,
+        [userId, oldEntryId]);
+    let unmatched: string | null = null;
+    for (const line of cleared.rows) {
+        const moved = newEntryId === null ? { rowCount: 0 } : await client.query(
+            `UPDATE journal_lines SET reconciliation_id = $1
+             WHERE id = (SELECT id FROM journal_lines WHERE user_id = $2 AND entry_id = $3 AND account_id = $4 AND amount_paise = $5
+                         AND reconciliation_id IS NULL LIMIT 1)`,
+            [line.reconciliation_id, userId, newEntryId, line.account_id, line.amount_paise]);
+        if (moved.rowCount === 0 && line.status === 'done') unmatched ??= `the ${line.name} statement of ${line.date}`;
+    }
+    return unmatched;
+}
+
+/** Refuse to change a reconciled entry unless the user confirmed it ({ confirmReconciled: true }) */
+function requireConfirmation(statement: string | null, body: Body): void {
+    if (statement && body.confirmReconciled !== true) {
+        throw new RequestError(409, `This entry is part of ${statement}, which you reconciled. Changing it changes that matched balance.`);
+    }
+}
+
 export async function updateEntry(pool: Pool, userId: number, id: string, body: Body): Promise<Entry> {
     const input = readEntry(body);
     return withTransaction(pool, async (client) => {
@@ -498,15 +530,17 @@ export async function updateEntry(pool: Pool, userId: number, id: string, body: 
             eventId: input.eventId === undefined ? (old.event ? { keep: old.event.id } : null) : input.eventId,
         };
         const { id: newId, account, toAccount, category } = await record(client, userId, kept, false);
+        requireConfirmation(await carryCleared(client, userId, old.id, newId), body);
         await logActivity(client, userId, 'updated', input.type, newId, `Updated ${input.type}: ${input.description}`, fromPaise(input.paise),
             oldValues(old), activityValues(kept, account, toAccount, category));
         return publicEntry(await lockedEntry(client, userId, newId));
     });
 }
 
-export async function deleteEntry(pool: Pool, userId: number, id: string): Promise<void> {
+export async function deleteEntry(pool: Pool, userId: number, id: string, body: Body = {}): Promise<void> {
     await withTransaction(pool, async (client) => {
         const old = await lockedEntry(client, userId, id);
+        requireConfirmation(await carryCleared(client, userId, old.id, null), body);
         await removeFormerRow(client, userId, old);
         await voidEntry(client, userId, old.id);
         await logActivity(client, userId, 'deleted', old.type, old.id, `Deleted ${old.type}: ${old.description}`, old.amount, oldValues(old), null);
@@ -537,10 +571,12 @@ export async function categoriseEntries(pool: Pool, userId: number, body: Body):
             if (old.category?.id === category.id) continue;
             await removeFormerRow(client, userId, old);
             await voidEntry(client, userId, old.id);
-            await record(client, userId, {
+            const { id: newId } = await record(client, userId, {
                 type: old.type, date: old.date, description: old.description, paise: toPaise(old.amount),
                 accountId: old.account.id, toAccountId: null, categoryId: category.id, tags: old.tags, eventId: old.event ? { keep: old.event.id } : null,
             }, false);
+            // The money line is unchanged, so its reconciliation tick moves with it
+            await carryCleared(client, userId, old.id, newId);
             changed++;
         }
         if (changed > 0) {

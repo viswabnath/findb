@@ -307,3 +307,22 @@ test('money owed back is not spending until a reimbursement is closed with some 
     await showSection(page, 'summary');
     await expect(page.locator('.summary-card.expense .summary-amount')).toHaveText(rupees(1000));
 });
+
+test('reconciling a bank against its statement finds the difference and finishes at zero', async ({ page }) => {
+    await newUser(page);
+    await addBank(page, 'Statement Bank', 5000);
+    await page.locator('[data-action="goReconcile"]').click();
+    await expect(page.locator('#reconcile-section')).toBeVisible();
+    await page.locator('#reconcile-account').selectOption({ label: 'STATEMENT BANK' });
+    // The statement shows 4800: a 200 charge FinDB does not know about yet
+    await page.locator('#reconcile-balance').fill('4800');
+    await page.locator('[data-action="startReconcile"]').click();
+    await expect(page.locator('#reconcile-difference')).toHaveText(`Difference ${rupees(4800)}`);
+    // The tick shows once the server has recorded it
+    await page.locator('#reconcile-lines li', { hasText: 'Opening balance' }).locator('[data-action="tickLine"]').click();
+    await expect(page.locator('#reconcile-difference')).toHaveText(`Difference ${rupees(-200)}`);
+    await expect(page.locator('[data-action="finishReconcile"]')).toBeDisabled();
+    await page.locator('[data-action="adjustReconcile"]').click();
+    await expect(toast(page, 'matches the statement')).toBeVisible();
+    await expect(page.locator('#reconcile-history')).toContainText(rupees(4800));
+});

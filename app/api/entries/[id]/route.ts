@@ -11,8 +11,9 @@ export const PUT = withUser<Context>(async (request, userId, context) => {
     return Response.json(await updateEntry(db(), userId, id, await jsonBody(request)));
 });
 
-export const DELETE = withUser<Context>(async (_request, userId, context) => {
+// ?confirmReconciled=true to delete an entry that is part of a reconciled statement
+export const DELETE = withUser<Context>(async (request, userId, context) => {
     const { id } = await context.params;
-    await deleteEntry(db(), userId, id);
+    await deleteEntry(db(), userId, id, { confirmReconciled: request.nextUrl.searchParams.get('confirmReconciled') === 'true' });
     return Response.json({ success: true });
 });

@@ -73,9 +73,10 @@ export const FEATURES: Feature[] = [
             'Cash in hand',
             'Moving money between your own accounts, such as an ATM withdrawal or a card bill payment, without counting it as spending',
             'Every balance changes the moment you add, edit or delete an entry',
+            'Checking a balance against your bank statement, with the difference explained entry by entry',
         ],
         next: [
-            'Checking a balance against your bank statement, with the difference explained entry by entry',
+            'Importing the statement itself, so the entries tick themselves off (see Import)',
         ],
         example: {
             title: 'Withdrawing cash from an ATM',

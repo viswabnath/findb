@@ -221,6 +221,7 @@ export function SetupScreen() {
                     <h2>Accounts</h2>
                     <p>Your banks, cards and cash, with today&apos;s balances.</p>
                 </div>
+                <a href="/reconcile" className="btn btn-secondary" data-action="goReconcile">Check against a statement</a>
             </div>
 
             <div className={`stats ${showCards ? 'three' : 'two'}`}>

@@ -13,7 +13,7 @@ export interface ActivityLabel {
     className: string;
 }
 
-type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating' | 'reimbursement';
+type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating' | 'reimbursement' | 'reconciliation';
 
 const CREATED: Record<Entity, ActivityLabel> = {
     cash_balance: { icon: 'banknote', text: 'Cash Balance Set', className: 'action-cash-add' },
@@ -27,6 +27,7 @@ const CREATED: Record<Entity, ActivityLabel> = {
     event: { icon: 'plus', text: 'Event Added', className: 'action-create' },
     repeating: { icon: 'refresh-cw', text: 'Repeating Entry Added', className: 'action-create' },
     reimbursement: { icon: 'refresh-cw', text: 'Reimbursement Added', className: 'action-create' },
+    reconciliation: { icon: 'landmark', text: 'Reconciliation Started', className: 'action-bank-update' },
 };
 
 const UPDATED: Record<Entity, ActivityLabel> = {
@@ -41,6 +42,7 @@ const UPDATED: Record<Entity, ActivityLabel> = {
     event: { icon: 'pencil', text: 'Event Updated', className: 'action-update' },
     repeating: { icon: 'refresh-cw', text: 'Repeating Entry Updated', className: 'action-update' },
     reimbursement: { icon: 'refresh-cw', text: 'Reimbursement Updated', className: 'action-update' },
+    reconciliation: { icon: 'landmark', text: 'Account Reconciled', className: 'action-bank-update' },
 };
 
 const DELETED: Record<Entity, ActivityLabel> = {
@@ -55,6 +57,7 @@ const DELETED: Record<Entity, ActivityLabel> = {
     event: { icon: 'trash-2', text: 'Event Removed', className: 'action-delete' },
     repeating: { icon: 'trash-2', text: 'Repeating Entry Deleted', className: 'action-delete' },
     reimbursement: { icon: 'trash-2', text: 'Reimbursement Deleted', className: 'action-delete' },
+    reconciliation: { icon: 'trash-2', text: 'Reconciliation Removed', className: 'action-delete' },
 };
 
 const isEntity = (value: string): value is Entity => Object.prototype.hasOwnProperty.call(CREATED, value);
