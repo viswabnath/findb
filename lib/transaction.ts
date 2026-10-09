@@ -117,6 +117,7 @@ export async function withUserScope<T>(pool: Pool, userId: number, fn: (scoped: 
     if (!Number.isInteger(userId)) throw new Error('withUserScope needs a whole-number user id');
     const client = await pool.connect();
     let broken: Error | undefined;
+    let closed = false;
     try {
         // One round trip; both values are safe to write in: an escaped role name and an integer
         await client.query(`BEGIN; SET LOCAL ROLE ${escapeIdentifier(USER_ROLE)}; ${TRANSACTION_LIMITS}; `
@@ -128,13 +129,22 @@ export async function withUserScope<T>(pool: Pool, userId: number, fn: (scoped: 
             // withTransaction's client: the same connection, which it must not release
             connect: async () => ({ query, release: () => undefined }) as unknown as PoolClient,
         } as unknown as Pool;
+        let result: T;
         try {
-            return await fn(scoped);
-        } finally {
+            result = await fn(scoped);
+        } catch (error) {
+            // Committed all the same (see above)
             await client.query('COMMIT');
+            closed = true;
+            throw error;
         }
+        await client.query('COMMIT');
+        closed = true;
+        return result;
     } catch (error) {
-        await client.query('ROLLBACK').catch((rollbackError: Error) => { broken = rollbackError; });
+        // Only while the transaction may still be open (BEGIN or COMMIT failed): after a COMMIT,
+        // a ROLLBACK would only draw "there is no transaction in progress"
+        if (!closed) await client.query('ROLLBACK').catch((rollbackError: Error) => { broken = rollbackError; });
         throw error;
     } finally {
         client.release(broken);

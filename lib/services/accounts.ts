@@ -2,15 +2,16 @@ import type { Pool, QueryResultRow } from 'pg';
 import { logActivity } from '../activity-log';
 import { RequestError, withTransaction } from '../transaction';
 import {
-    archiveMirroredAccount, balances, cardAccount, fromPaise, recordBankOpening, recordCashSetTo, updateMirroredAccount, voidEntries,
+    accountBalance, archiveMirroredAccount, balances, bankAccount, cardAccount, fromPaise, recordBankOpening, recordCashSetTo,
+    systemAccount, updateMirroredAccount, voidEntries,
 } from '../ledger';
 
 /**
  * Banks, credit cards and cash: the account routes moved from the former Express app (N3).
  * Same queries, messages and activity log entries as the Express routes, so the API contract
- * suites pass against either app. Every change also writes the ledger (lib/ledger.ts) in the same
- * transaction, and the balances shown (a bank's current_balance, a card's used_limit, cash) come
- * from the ledger. Known gaps kept for now (see docs/v2-audit.md): add accepts negative balances and
+ * suites pass against either app. Every change writes the ledger (lib/ledger.ts) in the same
+ * transaction, and every balance shown (a bank's current_balance, a card's used_limit, cash) comes
+ * from the ledger; the former balance columns are no longer written (migration 0009). Known gaps kept for now (see docs/v2-audit.md): add accepts negative balances and
  * zero limits, and edits and deletes write no activity log entry.
  */
 
@@ -71,16 +72,15 @@ export async function updateBank(pool: Pool, userId: number, id: string, body: B
         if (current.rows.length === 0) throw new RequestError(404, 'Bank not found');
 
         const newBalance = parseFloat(String(initialBalance));
-        const difference = newBalance - parseFloat(current.rows[0].initial_balance);
         const result = await client.query(
-            'UPDATE banks SET name = $1, initial_balance = $2, current_balance = current_balance + $3 WHERE id = $4 AND user_id = $5 RETURNING *',
-            [name.trim(), newBalance, difference, id, userId],
+            'UPDATE banks SET name = $1, initial_balance = $2 WHERE id = $3 AND user_id = $4 RETURNING *',
+            [name.trim(), newBalance, id, userId],
         );
         // The ledger's opening entry is replaced, which moves the balance by the same difference
         await updateMirroredAccount(client, userId, 'banks', id, name.trim());
         await voidEntries(client, userId, 'banks', id, ['opening_balance']);
         await recordBankOpening(client, userId, id, name.trim(), newBalance);
-        return result.rows[0];
+        return { ...result.rows[0], current_balance: fromPaise(await accountBalance(client, await bankAccount(client, userId, id))) };
     });
 }
 
@@ -145,7 +145,8 @@ export async function updateCard(pool: Pool, userId: number, id: string, body: B
         const current = await client.query('SELECT * FROM credit_cards WHERE id = $1 AND user_id = $2 FOR UPDATE', [id, userId]);
         if (current.rows.length === 0) throw new RequestError(404, 'Credit card not found');
 
-        const usedLimit = parseFloat(current.rows[0].used_limit);
+        // The amount used is what the card owes in the ledger (a negative balance)
+        const usedLimit = -(await accountBalance(client, await cardAccount(client, userId, id))) / 100;
         const newLimit = parseFloat(String(creditLimit));
         if (newLimit < usedLimit) {
             throw new RequestError(400,
@@ -156,7 +157,7 @@ export async function updateCard(pool: Pool, userId: number, id: string, body: B
             [name.trim(), newLimit, id, userId],
         );
         await updateMirroredAccount(client, userId, 'credit_cards', id, name.trim(), newLimit);
-        return result.rows[0];
+        return { ...result.rows[0], used_limit: fromPaise(Math.round(usedLimit * 100)) };
     });
 }
 
@@ -196,28 +197,28 @@ export async function setCash(pool: Pool, userId: number, body: Body): Promise<Q
         // Locked so concurrent saves cannot both read the old values
         const existing = await client.query('SELECT * FROM cash_balance WHERE user_id = $1 FOR UPDATE', [userId]);
 
+        // The cash balance shown is the ledger's; the row keeps the starting amount
+        const ledgerCash = async () => fromPaise(await accountBalance(client, await systemAccount(client, userId, 'cash')));
         if (existing.rows.length > 0) {
-            const oldValues = { balance: existing.rows[0].balance, initial_balance: existing.rows[0].initial_balance };
+            const oldValues = { balance: await ledgerCash(), initial_balance: existing.rows[0].initial_balance };
             if (initialBalance !== undefined && balance !== undefined) {
                 const result = await client.query(
-                    'UPDATE cash_balance SET balance = $1, initial_balance = $2, updated_at = CURRENT_TIMESTAMP WHERE user_id = $3 RETURNING *',
-                    [balance || 0, initialBalance || 0, userId],
+                    'UPDATE cash_balance SET initial_balance = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 RETURNING *',
+                    [initialBalance || 0, userId],
                 );
-                await recordCashSetTo(client, userId, result.rows[0].id, result.rows[0].balance, false);
+                await recordCashSetTo(client, userId, result.rows[0].id, balance || 0, false);
                 await logActivity(client, userId, 'updated', 'cash_balance', result.rows[0].id,
                     `Updated cash balance from ₹${amount(oldValues.initial_balance)} to ₹${amount(initialBalance)}`,
                     initialBalance, oldValues, { balance, initial_balance: initialBalance });
-                return result.rows[0];
+                return { ...result.rows[0], balance: await ledgerCash() };
             }
             const result = await client.query(
-                'UPDATE cash_balance SET balance = $1, updated_at = CURRENT_TIMESTAMP WHERE user_id = $2 RETURNING *',
-                [balance || 0, userId],
-            );
-            await recordCashSetTo(client, userId, result.rows[0].id, result.rows[0].balance, false);
+                'UPDATE cash_balance SET updated_at = CURRENT_TIMESTAMP WHERE user_id = $1 RETURNING *', [userId]);
+            await recordCashSetTo(client, userId, result.rows[0].id, balance || 0, false);
             await logActivity(client, userId, 'updated', 'cash_balance', result.rows[0].id,
                 `Cash balance updated to ₹${amount(balance)}`,
                 balance, oldValues, { balance, initial_balance: oldValues.initial_balance });
-            return result.rows[0];
+            return { ...result.rows[0], balance: await ledgerCash() };
         }
 
         const initialValue = initialBalance !== undefined ? initialBalance : balance;
@@ -225,9 +226,9 @@ export async function setCash(pool: Pool, userId: number, body: Body): Promise<Q
             'INSERT INTO cash_balance (user_id, balance, initial_balance) VALUES ($1, $2, $3) RETURNING *',
             [userId, balance || 0, initialValue || 0],
         );
-        await recordCashSetTo(client, userId, result.rows[0].id, result.rows[0].balance, true);
+        await recordCashSetTo(client, userId, result.rows[0].id, balance || 0, true);
         await logActivity(client, userId, 'created', 'cash_balance', result.rows[0].id,
             `Set initial cash balance: ₹${amount(initialValue)}`, initialValue);
-        return result.rows[0];
+        return { ...result.rows[0], balance: await ledgerCash() };
     });
 }

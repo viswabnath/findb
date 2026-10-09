@@ -12,7 +12,7 @@
 const request = require('supertest');
 
 const { target, closeTarget } = require('./api-target');
-const { createTestBank, createTestCashBalance, createTestUser, deleteTestUser, getPool, logIn, query } = require('../test-helpers');
+const { createTestBank, createTestCashBalance, createTestUser, deleteTestUser, getPool, ledgerBalances, logIn, query } = require('../test-helpers');
 
 const ALICE = 'isolation_alice';
 const BOB = 'isolation_bob';
@@ -135,11 +135,10 @@ describe('requests run as findb_user', () => {
     test('a failed write inside a request still rolls back completely', async () => {
         const agent = request.agent(target());
         await logIn(agent, ALICE, PASSWORD);
-        const before = await query('SELECT balance FROM cash_balance WHERE user_id = $1', [alice.id]);
+        const before = (await ledgerBalances(alice.id)).cash;
         const refused = await agent.post('/api/expenses').send({ title: 'Too much', amount: 999999, paymentMethod: 'cash', date: '2026-10-01' });
         expect(refused.status).toBe(400);
-        const after = await query('SELECT balance FROM cash_balance WHERE user_id = $1', [alice.id]);
-        expect(after.rows).toEqual(before.rows);
+        expect((await ledgerBalances(alice.id)).cash).toBe(before);
     });
 });
 

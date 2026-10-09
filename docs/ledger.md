@@ -20,15 +20,15 @@ Rules the database enforces:
 - **History is kept.** An edit or delete voids the entry (`voided_at`) rather than removing it; voided entries no longer count towards any balance. A deleted bank or card has its account archived.
 - **Row level security** is on, with no policies, like every other table. Deleting a user deletes their ledger.
 
-Views: `ledger_account_balances` (each account's balance from entries that still count) and `ledger_balance_check` (below).
+Views: `ledger_account_balances` (each account's balance from entries that still count) and `ledger_entry_check` (below).
 
 A card is a liability, so money spent on it is a negative balance: a card with ₹1,234.56 used has a ledger balance of `-123456`.
 
 ## The move (expand, then contract)
 
 1. **Expand (done).** The ledger is created and filled from today's data (`db/migrations/0002_ledger_backfill.sql`). From then on, every change to banks, cards, cash, income and expenses also writes the ledger in the same transaction (`lib/ledger.ts`, called from `lib/services/accounts.ts` and `transactions.ts`).
-2. **Switch reads (done).** Every balance shown comes from the ledger: a bank's `current_balance`, a card's `used_limit` and cash in the account lists, the overspend check on a new expense, and the monthly summary (`lib/services/reports.ts`). The API's response shapes are unchanged. The former balance columns are still written, and `ledger_balance_check` must still show no difference.
-3. **Contract.** The former balance columns become unused, then are removed once the ledger is proven.
+2. **Switch reads (done).** Every balance shown comes from the ledger: a bank's `current_balance`, a card's `used_limit` and cash in the account lists, the overspend check on a new expense, and the monthly summary (`lib/services/reports.ts`). The API's response shapes are unchanged. The former balance columns were still written then, and compared with the ledger by `ledger_balance_check`.
+3. **Contract (in progress).** Migration 0009: the former balance columns are no longer written, so the ledger can hold movements the former tables cannot (transfers, wallets). `ledger_balance_check` is replaced by `ledger_entry_check`. The columns are dropped in the last step, once nothing deployed uses them.
 
 ### The monthly summary
 
@@ -54,7 +54,7 @@ The backfill adds, for each user, the built-in accounts, an account per bank and
 
 ## Checking it
 
-`ledger_balance_check` lists every bank, card and cash balance stored in the former tables beside the ledger's. While both exist they must be equal.
+`ledger_entry_check` lists every income and expense row whose ledger record is missing, doubled, or has a different amount or account. It must be empty. (Until migration 0009, `ledger_balance_check` compared the balances stored in the former tables with the ledger's; it agreed in production from the move on 2026-10-04 until the columns were retired.)
 
 ```bash
 npm run ledger:check:test   # the test database

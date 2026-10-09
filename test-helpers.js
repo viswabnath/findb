@@ -113,10 +113,39 @@ async function createTestUser(userData = {}) {
  * existing data was moved: the backfill migrations, which only add what is missing.
  */
 const LEDGER_BACKFILL = ['0002_ledger_backfill.sql', '0004_cash_opening_date.sql']
-    .map(file => fs.readFileSync(path.join(__dirname, 'db', 'migrations', file), 'utf8'));
+    .map(file => fs.readFileSync(path.join(__dirname, 'db', 'migrations', file), 'utf8'))
+    // The backfill's last step compared the former balance columns, which are no longer kept (0009)
+    .map(sql => sql.split('-- Where a stored balance still differs')[0]);
 
 async function syncLedger(client) {
     for (const sql of LEDGER_BACKFILL) await client.query(sql);
+}
+
+/** Paise as rupees text with two decimals, as the API and the former DECIMAL(20,2) columns show them */
+function rupeesText(paise) {
+    const value = BigInt(paise);
+    const unsigned = value < 0n ? -value : value;
+    return `${value < 0n ? '-' : ''}${unsigned / 100n}.${String(unsigned % 100n).padStart(2, '0')}`;
+}
+
+/**
+ * A user's balances from the ledger, where every balance lives: by bank id, by card id (the amount
+ * used, positive), and cash. Text with two decimals, as the API returns them.
+ */
+async function ledgerBalances(userId) {
+    const result = await pool.query(
+        `SELECT a.source_table, a.source_id, a.system_key, COALESCE(b.balance_paise, 0)::bigint AS paise
+         FROM ledger_accounts a LEFT JOIN ledger_account_balances b ON b.account_id = a.id
+         WHERE a.user_id = $1`,
+        [userId]
+    );
+    const balances = { banks: {}, cards: {}, cash: '0.00' };
+    for (const row of result.rows) {
+        if (row.source_table === 'banks') balances.banks[row.source_id] = rupeesText(row.paise);
+        else if (row.source_table === 'credit_cards') balances.cards[row.source_id] = rupeesText(-BigInt(row.paise));
+        else if (row.system_key === 'cash') balances.cash = rupeesText(row.paise);
+    }
+    return balances;
 }
 
 /**
@@ -336,6 +365,7 @@ module.exports = {
     enableTestTwoFactor,
     currentTotpCode,
     logIn,
+    ledgerBalances,
     clearTestData,
     createTestUser,
     createTestBank,
