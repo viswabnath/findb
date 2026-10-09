@@ -11,6 +11,42 @@ import { escapeIdentifier, type Pool, type PoolClient } from 'pg';
 /** The part of a pg Pool these helpers need; makes them easy to test without a database */
 export type TransactionPool = Pick<Pool, 'connect'>;
 
+/**
+ * Time limits every transaction sets for itself, so a wait fails fast with a clear error instead of
+ * hanging until the client gives up (lib/db.ts: 20 s), and the database cleans up after it:
+ *   - lock_timeout: waiting for a row another request has locked stops after 5 seconds;
+ *   - statement_timeout: the database cancels a query after 15 seconds, before the client gives up,
+ *     so the query does not keep running on its own;
+ *   - idle_in_transaction_session_timeout: a transaction left open for 15 seconds between queries is
+ *     ended, so it cannot hold locks for minutes.
+ * All are local to the transaction, so nothing carries over on a pooled connection.
+ */
+export const TRANSACTION_LIMITS = "SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'; "
+    + "SET LOCAL idle_in_transaction_session_timeout = '15s'";
+
+/** A query slower than this is logged (its SQL only; values are sent separately and never logged) */
+const SLOW_QUERY_MS = 2000;
+
+/** Log a slow query with the start of its SQL, so a slow request can be traced in the server logs */
+function noteSlowQuery(sql: unknown, startedAt: number): void {
+    const elapsed = Date.now() - startedAt;
+    if (elapsed < SLOW_QUERY_MS) return;
+    const text = typeof sql === 'string' ? sql : (sql as { text?: string } | null)?.text ?? '';
+    console.warn(`Warning: slow query (${elapsed} ms): ${text.replace(/\s+/g, ' ').slice(0, 120)}`);
+}
+
+/** A client whose queries are timed (noteSlowQuery) */
+function timed(client: PoolClient): PoolClient['query'] {
+    return (async (...args: unknown[]) => {
+        const startedAt = Date.now();
+        try {
+            return await (client.query as (...params: unknown[]) => Promise<unknown>)(...args);
+        } finally {
+            noteSlowQuery(args[0], startedAt);
+        }
+    }) as PoolClient['query'];
+}
+
 /** Marks the database handle of a user's request (withUserScope): its transactions become savepoints */
 const SCOPED = Symbol('findb.userScope');
 type Scoped = { [SCOPED]: { nextSavepoint: number } };
@@ -49,8 +85,8 @@ export async function withTransaction<T>(
     // timed out may still be running), so it is closed instead of going back to the pool
     let broken: Error | undefined;
     try {
-        await client.query('BEGIN');
-        const result = await fn(client);
+        await client.query(`BEGIN; ${TRANSACTION_LIMITS}`);
+        const result = await fn(Object.assign(Object.create(null), { query: timed(client), release: () => undefined }) as PoolClient);
         await client.query('COMMIT');
         return result;
     } catch (error) {
@@ -83,12 +119,14 @@ export async function withUserScope<T>(pool: Pool, userId: number, fn: (scoped: 
     let broken: Error | undefined;
     try {
         // One round trip; both values are safe to write in: an escaped role name and an integer
-        await client.query(`BEGIN; SET LOCAL ROLE ${escapeIdentifier(USER_ROLE)}; SELECT set_config('app.user_id', '${userId}', true)`);
+        await client.query(`BEGIN; SET LOCAL ROLE ${escapeIdentifier(USER_ROLE)}; ${TRANSACTION_LIMITS}; `
+            + `SELECT set_config('app.user_id', '${userId}', true)`);
+        const query = timed(client);
         const scoped = {
             [SCOPED]: { nextSavepoint: 1 },
-            query: client.query.bind(client),
+            query,
             // withTransaction's client: the same connection, which it must not release
-            connect: async () => ({ query: client.query.bind(client), release: () => undefined }) as unknown as PoolClient,
+            connect: async () => ({ query, release: () => undefined }) as unknown as PoolClient,
         } as unknown as Pool;
         try {
             return await fn(scoped);

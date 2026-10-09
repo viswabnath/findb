@@ -19,6 +19,7 @@ const {
     createTestCreditCard,
     createTestCashBalance,
     deleteTestUser,
+    getPool,
     query,
     logIn
 } = require('../test-helpers');
@@ -284,6 +285,33 @@ describe('expenses-only users', () => {
         const deleted = await expensesAgent.delete(`/api/expenses/${created.body.id}`);
         expect(deleted.status).toBe(200);
         expect(await bankBalance()).toBe(100);
+    });
+});
+
+describe('time limits', () => {
+    test('a write waiting on a locked row stops after a few seconds with 503, and changes nothing', async () => {
+        const before = await balances();
+        // Another transaction holds the cash row, as a slow request would
+        const holder = await getPool().connect();
+        let response;
+        let elapsed;
+        try {
+            await holder.query(`BEGIN; SELECT id FROM cash_balance WHERE user_id = ${Number(userId)} FOR UPDATE`);
+            const started = Date.now();
+            response = await agent.post('/api/expenses').send({ title: 'Blocked tea', amount: 5, paymentMethod: 'cash', date: '2026-09-20' });
+            elapsed = Date.now() - started;
+        } finally {
+            await holder.query('ROLLBACK');
+            holder.release();
+        }
+        expect(response.status).toBe(503);
+        expect(response.body.error).toBe('FinDB is busy right now. Please try again in a moment.');
+        // lock_timeout is 5 s; well before the 20 s client limit
+        expect(elapsed).toBeGreaterThanOrEqual(4500);
+        expect(elapsed).toBeLessThan(15000);
+        expect(await balances()).toEqual(before);
+        const rows = await query('SELECT id FROM expenses WHERE user_id = $1 AND title = $2', [userId, 'Blocked tea']);
+        expect(rows.rows).toEqual([]);
     });
 });
 

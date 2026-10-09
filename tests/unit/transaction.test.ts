@@ -2,7 +2,9 @@
  * Unit tests for lib/transaction.ts (no database)
  */
 import type { Pool, PoolClient } from 'pg';
-import { withTransaction, withUserScope, RequestError, type TransactionPool } from '../../lib/transaction';
+import { withTransaction, withUserScope, RequestError, TRANSACTION_LIMITS, type TransactionPool } from '../../lib/transaction';
+
+const BEGIN = `BEGIN; ${TRANSACTION_LIMITS}`;
 
 function mockPool({ failOn }: { failOn?: string } = {}) {
     const statements: string[] = [];
@@ -29,7 +31,7 @@ describe('withTransaction', () => {
 
         expect(result).toBe('done');
         expect(pool.connect).toHaveBeenCalledTimes(1);
-        expect(statements).toEqual(['BEGIN', 'INSERT 1', 'COMMIT']);
+        expect(statements).toEqual([BEGIN, 'INSERT 1', 'COMMIT']);
         expect(client.release).toHaveBeenCalledTimes(1);
     });
 
@@ -39,7 +41,7 @@ describe('withTransaction', () => {
 
         await expect(withTransaction(pool, async () => { throw failure; })).rejects.toBe(failure);
 
-        expect(statements).toEqual(['BEGIN', 'ROLLBACK']);
+        expect(statements).toEqual([BEGIN, 'ROLLBACK']);
         expect(client.release).toHaveBeenCalledTimes(1);
     });
 
@@ -57,8 +59,33 @@ describe('withTransaction', () => {
         const { pool, client, statements } = mockPool({ failOn: 'COMMIT' });
 
         await expect(withTransaction(pool, async () => 'ok')).rejects.toThrow('COMMIT failed');
-        expect(statements).toEqual(['BEGIN', 'COMMIT', 'ROLLBACK']);
+        expect(statements).toEqual([BEGIN, 'COMMIT', 'ROLLBACK']);
         expect(client.release).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('time limits', () => {
+    test('every transaction limits lock waits, query time and idle time, locally', () => {
+        expect(TRANSACTION_LIMITS).toBe(
+            "SET LOCAL lock_timeout = '5s'; SET LOCAL statement_timeout = '15s'; SET LOCAL idle_in_transaction_session_timeout = '15s'");
+    });
+
+    test('a slow query is logged with its SQL, never its values', async () => {
+        const warn = jest.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const { pool, client } = mockPool();
+        const now = jest.spyOn(Date, 'now');
+        try {
+            await withTransaction(pool, async (tx) => {
+                now.mockReturnValueOnce(1000).mockReturnValueOnce(4500);
+                await tx.query('SELECT  balance\n FROM banks WHERE id = $1', ['secret-value']);
+            });
+            expect(warn).toHaveBeenCalledWith('Warning: slow query (3500 ms): SELECT balance FROM banks WHERE id = $1');
+            expect(JSON.stringify(warn.mock.calls)).not.toContain('secret-value');
+            expect(client.query).toHaveBeenCalledWith('SELECT  balance\n FROM banks WHERE id = $1', ['secret-value']);
+        } finally {
+            now.mockRestore();
+            warn.mockRestore();
+        }
     });
 });
 
@@ -83,7 +110,7 @@ describe('withUserScope', () => {
 
         expect(result).toBe('done');
         expect(statements).toEqual([
-            'BEGIN; SET LOCAL ROLE "findb_user"; SELECT set_config(\'app.user_id\', \'42\', true)',
+            `BEGIN; SET LOCAL ROLE "findb_user"; ${TRANSACTION_LIMITS}; SELECT set_config('app.user_id', '42', true)`,
             'SELECT 1',
             'COMMIT',
         ]);

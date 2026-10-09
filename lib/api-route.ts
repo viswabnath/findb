@@ -10,6 +10,15 @@ import { RequestError, withUserScope } from './transaction';
  */
 
 const GENERIC_ERROR = 'An error occurred. Please try again.';
+const BUSY_ERROR = 'FinDB is busy right now. Please try again in a moment.';
+
+/**
+ * Postgres codes for a wait cut short by the transaction time limits (lib/transaction.ts): a lock
+ * not granted in time (55P03), or a query cancelled for running too long (57014). Nothing was
+ * changed, so the user can simply try again.
+ */
+const BUSY_CODES = new Set(['55P03', '57014']);
+const isBusy = (error: unknown) => BUSY_CODES.has(String((error as { code?: unknown } | null)?.code));
 
 export function jsonError(status: number, error: string): Response {
     return Response.json({ error }, { status });
@@ -60,7 +69,7 @@ export function withPublic(handler: (request: NextRequest) => Promise<Response>,
                 response = jsonError(error.status, error.message);
             } else {
                 console.error(`${request.method} ${request.nextUrl.pathname} failed:`, error);
-                response = jsonError(500, options.errorMessage ?? GENERIC_ERROR);
+                response = isBusy(error) ? jsonError(503, BUSY_ERROR) : jsonError(500, options.errorMessage ?? GENERIC_ERROR);
             }
         }
         // Like express-rate-limit with skipSuccessfulRequests: only failed answers count
@@ -88,7 +97,7 @@ export function withUser<C>(handler: AuthedHandler<C>) {
         } catch (error) {
             if (error instanceof RequestError) return jsonError(error.status, error.message);
             console.error(`${request.method} ${request.nextUrl.pathname} failed:`, error);
-            return jsonError(500, GENERIC_ERROR);
+            return isBusy(error) ? jsonError(503, BUSY_ERROR) : jsonError(500, GENERIC_ERROR);
         }
     };
 }
