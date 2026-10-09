@@ -59,6 +59,14 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         holds: 'The amounts each ledger record moves', purpose: 'Exact balances', retention: 'With their entry',
     },
     {
+        table: 'tags', category: 'money', exported: true,
+        holds: 'The tags you put on entries', purpose: 'Grouping your entries your way', retention: 'Until you delete your account',
+    },
+    {
+        table: 'entry_tags', category: 'money', exported: true,
+        holds: 'Which tags are on which entry', purpose: 'Grouping your entries your way', retention: 'With the entry or the tag',
+    },
+    {
         table: 'activity_log', category: 'history', exported: true,
         holds: 'Each change you make, with old and new values; failed recovery attempts', purpose: 'Your own history, and spotting misuse',
         retention: 'Until you delete your account',

@@ -501,6 +501,23 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .form-grid .span-2 { grid-column: 1 / -1; }
 .breakdown-note { font-size: 0.9rem; }
 .bank-details { display: block; margin-top: 2px; font-size: 0.85rem; }
+.entry-meta { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.entry-category { font-size: 0.8rem; color: var(--muted); }
+.entry-category + .tag::before { content: none; }
+.tag { font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; background: var(--tint); color: var(--tint-fg); font-weight: 600; }
+.select-entry { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+.select-entry input { width: 16px; height: 16px; accent-color: var(--primary); }
+.bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; padding: 12px 16px; margin-bottom: 14px; border: 1px solid var(--line);
+    border-radius: var(--radius); background: var(--surface); position: sticky; top: 8px; z-index: 5; }
+.bulk-bar[hidden] { display: none; }
+.bulk-bar select { min-width: 200px; }
+.settings-subhead { padding: 14px clamp(16px, 2.5vw, 24px) 4px; font-size: 0.95rem; color: var(--muted); }
+.essential-toggle { font-weight: 500; font-size: 0.9rem; }
+.category-bars { list-style: none; margin: 0; padding: 8px clamp(16px, 2.5vw, 24px) 16px; display: grid; gap: 10px; }
+.category-bars li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr) auto; align-items: center; gap: 12px; }
+.category-bars .category-name { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 600; }
+.category-bars .category-amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+@media (max-width: 560px) { .category-bars li { grid-template-columns: 1fr auto; } .category-bars .meter { grid-column: 1 / -1; } }
 .other-add-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 .account-card.wallet { border-top-color: var(--c-cash, var(--primary)); }
 .entry-form h3 { display: flex; align-items: center; gap: 10px; font-size: 1.12rem; }

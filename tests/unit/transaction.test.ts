@@ -2,7 +2,7 @@
  * Unit tests for lib/transaction.ts (no database)
  */
 import type { Pool, PoolClient } from 'pg';
-import { withTransaction, withUserScope, RequestError, TRANSACTION_LIMITS, type TransactionPool } from '../../lib/transaction';
+import { isConnectionError, withTransaction, withUserScope, RequestError, TRANSACTION_LIMITS, type TransactionPool } from '../../lib/transaction';
 
 const BEGIN = `BEGIN; ${TRANSACTION_LIMITS}`;
 
@@ -154,5 +154,36 @@ describe('withUserScope', () => {
         await expect(withUserScope(pool as unknown as Pool, 1.5, async () => 'x')).rejects.toThrow('whole-number user id');
         await expect(withUserScope(pool as unknown as Pool, Number.NaN, async () => 'x')).rejects.toThrow('whole-number user id');
         expect(pool.connect).not.toHaveBeenCalled();
+    });
+});
+
+describe('connection errors', () => {
+    const timeout = () => new Error('Query read timeout');
+
+    test('tell a broken connection from database and app errors', () => {
+        expect(isConnectionError(timeout())).toBe(true);
+        expect(isConnectionError(new Error('Connection terminated unexpectedly'))).toBe(true);
+        expect(isConnectionError(Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' }))).toBe(true);
+        expect(isConnectionError(Object.assign(new Error('lock timeout'), { code: '55P03' }))).toBe(false);
+        expect(isConnectionError(new RequestError(400, 'Insufficient bank balance'))).toBe(false);
+        expect(isConnectionError(new TypeError('x is undefined'))).toBe(false);
+    });
+
+    test('withTransaction sends nothing more after one, and closes the connection', async () => {
+        const { pool, client, statements } = mockPool();
+        const failure = timeout();
+        await expect(withTransaction(pool, async () => { throw failure; })).rejects.toBe(failure);
+        expect(statements).toEqual([BEGIN]);
+        expect(client.release).toHaveBeenCalledWith(failure);
+    });
+
+    test('withUserScope neither commits nor rolls back after one, and closes the connection', async () => {
+        const { pool, client, statements } = mockPool();
+        const failure = timeout();
+        await expect(withUserScope(pool as unknown as Pool, 7, async (scoped) => {
+            await withTransaction(scoped, async () => { throw failure; });
+        })).rejects.toBe(failure);
+        expect(statements.slice(1)).toEqual(['SAVEPOINT findb_sp_1']);
+        expect(client.release).toHaveBeenCalledWith(failure);
     });
 });

@@ -18,13 +18,36 @@ import { formatRupees } from '@/lib/format';
 
 type AccountType = 'bank' | 'cash' | 'credit_card' | 'wallet' | 'meal_card';
 interface Account { id: number; type: AccountType; name: string }
+interface Category { id: number; kind: 'income' | 'expense'; name: string; fallback: boolean }
 type EntryType = 'income' | 'expense' | 'transfer';
 interface Entry {
     id: number; type: EntryType; date: string; description: string; amount: string;
     account: { id: number; name: string; type: AccountType };
     toAccount: { id: number; name: string; type: AccountType } | null;
+    category: { id: number; name: string } | null;
+    tags: string[];
 }
-interface Draft { id: number; type: EntryType; description: string; amount: string; accountId: string; toAccountId: string; date: string }
+interface Draft {
+    id: number; type: EntryType; description: string; amount: string; accountId: string; toAccountId: string; date: string;
+    categoryId: string; tags: string;
+}
+
+/** Tags typed as "trip, work" */
+const tagList = (text: string) => text.split(',').map(tag => tag.trim()).filter(Boolean);
+
+function CategoryOptions({ categories, kind }: { categories: Category[]; kind: 'income' | 'expense' }) {
+    return <>{categories.filter(category => category.kind === kind).map(category => <option key={category.id} value={category.id}>{category.name}</option>)}</>;
+}
+
+function EntryMeta({ entry }: { entry: Entry }) {
+    if (!entry.category && entry.tags.length === 0) return null;
+    return (
+        <span className="entry-meta">
+            {entry.category ? <span className="entry-category">{entry.category.name}</span> : null}
+            {entry.tags.map(tag => <span key={tag} className="tag">{tag}</span>)}
+        </span>
+    );
+}
 
 const GROUPS: { type: AccountType; label: string }[] = [
     { type: 'bank', label: 'Banks' }, { type: 'cash', label: 'Cash' }, { type: 'credit_card', label: 'Credit cards' },
@@ -77,15 +100,20 @@ export function TransactionsScreen() {
     const [loaded, setLoaded] = useState(false);
     const [trackingOption, setTrackingOption] = useState('both');
     const [accounts, setAccounts] = useState<Account[]>([]);
+    const [categories, setCategories] = useState<Category[]>([]);
     const [entries, setEntries] = useState<Entry[]>([]);
+    // Entries ticked for "Put in a category", and the category to put them in
+    const [selected, setSelected] = useState<Set<number>>(new Set());
+    const [bulkCategory, setBulkCategory] = useState('');
 
     // The month on screen, and the filter controls (applied with "Show")
     const [period, setPeriod] = useState({ month: now.getMonth() + 1, year: now.getFullYear() });
     const [filterMonth, setFilterMonth] = useState(period.month);
     const [filterYear, setFilterYear] = useState(period.year);
 
-    const [incomeForm, setIncomeForm] = useState({ source: '', amount: '', accountId: '', date: todayUtcIso() });
-    const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', accountId: '', date: todayUtcIso() });
+    // categoryChosen: the user picked the category, so a suggestion no longer replaces it
+    const [incomeForm, setIncomeForm] = useState({ source: '', amount: '', accountId: '', date: todayUtcIso(), categoryId: '', categoryChosen: false, tags: '' });
+    const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', accountId: '', date: todayUtcIso(), categoryId: '', categoryChosen: false, tags: '' });
     const [transferForm, setTransferForm] = useState({ note: '', amount: '', fromId: '', toId: '', date: todayUtcIso() });
     const formMessage = useFormMessage(5000);
 
@@ -100,7 +128,29 @@ export function TransactionsScreen() {
             return;
         }
         setEntries(result.data);
+        setSelected(new Set());
     }, [toast]);
+
+    const loadCategories = useCallback(async () => {
+        const result = await apiGet<Category[]>('/api/categories');
+        if (redirectIfUnauthorized(result) || !result.ok) return;
+        setCategories(result.data);
+        const fallback = (kind: 'income' | 'expense') => String(result.data.find(category => category.kind === kind && category.fallback)?.id ?? '');
+        setIncomeForm(form => ({ ...form, categoryId: form.categoryId || fallback('income') }));
+        setExpenseForm(form => ({ ...form, categoryId: form.categoryId || fallback('expense') }));
+    }, []);
+
+    /** Fill in the category a title suggests, unless the user already chose one */
+    async function suggest(kind: 'income' | 'expense', description: string) {
+        if (!description.trim()) return;
+        const result = await apiGet<{ category: Category | null }>(`/api/categories/suggest?${new URLSearchParams({ kind, description })}`);
+        const id = result.ok && result.data.category ? String(result.data.category.id) : null;
+        if (!id) return;
+        if (kind === 'income') setIncomeForm(form => (form.categoryChosen ? form : { ...form, categoryId: id }));
+        else setExpenseForm(form => (form.categoryChosen ? form : { ...form, categoryId: id }));
+    }
+
+    const fallbackCategory = (kind: 'income' | 'expense') => String(categories.find(category => category.kind === kind && category.fallback)?.id ?? '');
 
     const loadAccounts = useCallback(async () => {
         const result = await apiGet<Account[]>('/api/accounts');
@@ -118,7 +168,7 @@ export function TransactionsScreen() {
             const user = await apiGet<{ tracking_option?: string }>('/api/user');
             if (redirectIfUnauthorized(user)) return;
             setTrackingOption(user.data.tracking_option || 'both');
-            await Promise.all([loadAccounts(), loadEntries(period.month, period.year)]);
+            await Promise.all([loadAccounts(), loadCategories(), loadEntries(period.month, period.year)]);
             setLoaded(true);
         })();
         // Runs once on page load; later reloads go through loadEntries directly
@@ -144,18 +194,20 @@ export function TransactionsScreen() {
     }
 
     async function addIncome() {
-        const { source, amount, accountId, date } = incomeForm;
+        const { source, amount, accountId, date, categoryId, tags } = incomeForm;
         if (!source || !amount || !date || !accountId) return formMessage.show('error', 'Please fill all fields');
-        if (await add({ type: 'income', description: source, amount, accountId: Number(accountId), date }, 'Income added successfully!')) {
-            setIncomeForm(form => ({ ...form, source: '', amount: '' }));
+        const body = { type: 'income', description: source, amount, accountId: Number(accountId), date, categoryId: categoryId ? Number(categoryId) : undefined, tags: tagList(tags) };
+        if (await add(body, 'Income added successfully!')) {
+            setIncomeForm(form => ({ ...form, source: '', amount: '', tags: '', categoryChosen: false, categoryId: fallbackCategory('income') }));
         }
     }
 
     async function addExpense() {
-        const { title, amount, accountId, date } = expenseForm;
+        const { title, amount, accountId, date, categoryId, tags } = expenseForm;
         if (!title || !amount || !date || !accountId) return formMessage.show('error', 'Please fill all fields');
-        if (await add({ type: 'expense', description: title, amount, accountId: Number(accountId), date }, 'Expense added successfully!')) {
-            setExpenseForm(form => ({ ...form, title: '', amount: '' }));
+        const body = { type: 'expense', description: title, amount, accountId: Number(accountId), date, categoryId: categoryId ? Number(categoryId) : undefined, tags: tagList(tags) };
+        if (await add(body, 'Expense added successfully!')) {
+            setExpenseForm(form => ({ ...form, title: '', amount: '', tags: '', categoryChosen: false, categoryId: fallbackCategory('expense') }));
         }
     }
 
@@ -175,16 +227,17 @@ export function TransactionsScreen() {
         setEdit({
             id: entry.id, type: entry.type, description: entry.description, amount: entry.amount,
             accountId: String(entry.account.id), toAccountId: String(entry.toAccount?.id ?? ''), date: entry.date,
+            categoryId: String(entry.category?.id ?? ''), tags: entry.tags.join(', '),
         });
     }
 
     async function saveEdit() {
         if (!edit) return;
-        const { id, type, description, amount, accountId, toAccountId, date } = edit;
+        const { id, type, description, amount, accountId, toAccountId, date, categoryId, tags } = edit;
         if (!description || !amount || !date || !accountId || (type === 'transfer' && !toAccountId)) return toast('error', 'Please fill all fields');
         const result = await apiPut(`/api/entries/${id}`, {
-            type, description, amount, accountId: Number(accountId), date,
-            ...(type === 'transfer' ? { toAccountId: Number(toAccountId) } : {}),
+            type, description, amount, accountId: Number(accountId), date, tags: tagList(tags),
+            ...(type === 'transfer' ? { toAccountId: Number(toAccountId) } : { categoryId: categoryId ? Number(categoryId) : undefined }),
         });
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
@@ -192,6 +245,24 @@ export function TransactionsScreen() {
         toast('success', `${ENTRY_NAMES[type]} transaction updated successfully!`);
         const moved = movedMessage(date, period.month, period.year);
         if (moved) toast('info', moved);
+        await loadEntries(period.month, period.year);
+    }
+
+    function toggleSelected(id: number) {
+        setSelected(current => {
+            const next = new Set(current);
+            if (next.has(id)) next.delete(id); else next.add(id);
+            return next;
+        });
+    }
+
+    async function categoriseSelected() {
+        if (selected.size === 0 || !bulkCategory) return toast('error', 'Tick some entries and choose a category');
+        const result = await apiPost<{ changed?: number }>('/api/entries/categorise', { entryIds: [...selected], categoryId: Number(bulkCategory) });
+        if (redirectIfUnauthorized(result)) return;
+        if (!result.ok) return toast('error', httpError(result));
+        const changed = result.data.changed ?? 0;
+        toast('success', `${changed} ${changed === 1 ? 'entry' : 'entries'} put in ${categories.find(category => String(category.id) === bulkCategory)?.name ?? 'the category'}`);
         await loadEntries(period.month, period.year);
     }
 
@@ -288,7 +359,8 @@ export function TransactionsScreen() {
                         <div className="field">
                             <label htmlFor="income-source">Source</label>
                             <input type="text" id="income-source" placeholder="Salary, freelance..." value={incomeForm.source}
-                                onChange={event => setIncomeForm(form => ({ ...form, source: event.target.value }))} />
+                                onChange={event => setIncomeForm(form => ({ ...form, source: event.target.value }))}
+                                onBlur={event => suggest('income', event.target.value)} />
                         </div>
                         <div className="field">
                             <label htmlFor="income-amount">Amount (₹)</label>
@@ -307,6 +379,18 @@ export function TransactionsScreen() {
                             <input type="date" id="income-date" value={incomeForm.date}
                                 onChange={event => setIncomeForm(form => ({ ...form, date: event.target.value }))} />
                         </div>
+                        <div className="field">
+                            <label htmlFor="income-category">Category</label>
+                            <select id="income-category" value={incomeForm.categoryId}
+                                onChange={event => setIncomeForm(form => ({ ...form, categoryId: event.target.value, categoryChosen: true }))}>
+                                <CategoryOptions categories={categories} kind="income" />
+                            </select>
+                        </div>
+                        <div className="field">
+                            <label htmlFor="income-tags">Tags (optional)</label>
+                            <input type="text" id="income-tags" placeholder="bonus, 2026" value={incomeForm.tags}
+                                onChange={event => setIncomeForm(form => ({ ...form, tags: event.target.value }))} />
+                        </div>
                     </div>
                     <button type="submit" className="btn btn-primary" data-action="addIncome"><Plus aria-hidden="true" /> Add income</button>
                 </form>
@@ -316,7 +400,8 @@ export function TransactionsScreen() {
                         <div className="field">
                             <label htmlFor="expense-title">What for</label>
                             <input type="text" id="expense-title" placeholder="Groceries, rent..." value={expenseForm.title}
-                                onChange={event => setExpenseForm(form => ({ ...form, title: event.target.value }))} />
+                                onChange={event => setExpenseForm(form => ({ ...form, title: event.target.value }))}
+                                onBlur={event => suggest('expense', event.target.value)} />
                         </div>
                         <div className="field">
                             <label htmlFor="expense-amount">Amount (₹)</label>
@@ -334,6 +419,18 @@ export function TransactionsScreen() {
                             <label htmlFor="expense-date">Date</label>
                             <input type="date" id="expense-date" value={expenseForm.date}
                                 onChange={event => setExpenseForm(form => ({ ...form, date: event.target.value }))} />
+                        </div>
+                        <div className="field">
+                            <label htmlFor="expense-category">Category</label>
+                            <select id="expense-category" value={expenseForm.categoryId}
+                                onChange={event => setExpenseForm(form => ({ ...form, categoryId: event.target.value, categoryChosen: true }))}>
+                                <CategoryOptions categories={categories} kind="expense" />
+                            </select>
+                        </div>
+                        <div className="field">
+                            <label htmlFor="expense-tags">Tags (optional)</label>
+                            <input type="text" id="expense-tags" placeholder="goa trip, work" value={expenseForm.tags}
+                                onChange={event => setExpenseForm(form => ({ ...form, tags: event.target.value }))} />
                         </div>
                     </div>
                     <button type="submit" className="btn btn-primary" data-action="addExpense"><Plus aria-hidden="true" /> Add expense</button>
@@ -377,6 +474,18 @@ export function TransactionsScreen() {
             </div>
             <div id="transactions-message" className={formMessage.message?.kind ?? 'error'} role="status">{formMessage.message?.text ?? ''}</div>
 
+            <div id="bulk-categorise" className="bulk-bar" hidden={selected.size === 0}>
+                <span>{selected.size} selected</span>
+                <label htmlFor="bulk-category" className="sr-only">Category</label>
+                <select id="bulk-category" value={bulkCategory} onChange={event => setBulkCategory(event.target.value)}>
+                    <option value="">Choose a category</option>
+                    <optgroup label="Spending"><CategoryOptions categories={categories} kind="expense" /></optgroup>
+                    <optgroup label="Income"><CategoryOptions categories={categories} kind="income" /></optgroup>
+                </select>
+                <button type="button" className="btn btn-primary btn-sm" data-action="bulkCategorise" onClick={categoriseSelected}>Put in category</button>
+                <button type="button" className="btn btn-secondary btn-sm" data-action="clearSelection" onClick={() => setSelected(new Set())}>Clear</button>
+            </div>
+
             <div id="transactions-history" className="histories">
                 <section id="income-history" className="card" style={{ display: showIncome ? undefined : 'none' }} aria-labelledby="income-history-title">
                     <div className="card-head">
@@ -392,7 +501,14 @@ export function TransactionsScreen() {
                                 {incomes.length === 0 ? <EmptyRow text="No income transactions found for this period" /> : incomes.map(entry => (
                                     <tr key={entry.id}>
                                         <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
-                                        <td className="name">{entry.description}</td>
+                                        <td className="name">
+                                            <label className="select-entry">
+                                                <input type="checkbox" data-action="select-entry" data-id={entry.id} checked={selected.has(entry.id)}
+                                                    onChange={() => toggleSelected(entry.id)} aria-label={`Select ${entry.description}`} />
+                                                {entry.description}
+                                            </label>
+                                            <EntryMeta entry={entry} />
+                                        </td>
                                         <td className="amount in" data-label="Amount">{formatRupees(entry.amount)}</td>
                                         <td className="sub" data-label="Received in">{entry.account.name}</td>
                                         <td className="actions">{rowActions(entry)}</td>
@@ -416,7 +532,14 @@ export function TransactionsScreen() {
                                 {expenses.length === 0 ? <EmptyRow text="No expense transactions found for this period" /> : expenses.map(entry => (
                                     <tr key={entry.id}>
                                         <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
-                                        <td className="name">{entry.description}</td>
+                                        <td className="name">
+                                            <label className="select-entry">
+                                                <input type="checkbox" data-action="select-entry" data-id={entry.id} checked={selected.has(entry.id)}
+                                                    onChange={() => toggleSelected(entry.id)} aria-label={`Select ${entry.description}`} />
+                                                {entry.description}
+                                            </label>
+                                            <EntryMeta entry={entry} />
+                                        </td>
                                         <td className="amount out" data-label="Amount">{formatRupees(entry.amount)}</td>
                                         <td className="sub" data-label="Paid from">{entry.account.name}</td>
                                         <td className="actions">{rowActions(entry)}</td>
@@ -440,7 +563,7 @@ export function TransactionsScreen() {
                                 {transfers.length === 0 ? <EmptyRow text="No money moved between your accounts in this period" /> : transfers.map(entry => (
                                     <tr key={entry.id}>
                                         <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
-                                        <td className="name">{entry.description}</td>
+                                        <td className="name">{entry.description}<EntryMeta entry={entry} /></td>
                                         <td className="amount" data-label="Amount">{formatRupees(entry.amount)}</td>
                                         <td className="sub" data-label="From and to">
                                             {entry.account.name} <ArrowRight size={14} aria-label="to" /> {entry.toAccount?.name ?? ''}
@@ -490,6 +613,20 @@ export function TransactionsScreen() {
                                 </select>
                             </div>
                         ) : null}
+                        {edit.type !== 'transfer' ? (
+                            <div className="field">
+                                <label htmlFor={`edit-${edit.type}-category`}>Category</label>
+                                <select id={`edit-${edit.type}-category`} value={edit.categoryId}
+                                    onChange={event => setEdit(draft => draft && { ...draft, categoryId: event.target.value })}>
+                                    <CategoryOptions categories={categories} kind={edit.type} />
+                                </select>
+                            </div>
+                        ) : null}
+                        <div className="field">
+                            <label htmlFor={`edit-${edit.type}-tags`}>Tags</label>
+                            <input type="text" id={`edit-${edit.type}-tags`} value={edit.tags}
+                                onChange={event => setEdit(draft => draft && { ...draft, tags: event.target.value })} />
+                        </div>
                         <div className="field">
                             <label htmlFor={`edit-${edit.type}-date`}>Date</label>
                             <input type="date" id={`edit-${edit.type}-date`} required value={edit.date}
