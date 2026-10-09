@@ -568,6 +568,7 @@ export const ROADMAP: RoadmapStage[] = [
             'Monthly summary',
             'Activity log with CSV export',
             'Two-step login with an authenticator app',
+            'Choose what you want to track, and change it any time',
         ],
     },
     {
@@ -576,7 +577,6 @@ export const ROADMAP: RoadmapStage[] = [
         summary: 'The base every later feature is built on.',
         items: [
             'A new design for phones, tablets and computers, in light and dark',
-            'Choose what you want to track',
         ],
     },
     {

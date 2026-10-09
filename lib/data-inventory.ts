@@ -21,7 +21,7 @@ export interface TableRecord {
 export const DATA_INVENTORY: readonly TableRecord[] = [
     {
         table: 'users', category: 'account', exported: true,
-        holds: 'Name, username, email, what you track; password and security answer as one-way hashes; the two-step login key, encrypted',
+        holds: 'Name, username, email, what you track (and module suggestions you declined); password and security answer as one-way hashes; the two-step login key, encrypted',
         purpose: 'Your account and logging in', retention: 'Until you delete your account',
     },
     {

@@ -142,6 +142,8 @@ export function TransactionsScreen() {
     const [edit, setEdit] = useState<Draft | null>(null);
     const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
     const [deleteWarning, setDeleteWarning] = useState<{ text: string; confirmed: boolean } | null>(null);
+    // A switched-off module a new entry's title suggests (lib/modules.ts), offered once
+    const [suggestion, setSuggestion] = useState<{ key: string; name: string; line: string } | null>(null);
 
     const loadEntries = useCallback(async (month: number, year: number) => {
         const result = await apiGet<Entry[]>(`/api/entries?${new URLSearchParams({ month: String(month), year: String(year) })}`);
@@ -244,7 +246,22 @@ export function TransactionsScreen() {
         }
         formMessage.show('success', success);
         await loadEntries(period.month, period.year);
+        if (typeof body.description === 'string') offerModule(body.description);
         return true;
+    }
+
+    async function offerModule(title: string) {
+        const result = await apiGet<{ suggestion: { key: string; name: string; line: string } | null }>(`/api/modules/suggestion?title=${encodeURIComponent(title)}`);
+        if (result.ok && result.data.suggestion) setSuggestion(result.data.suggestion);
+    }
+
+    async function answerSuggestion(accept: boolean) {
+        if (!suggestion) return;
+        const result = await apiPost('/api/modules/suggestion', { module: suggestion.key, accept });
+        if (redirectIfUnauthorized(result)) return;
+        if (!result.ok) return toast('error', httpError(result));
+        if (accept) toast('success', `${suggestion.name} turned on. Change it any time in Settings.`);
+        setSuggestion(null);
     }
 
     async function addIncome() {
@@ -398,6 +415,16 @@ export function TransactionsScreen() {
                     </button>
                 </div>
             </div>
+
+            {suggestion ? (
+                <div id="module-suggestion" className="notice module-suggestion" role="status">
+                    <span>Track this with <b>{suggestion.name}</b>? {suggestion.line}</span>
+                    <span className="module-actions">
+                        <button type="button" className="btn btn-secondary" data-action="declineModule" onClick={() => answerSuggestion(false)}>No thanks</button>
+                        <button type="button" className="btn btn-primary" data-action="acceptModule" onClick={() => answerSuggestion(true)}>Turn on</button>
+                    </span>
+                </div>
+            ) : null}
 
             <div className={`stats ${showIncome && showExpenses ? 'three' : 'two'}`}>
                 {showIncome ? (

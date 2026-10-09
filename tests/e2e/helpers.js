@@ -79,8 +79,18 @@ async function register(page, user) {
     await expect(page.locator('#welcome-section')).toBeVisible();
 }
 
+/**
+ * The welcome step: choose the modules the former income / expenses / both choice meant
+ * (lib/modules.ts modulesFromTracking), through "Choose my own"
+ */
+const TRACKING_MODULES = { income: ['income'], expenses: ['spending', 'credit_cards'], both: ['income', 'spending', 'credit_cards'] };
 async function chooseTracking(page, option) {
-    await page.locator(`[data-action="setTrackingOption"][data-option="${option}"]`).click();
+    await page.locator('[data-action="chooseOwn"]').click();
+    for (const box of await page.locator('#welcome-custom input[data-module]').all()) {
+        const wanted = TRACKING_MODULES[option].includes(await box.getAttribute('data-module'));
+        if ((await box.isChecked()) !== wanted) await box.click();
+    }
+    await page.locator('[data-action="saveModules"]').click();
     await expect(page.locator('#main-app')).toBeVisible();
 }
 
