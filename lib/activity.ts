@@ -13,7 +13,7 @@ export interface ActivityLabel {
     className: string;
 }
 
-type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event';
+type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating';
 
 const CREATED: Record<Entity, ActivityLabel> = {
     cash_balance: { icon: 'banknote', text: 'Cash Balance Set', className: 'action-cash-add' },
@@ -25,6 +25,7 @@ const CREATED: Record<Entity, ActivityLabel> = {
     account: { icon: 'plus', text: 'Account Added', className: 'action-bank-add' },
     category: { icon: 'plus', text: 'Category Added', className: 'action-create' },
     event: { icon: 'plus', text: 'Event Added', className: 'action-create' },
+    repeating: { icon: 'refresh-cw', text: 'Repeating Entry Added', className: 'action-create' },
 };
 
 const UPDATED: Record<Entity, ActivityLabel> = {
@@ -37,6 +38,7 @@ const UPDATED: Record<Entity, ActivityLabel> = {
     account: { icon: 'pencil', text: 'Account Updated', className: 'action-bank-update' },
     category: { icon: 'pencil', text: 'Category Updated', className: 'action-update' },
     event: { icon: 'pencil', text: 'Event Updated', className: 'action-update' },
+    repeating: { icon: 'refresh-cw', text: 'Repeating Entry Updated', className: 'action-update' },
 };
 
 const DELETED: Record<Entity, ActivityLabel> = {
@@ -49,6 +51,7 @@ const DELETED: Record<Entity, ActivityLabel> = {
     account: { icon: 'trash-2', text: 'Account Removed', className: 'action-bank-delete' },
     category: { icon: 'trash-2', text: 'Category Removed', className: 'action-delete' },
     event: { icon: 'trash-2', text: 'Event Removed', className: 'action-delete' },
+    repeating: { icon: 'trash-2', text: 'Repeating Entry Deleted', className: 'action-delete' },
 };
 
 const isEntity = (value: string): value is Entity => Object.prototype.hasOwnProperty.call(CREATED, value);

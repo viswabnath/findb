@@ -228,6 +228,44 @@ An event or project is a purpose any income, expense or transfer can carry (`eve
 
 An event: `{ "id", "name", "startsOn", "endsOn", "budget", "oneOff", "notes", "spent", "received", "netCost", "budgetLeft", "entries", "firstDate", "lastDate" }`. `netCost` is spent less received; `budgetLeft` is negative when over budget, null without a budget. Names are unique among events that are not removed, up to 80 characters; the end date cannot be before the start. A removed event cannot be chosen for a new entry, but an edit that leaves `eventId` out keeps it.
 
+## Repeating entries
+
+Salary, rent, EMIs, SIPs, subscriptions: an income, expense or transfer that repeats. Each is recorded automatically (`mode: "auto"`) or waits to be confirmed (`"confirm"`, the default).
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/recurring` | – | every repeating entry, the next due first |
+| POST | `/api/recurring` | see below | the new repeating entry |
+| PUT | `/api/recurring/:id` | any field below, and `{ "paused": true \| false }`; the rest stay | the updated repeating entry |
+| DELETE | `/api/recurring/:id` | – | `{ "success": true }`; the entries it made stay |
+| POST | `/api/recurring/run` | – | `{ "posted", "problems": [...], "pending": [...], "upcoming": [...] }` |
+| POST | `/api/recurring/:id/confirm` | `{ "date"?, "amount"? }` | `{ "entry", "repeating" }`: records the next due date |
+| POST | `/api/recurring/:id/skip` | `{ "date"? }` | the repeating entry, moved to its next date |
+
+```json
+{
+  "type": "income | expense | transfer",
+  "description": "max 200",
+  "amount": "positive",
+  "accountId": 1,
+  "toAccountId": 2,
+  "categoryId": 7,
+  "eventId": 3,
+  "tags": ["work"],
+  "frequency": "daily | weekly | monthly | yearly",
+  "dayOfWeek": 1,
+  "dayOfMonth": 31,
+  "month": 4,
+  "startsOn": "YYYY-MM-DD",
+  "endsOn": "YYYY-MM-DD",
+  "mode": "auto | confirm",
+  "remindDays": 3
+}
+```
+Weekly needs `dayOfWeek` (0 Sunday to 6 Saturday); monthly `dayOfMonth` (1 to 31; a shorter month uses its last day); yearly `month` and `dayOfMonth` (29 February is the 28th in other years). The same rules as an entry apply to the accounts, category, event and tags. `nextDue` is the next date it falls due, null once ended.
+
+`run` (the app calls it when it opens) records every automatic one that has fallen due, catching up on missed dates (up to 62 at a time), each date at most once even when several pages call it together. One that cannot be recorded (its account removed, say) is listed in `problems` and left as it is. `pending` lists the confirm-mode dates now due; `upcoming` what falls due within each one's `remindDays`. A confirmed entry gets the spending check like any new entry; automatic ones do not. Dates are counted in India's time zone.
+
 ## Income
 
 | Method | Path | Body / Query | Response |

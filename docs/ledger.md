@@ -105,3 +105,7 @@ Since migration 0011 (`lib/categories.ts`, `lib/services/categories.ts`):
 ## Events and projects
 
 Since migration 0012 (`lib/services/events.ts`, `/api/events`): an event is a named purpose with optional dates, budget and notes; `journal_entries.event_id` links any entry to one, alongside its category. An event's figures come from its entries' lines: spending (lines on expense accounts), receipts (income accounts), and how it was paid (the money accounts its expenses left). A one-off event (the default) is left out of the summary's `regularSpending`. Removing an event archives it; its entries keep it, and an edit keeps it unless `eventId` is given.
+
+## Repeating entries
+
+Since migration 0013 (`src/core/schedule.ts`, `lib/services/recurring.ts`): a repeating entry keeps the entry's fields and a schedule, with `next_due`. `runDue` (the app calls it on opening, so no scheduled job is needed) records due automatic ones through `recordNewEntry`, each with `recurring_id` and `recurring_on`; the unique index `journal_entries_recurring_once` lets a date be recorded only once, and `FOR UPDATE SKIP LOCKED` lets two pages opening together share the work. Confirm-mode ones wait for `confirm` (which can change the amount) or `skip`. Each repeating entry is processed in its own savepoint, so one that fails (a removed account) does not stop the others.

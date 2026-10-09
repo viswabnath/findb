@@ -40,12 +40,21 @@ export function AppShell({ children }: { children: ReactNode }) {
 
     // Set when the account has not agreed to the current privacy notice: the app waits for consent
     const [consentVersion, setConsentVersion] = useState<string | null>(null);
+    const [dueNotice, setDueNotice] = useState<{ posted: number; pending: number } | null>(null);
 
     useEffect(() => {
         apiGet<{ name?: string; consentNeeded?: boolean; noticeVersion?: string }>('/api/user').then(result => {
             if (!result.ok) return;
             setName(result.data.name ?? '');
-            if (result.data.consentNeeded && result.data.noticeVersion) setConsentVersion(result.data.noticeVersion);
+            if (result.data.consentNeeded && result.data.noticeVersion) {
+                setConsentVersion(result.data.noticeVersion);
+                return;
+            }
+            // Record the automatic repeating entries that fell due, and say what waits to be confirmed
+            apiPost<{ posted?: number; pending?: unknown[] }>('/api/recurring/run', {}).then(due => {
+                if (!due.ok) return;
+                setDueNotice({ posted: due.data.posted ?? 0, pending: due.data.pending?.length ?? 0 });
+            });
         });
     }, []);
 
@@ -105,6 +114,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </header>
 
                     <main className="app-content">
+                        {!consentVersion && dueNotice && (dueNotice.posted > 0 || dueNotice.pending > 0) && pathname !== '/transactions' ? (
+                            <div id="repeating-notice" className="notice" role="status">
+                                {dueNotice.posted > 0 ? `${dueNotice.posted} repeating ${dueNotice.posted === 1 ? 'entry was' : 'entries were'} recorded. ` : ''}
+                                {dueNotice.pending > 0 ? <><a href="/transactions#repeating-section">{dueNotice.pending} to confirm</a> on Transactions.</> : null}
+                            </div>
+                        ) : null}
                         {consentVersion
                             ? <ConsentScreen noticeVersion={consentVersion} onAgreed={() => window.location.reload()} onLogout={logout} />
                             : children}
