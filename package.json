@@ -85,7 +85,8 @@
           "<rootDir>/tests/isolation.test.js",
           "<rootDir>/tests/privacy.test.js",
           "<rootDir>/tests/entries.test.js",
-          "<rootDir>/tests/categories.test.js"
+          "<rootDir>/tests/categories.test.js",
+          "<rootDir>/tests/events.test.js"
         ],
         "setupFiles": [
           "<rootDir>/tests/env.js"

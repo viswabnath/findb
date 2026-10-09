@@ -24,6 +24,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] Cash balance with separate initial and running balance
 - [x] Wallets and meal cards, and bank details (bank, account type, savings interest rate)
 - [x] Categories (defaults, your own, essential or discretionary), suggested from the title and learning from your choices; tags; categorising many entries at once; spending by category in the summary
+- [x] Events and projects: any entry can carry one; each shows spending by category, receipts, net cost, budget, who paid and a timeline; one-off events are left out of regular spending
 - [x] Moving money between your own accounts (transfers), counted as neither income nor spending; net savings = income - expenses
 - [x] `DECIMAL(20,2)` for all money columns
 - [x] Double-entry ledger written beside the former tables on every change, checked by `ledger_balance_check` ([ledger.md](ledger.md)); every balance and the monthly summary are read from it

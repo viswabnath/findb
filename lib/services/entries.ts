@@ -3,6 +3,7 @@ import { logActivity } from '../activity-log';
 import { fromPaise, postEntry, systemAccount, toPaise, voidEntry, type EntryLine } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
 import { lockedCategory } from './categories';
+import { lockedEvent } from './events';
 import { entryDate } from './transactions';
 
 /**
@@ -232,6 +233,8 @@ export interface Entry {
     category: { id: number; name: string } | null;
     /** Free-form labels, sorted */
     tags: string[];
+    /** The event or project it is for */
+    event: { id: number; name: string } | null;
     /** Recorded through the former routes, with a row in income_entries or expenses */
     legacy: boolean;
 }
@@ -258,12 +261,14 @@ function toEntry(row: Record<string, unknown>): Entry {
         toAccount: type === 'transfer' ? ref(into) : null,
         category: other ? { id: Number(other.account), name: other.name } : null,
         tags: (row.tags as string[] | null) ?? [],
+        event: row.event_id === null || row.event_id === undefined ? null : { id: Number(row.event_id), name: String(row.event_name) },
         legacy: row.source_table !== null,
     };
 }
 
 const ENTRY_QUERY = `
     SELECT e.id, e.entry_type, e.entry_date::text AS entry_date, e.description, e.source_table, e.source_id,
+           e.event_id, ev.name AS event_name,
            json_agg(json_build_object('account', l.account_id, 'paise', l.amount_paise, 'kind', a.kind,
                                       'subtype', a.subtype, 'name', a.name) ORDER BY l.id) AS lines,
            (SELECT coalesce(json_agg(t.name ORDER BY lower(t.name)), '[]'::json)
@@ -272,6 +277,7 @@ const ENTRY_QUERY = `
     FROM journal_entries e
     JOIN journal_lines l ON l.user_id = e.user_id AND l.entry_id = e.id
     JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
+    LEFT JOIN events ev ON ev.user_id = e.user_id AND ev.id = e.event_id
     WHERE e.user_id = $1 AND e.voided_at IS NULL AND e.entry_type IN ('income', 'expense', 'transfer')`;
 
 /** Income, expenses and transfers dated in a month (month 1-12), newest first */
@@ -284,8 +290,14 @@ export async function listEntries(pool: Pool, userId: number, month: string | nu
     const first = `${y}-${String(m).padStart(2, '0')}-01`;
     const result = await pool.query(
         `${ENTRY_QUERY} AND e.entry_date >= $2::date AND e.entry_date < ($2::date + interval '1 month')
-         GROUP BY e.id ORDER BY e.entry_date DESC, e.id DESC`,
+         GROUP BY e.id, ev.id ORDER BY e.entry_date DESC, e.id DESC`,
         [userId, first]);
+    return result.rows.map(toEntry);
+}
+
+/** Every entry for an event, newest first (its timeline) */
+export async function listEntriesForEvent(pool: Pool, userId: number, eventId: number): Promise<Entry[]> {
+    const result = await pool.query(`${ENTRY_QUERY} AND e.event_id = $2 GROUP BY e.id, ev.id ORDER BY e.entry_date DESC, e.id DESC`, [userId, eventId]);
     return result.rows.map(toEntry);
 }
 
@@ -299,7 +311,7 @@ async function lockedEntry(client: Client, userId: number, id: unknown): Promise
     if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(404, 'Entry not found');
     await client.query(
         'SELECT id FROM journal_entries WHERE id = $1 AND user_id = $2 AND voided_at IS NULL FOR UPDATE', [id, userId]);
-    const result = await client.query(`${ENTRY_QUERY} AND e.id = $2 GROUP BY e.id`, [userId, id]);
+    const result = await client.query(`${ENTRY_QUERY} AND e.id = $2 GROUP BY e.id, ev.id`, [userId, id]);
     const row = result.rows[0];
     if (!row) throw new RequestError(404, 'Entry not found');
     return { ...toEntry(row), sourceTable: row.source_table, sourceId: row.source_id === null ? null : Number(row.source_id) };
@@ -323,6 +335,8 @@ interface EntryInput {
     categoryId: unknown;
     /** Left out on an edit, the entry keeps its tags */
     tags: string[] | undefined;
+    /** The event it is for; null or empty for none; left out on an edit, the entry keeps its event */
+    eventId: unknown;
 }
 
 const MAX_TAGS = 10;
@@ -369,6 +383,7 @@ function readEntry(body: Body): EntryInput {
     return {
         type: type as EntryKind, date: date.date, description, paise: amountPaise(body.amount),
         accountId: body.accountId, toAccountId: body.toAccountId, categoryId: body.categoryId, tags: readTags(body.tags),
+        eventId: body.eventId,
     };
 }
 
@@ -403,6 +418,11 @@ async function categoryAccount(client: Client, userId: number, kind: 'income' | 
 async function record(client: Client, userId: number, input: EntryInput, checkSpending: boolean)
     : Promise<{ id: number; account: MoneyAccount; toAccount: MoneyAccount | null; category: { id: number; name: string } | null }> {
     const account = await lockedMoneyAccount(client, userId, input.accountId);
+    // Every reference is checked before the balance
+    const eventId = input.eventId === undefined || input.eventId === null || input.eventId === '' ? null
+        // The entry's own event, kept as it was (even if the event has since been archived)
+        : typeof input.eventId === 'object' && 'keep' in input.eventId ? Number((input.eventId as { keep: number }).keep)
+            : (await lockedEvent(client, userId, input.eventId)).id;
     let toAccount: MoneyAccount | null = null;
     let category: { id: number; name: string } | null = null;
     let lines: EntryLine[];
@@ -420,7 +440,7 @@ async function record(client: Client, userId: number, input: EntryInput, checkSp
         if (checkSpending) await checkCanSpend(client, userId, account, input.paise);
         lines = [{ accountId: toAccount.id, paise: input.paise }, { accountId: account.id, paise: -input.paise }];
     }
-    const id = (await postEntry(client, { userId, date: input.date, description: input.description, type: input.type, lines }))!;
+    const id = (await postEntry(client, { userId, date: input.date, description: input.description, type: input.type, eventId, lines }))!;
     await setEntryTags(client, userId, id, input.tags ?? []);
     return { id, account, toAccount, category };
 }
@@ -434,7 +454,7 @@ const activityValues = (input: EntryInput, account: MoneyAccount, toAccount: Mon
 const oldValues = (old: Entry) => ({
     type: old.type, description: old.description, amount: old.amount, date: old.date, accountName: old.account.name,
     ...(old.toAccount ? { toAccountName: old.toAccount.name } : {}), ...(old.category ? { categoryName: old.category.name } : {}),
-    ...(old.tags.length ? { tags: old.tags } : {}),
+    ...(old.tags.length ? { tags: old.tags } : {}), ...(old.event ? { eventName: old.event.name } : {}),
 });
 
 export async function createEntry(pool: Pool, userId: number, body: Body): Promise<Entry> {
@@ -468,6 +488,7 @@ export async function updateEntry(pool: Pool, userId: number, id: string, body: 
             ...input,
             categoryId: input.categoryId === undefined && input.type === old.type ? old.category?.id : input.categoryId,
             tags: input.tags ?? old.tags,
+            eventId: input.eventId === undefined ? (old.event ? { keep: old.event.id } : null) : input.eventId,
         };
         const { id: newId, account, toAccount, category } = await record(client, userId, kept, false);
         await logActivity(client, userId, 'updated', input.type, newId, `Updated ${input.type}: ${input.description}`, fromPaise(input.paise),
@@ -511,7 +532,7 @@ export async function categoriseEntries(pool: Pool, userId: number, body: Body):
             await voidEntry(client, userId, old.id);
             await record(client, userId, {
                 type: old.type, date: old.date, description: old.description, paise: toPaise(old.amount),
-                accountId: old.account.id, toAccountId: null, categoryId: category.id, tags: old.tags,
+                accountId: old.account.id, toAccountId: null, categoryId: category.id, tags: old.tags, eventId: old.event ? { keep: old.event.id } : null,
             }, false);
             changed++;
         }

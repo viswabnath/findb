@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, ChartColumn, History, LogOut, Settings, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, CalendarHeart, ChartColumn, History, LogOut, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { ConsentScreen } from '@/components/privacy/ConsentScreen';
 import { Logo } from '@/components/site/Logo';
@@ -23,6 +23,7 @@ const NAV_ITEMS: NavItem[] = [
     { section: 'setup', label: 'Accounts', icon: Wallet, href: '/setup' },
     { section: 'transactions', label: 'Transactions', icon: ArrowLeftRight, href: '/transactions' },
     { section: 'summary', label: 'Summary', icon: ChartColumn, href: '/summary' },
+    { section: 'events', label: 'Events', icon: CalendarHeart, href: '/events' },
     { section: 'activity', label: 'Activity', icon: History, href: '/activity' },
     { section: 'settings', label: 'Settings', icon: Settings, href: '/settings' },
 ];

@@ -27,6 +27,8 @@ interface Summary {
     essentialSpending?: Amount;
     discretionarySpending?: Amount;
     uncategorisedSpending?: Amount;
+    oneOffSpending?: Amount;
+    regularSpending?: Amount;
 }
 
 type Shown =
@@ -204,6 +206,11 @@ function SummaryView({ data, month, year }: { data: Summary; month: number; year
                         expenses ({formatRupees(data.totalExpenses || 0)}) ={' '}
                         <strong>{formatRupees(data.netSavings)}</strong>
                     </div>
+                    {parseFloat(String(data.oneOffSpending ?? 0)) > 0 ? (
+                        <p className="breakdown-note" id="regular-spending">
+                            Regular spending {formatRupees(data.regularSpending ?? 0)}, leaving out {formatRupees(data.oneOffSpending ?? 0)} on one-off events.
+                        </p>
+                    ) : null}
                     <p className="breakdown-note">Transfers between your own accounts, such as an ATM withdrawal or a card bill payment, are neither income nor spending.</p>
                 </section>
             ) : null}
