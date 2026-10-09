@@ -19,6 +19,9 @@ import { formatRupees } from '@/lib/format';
 type AccountType = 'bank' | 'cash' | 'credit_card' | 'wallet' | 'meal_card';
 interface Account { id: number; type: AccountType; name: string }
 interface Category { id: number; kind: 'income' | 'expense'; name: string; fallback: boolean }
+interface EventChoice { id: number; name: string }
+/** The event select's value that opens "New event" */
+const NEW_EVENT = 'new';
 type EntryType = 'income' | 'expense' | 'transfer';
 interface Entry {
     id: number; type: EntryType; date: string; description: string; amount: string;
@@ -26,10 +29,21 @@ interface Entry {
     toAccount: { id: number; name: string; type: AccountType } | null;
     category: { id: number; name: string } | null;
     tags: string[];
+    event: { id: number; name: string } | null;
 }
 interface Draft {
     id: number; type: EntryType; description: string; amount: string; accountId: string; toAccountId: string; date: string;
-    categoryId: string; tags: string;
+    categoryId: string; tags: string; eventId: string;
+}
+
+function EventOptions({ events }: { events: EventChoice[] }) {
+    return (
+        <>
+            <option value="">No event</option>
+            {events.map(event => <option key={event.id} value={event.id}>{event.name}</option>)}
+            <option value={NEW_EVENT}>New event...</option>
+        </>
+    );
 }
 
 /** Tags typed as "trip, work" */
@@ -40,10 +54,11 @@ function CategoryOptions({ categories, kind }: { categories: Category[]; kind: '
 }
 
 function EntryMeta({ entry }: { entry: Entry }) {
-    if (!entry.category && entry.tags.length === 0) return null;
+    if (!entry.category && entry.tags.length === 0 && !entry.event) return null;
     return (
         <span className="entry-meta">
             {entry.category ? <span className="entry-category">{entry.category.name}</span> : null}
+            {entry.event ? <span className="tag event-tag">{entry.event.name}</span> : null}
             {entry.tags.map(tag => <span key={tag} className="tag">{tag}</span>)}
         </span>
     );
@@ -101,6 +116,9 @@ export function TransactionsScreen() {
     const [trackingOption, setTrackingOption] = useState('both');
     const [accounts, setAccounts] = useState<Account[]>([]);
     const [categories, setCategories] = useState<Category[]>([]);
+    const [events, setEvents] = useState<EventChoice[]>([]);
+    // "New event" from a form: which form asked, and the name being typed
+    const [newEvent, setNewEvent] = useState<{ form: 'income' | 'expense' | 'transfer' | 'edit'; name: string; oneOff: boolean } | null>(null);
     const [entries, setEntries] = useState<Entry[]>([]);
     // Entries ticked for "Put in a category", and the category to put them in
     const [selected, setSelected] = useState<Set<number>>(new Set());
@@ -112,9 +130,9 @@ export function TransactionsScreen() {
     const [filterYear, setFilterYear] = useState(period.year);
 
     // categoryChosen: the user picked the category, so a suggestion no longer replaces it
-    const [incomeForm, setIncomeForm] = useState({ source: '', amount: '', accountId: '', date: todayUtcIso(), categoryId: '', categoryChosen: false, tags: '' });
-    const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', accountId: '', date: todayUtcIso(), categoryId: '', categoryChosen: false, tags: '' });
-    const [transferForm, setTransferForm] = useState({ note: '', amount: '', fromId: '', toId: '', date: todayUtcIso() });
+    const [incomeForm, setIncomeForm] = useState({ source: '', amount: '', accountId: '', date: todayUtcIso(), categoryId: '', categoryChosen: false, tags: '', eventId: '' });
+    const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', accountId: '', date: todayUtcIso(), categoryId: '', categoryChosen: false, tags: '', eventId: '' });
+    const [transferForm, setTransferForm] = useState({ note: '', amount: '', fromId: '', toId: '', date: todayUtcIso(), eventId: '' });
     const formMessage = useFormMessage(5000);
 
     const [edit, setEdit] = useState<Draft | null>(null);
@@ -139,6 +157,37 @@ export function TransactionsScreen() {
         setIncomeForm(form => ({ ...form, categoryId: form.categoryId || fallback('income') }));
         setExpenseForm(form => ({ ...form, categoryId: form.categoryId || fallback('expense') }));
     }, []);
+
+    const loadEvents = useCallback(async () => {
+        const result = await apiGet<EventChoice[]>('/api/events');
+        if (redirectIfUnauthorized(result) || !result.ok) return;
+        setEvents(result.data.map(event => ({ id: event.id, name: event.name })));
+    }, []);
+
+    /** Pick an event in a form, or open "New event" for it */
+    function chooseEvent(form: 'income' | 'expense' | 'transfer' | 'edit', value: string) {
+        if (value === NEW_EVENT) {
+            setNewEvent({ form, name: '', oneOff: true });
+            return;
+        }
+        if (form === 'income') setIncomeForm(current => ({ ...current, eventId: value }));
+        if (form === 'expense') setExpenseForm(current => ({ ...current, eventId: value }));
+        if (form === 'transfer') setTransferForm(current => ({ ...current, eventId: value }));
+        if (form === 'edit') setEdit(draft => draft && { ...draft, eventId: value });
+    }
+
+    async function createEvent() {
+        if (!newEvent) return;
+        if (!newEvent.name.trim()) return toast('error', 'Please enter a name');
+        const result = await apiPost<{ id: number; name: string }>('/api/events', { name: newEvent.name, oneOff: newEvent.oneOff });
+        if (redirectIfUnauthorized(result)) return;
+        if (!result.ok) return toast('error', httpError(result));
+        await loadEvents();
+        chooseEvent(newEvent.form, String(result.data.id));
+        setNewEvent(null);
+    }
+
+    const eventValue = (value: string) => (value ? Number(value) : null);
 
     /** Fill in the category a title suggests, unless the user already chose one */
     async function suggest(kind: 'income' | 'expense', description: string) {
@@ -168,7 +217,7 @@ export function TransactionsScreen() {
             const user = await apiGet<{ tracking_option?: string }>('/api/user');
             if (redirectIfUnauthorized(user)) return;
             setTrackingOption(user.data.tracking_option || 'both');
-            await Promise.all([loadAccounts(), loadCategories(), loadEntries(period.month, period.year)]);
+            await Promise.all([loadAccounts(), loadCategories(), loadEvents(), loadEntries(period.month, period.year)]);
             setLoaded(true);
         })();
         // Runs once on page load; later reloads go through loadEntries directly
@@ -194,18 +243,24 @@ export function TransactionsScreen() {
     }
 
     async function addIncome() {
-        const { source, amount, accountId, date, categoryId, tags } = incomeForm;
+        const { source, amount, accountId, date, categoryId, tags, eventId } = incomeForm;
         if (!source || !amount || !date || !accountId) return formMessage.show('error', 'Please fill all fields');
-        const body = { type: 'income', description: source, amount, accountId: Number(accountId), date, categoryId: categoryId ? Number(categoryId) : undefined, tags: tagList(tags) };
+        const body = {
+            type: 'income', description: source, amount, accountId: Number(accountId), date,
+            categoryId: categoryId ? Number(categoryId) : undefined, tags: tagList(tags), eventId: eventValue(eventId),
+        };
         if (await add(body, 'Income added successfully!')) {
             setIncomeForm(form => ({ ...form, source: '', amount: '', tags: '', categoryChosen: false, categoryId: fallbackCategory('income') }));
         }
     }
 
     async function addExpense() {
-        const { title, amount, accountId, date, categoryId, tags } = expenseForm;
+        const { title, amount, accountId, date, categoryId, tags, eventId } = expenseForm;
         if (!title || !amount || !date || !accountId) return formMessage.show('error', 'Please fill all fields');
-        const body = { type: 'expense', description: title, amount, accountId: Number(accountId), date, categoryId: categoryId ? Number(categoryId) : undefined, tags: tagList(tags) };
+        const body = {
+            type: 'expense', description: title, amount, accountId: Number(accountId), date,
+            categoryId: categoryId ? Number(categoryId) : undefined, tags: tagList(tags), eventId: eventValue(eventId),
+        };
         if (await add(body, 'Expense added successfully!')) {
             setExpenseForm(form => ({ ...form, title: '', amount: '', tags: '', categoryChosen: false, categoryId: fallbackCategory('expense') }));
         }
@@ -218,7 +273,8 @@ export function TransactionsScreen() {
         const from = accounts.find(account => String(account.id) === fromId);
         const to = accounts.find(account => String(account.id) === toId);
         const description = note.trim() || `${from?.name ?? 'Account'} to ${to?.name ?? 'account'}`;
-        if (await add({ type: 'transfer', description, amount, accountId: Number(fromId), toAccountId: Number(toId), date }, 'Transfer added successfully!')) {
+        const transfer = { type: 'transfer', description, amount, accountId: Number(fromId), toAccountId: Number(toId), date, eventId: eventValue(transferForm.eventId) };
+        if (await add(transfer, 'Transfer added successfully!')) {
             setTransferForm(form => ({ ...form, note: '', amount: '' }));
         }
     }
@@ -227,16 +283,16 @@ export function TransactionsScreen() {
         setEdit({
             id: entry.id, type: entry.type, description: entry.description, amount: entry.amount,
             accountId: String(entry.account.id), toAccountId: String(entry.toAccount?.id ?? ''), date: entry.date,
-            categoryId: String(entry.category?.id ?? ''), tags: entry.tags.join(', '),
+            categoryId: String(entry.category?.id ?? ''), tags: entry.tags.join(', '), eventId: String(entry.event?.id ?? ''),
         });
     }
 
     async function saveEdit() {
         if (!edit) return;
-        const { id, type, description, amount, accountId, toAccountId, date, categoryId, tags } = edit;
+        const { id, type, description, amount, accountId, toAccountId, date, categoryId, tags, eventId } = edit;
         if (!description || !amount || !date || !accountId || (type === 'transfer' && !toAccountId)) return toast('error', 'Please fill all fields');
         const result = await apiPut(`/api/entries/${id}`, {
-            type, description, amount, accountId: Number(accountId), date, tags: tagList(tags),
+            type, description, amount, accountId: Number(accountId), date, tags: tagList(tags), eventId: eventValue(eventId),
             ...(type === 'transfer' ? { toAccountId: Number(toAccountId) } : { categoryId: categoryId ? Number(categoryId) : undefined }),
         });
         if (redirectIfUnauthorized(result)) return;
@@ -391,6 +447,12 @@ export function TransactionsScreen() {
                             <input type="text" id="income-tags" placeholder="bonus, 2026" value={incomeForm.tags}
                                 onChange={event => setIncomeForm(form => ({ ...form, tags: event.target.value }))} />
                         </div>
+                        <div className="field">
+                            <label htmlFor="income-event">Event (optional)</label>
+                            <select id="income-event" value={incomeForm.eventId} onChange={event => chooseEvent('income', event.target.value)}>
+                                <EventOptions events={events} />
+                            </select>
+                        </div>
                     </div>
                     <button type="submit" className="btn btn-primary" data-action="addIncome"><Plus aria-hidden="true" /> Add income</button>
                 </form>
@@ -432,6 +494,12 @@ export function TransactionsScreen() {
                             <input type="text" id="expense-tags" placeholder="goa trip, work" value={expenseForm.tags}
                                 onChange={event => setExpenseForm(form => ({ ...form, tags: event.target.value }))} />
                         </div>
+                        <div className="field">
+                            <label htmlFor="expense-event">Event (optional)</label>
+                            <select id="expense-event" value={expenseForm.eventId} onChange={event => chooseEvent('expense', event.target.value)}>
+                                <EventOptions events={events} />
+                            </select>
+                        </div>
                     </div>
                     <button type="submit" className="btn btn-primary" data-action="addExpense"><Plus aria-hidden="true" /> Add expense</button>
                 </form>
@@ -467,6 +535,12 @@ export function TransactionsScreen() {
                             <label htmlFor="transfer-note">Note (optional)</label>
                             <input type="text" id="transfer-note" placeholder="ATM withdrawal, card bill..." value={transferForm.note}
                                 onChange={event => setTransferForm(form => ({ ...form, note: event.target.value }))} />
+                        </div>
+                        <div className="field span-2">
+                            <label htmlFor="transfer-event">Event (optional)</label>
+                            <select id="transfer-event" value={transferForm.eventId} onChange={event => chooseEvent('transfer', event.target.value)}>
+                                <EventOptions events={events} />
+                            </select>
                         </div>
                     </div>
                     <button type="submit" className="btn btn-primary" data-action="addTransfer"><ArrowLeftRight aria-hidden="true" /> Move money</button>
@@ -623,6 +697,12 @@ export function TransactionsScreen() {
                             </div>
                         ) : null}
                         <div className="field">
+                            <label htmlFor={`edit-${edit.type}-event`}>Event</label>
+                            <select id={`edit-${edit.type}-event`} value={edit.eventId} onChange={event => chooseEvent('edit', event.target.value)}>
+                                <EventOptions events={events} />
+                            </select>
+                        </div>
+                        <div className="field">
                             <label htmlFor={`edit-${edit.type}-tags`}>Tags</label>
                             <input type="text" id={`edit-${edit.type}-tags`} value={edit.tags}
                                 onChange={event => setEdit(draft => draft && { ...draft, tags: event.target.value })} />
@@ -634,6 +714,28 @@ export function TransactionsScreen() {
                         </div>
                     </div>
                 ) : null}
+            </Modal>
+
+            <Modal id="new-event-modal" title="New event" small open={newEvent !== null} closeAction="close-new-event" onClose={() => setNewEvent(null)}
+                footer={(
+                    <>
+                        <button type="button" data-action="close-new-event" className="btn btn-secondary" onClick={() => setNewEvent(null)}>Cancel</button>
+                        <button type="button" data-action="save-new-event" className="btn btn-primary" onClick={createEvent}>Add event</button>
+                    </>
+                )}>
+                <div className="form-grid">
+                    <div className="field">
+                        <label htmlFor="new-event-name">Name</label>
+                        <input type="text" id="new-event-name" maxLength={80} placeholder="Goa trip, Diwali 2026..." value={newEvent?.name ?? ''}
+                            onChange={event => setNewEvent(current => current && { ...current, name: event.target.value })} />
+                    </div>
+                    <label className="check-line">
+                        <input type="checkbox" id="new-event-one-off" checked={newEvent?.oneOff ?? true}
+                            onChange={event => setNewEvent(current => current && { ...current, oneOff: event.target.checked })} />
+                        A one-off: leave it out of regular spending
+                    </label>
+                    <p className="form-note">Dates and a budget can be added on the Events screen.</p>
+                </div>
             </Modal>
 
             <Modal id="delete-confirmation-modal" title="Delete this entry?" small open={pendingDelete !== null} closeAction="close-delete"

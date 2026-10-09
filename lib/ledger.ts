@@ -109,6 +109,8 @@ export interface NewEntry {
     description: string;
     type: EntryType;
     source?: { table: SourceTable; id: unknown };
+    /** The event or project the entry is for (events, migration 0012) */
+    eventId?: number | null;
     lines: EntryLine[];
 }
 
@@ -124,9 +126,9 @@ export async function postEntry(client: Client, entry: NewEntry): Promise<number
         throw new Error(`Journal entry does not balance: ${entry.description}`);
     }
     const created = await client.query(
-        `INSERT INTO journal_entries (user_id, entry_date, description, entry_type, source_table, source_id)
-         VALUES ($1, COALESCE($2::date, CURRENT_DATE), $3, $4, $5, $6) RETURNING id`,
-        [entry.userId, entry.date ?? null, entry.description, entry.type, entry.source?.table ?? null, entry.source?.id ?? null],
+        `INSERT INTO journal_entries (user_id, entry_date, description, entry_type, source_table, source_id, event_id)
+         VALUES ($1, COALESCE($2::date, CURRENT_DATE), $3, $4, $5, $6, $7) RETURNING id`,
+        [entry.userId, entry.date ?? null, entry.description, entry.type, entry.source?.table ?? null, entry.source?.id ?? null, entry.eventId ?? null],
     );
     const entryId = Number(created.rows[0].id);
     for (const line of lines) {

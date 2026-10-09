@@ -101,3 +101,7 @@ Since migration 0011 (`lib/categories.ts`, `lib/services/categories.ts`):
 - **Suggestions** come from the user's own past entries first (same title, then same first word), then keywords.
 - **Tags** (`tags`, `entry_tags`) belong to an entry; an edit or a categorisation carries them to the new entry.
 - The summary's `spendingByCategory` sums the month's lines on expense accounts.
+
+## Events and projects
+
+Since migration 0012 (`lib/services/events.ts`, `/api/events`): an event is a named purpose with optional dates, budget and notes; `journal_entries.event_id` links any entry to one, alongside its category. An event's figures come from its entries' lines: spending (lines on expense accounts), receipts (income accounts), and how it was paid (the money accounts its expenses left). A one-off event (the default) is left out of the summary's `regularSpending`. Removing an event archives it; its entries keep it, and an edit keeps it unless `eventId` is given.

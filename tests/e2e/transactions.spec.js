@@ -230,3 +230,30 @@ test('a title suggests the category, tags show on the entry, and entries can be 
     await expect(byCategory.locator('li', { hasText: 'Restaurants and food delivery' })).toContainText(rupees(450));
     await expect(byCategory.locator('li', { hasText: 'Shopping' })).toContainText(rupees(200));
 });
+
+test('an event is made from the entry form, and the Events screen shows what it cost', async ({ page }) => {
+    await newUser(page);
+    await addBank(page, 'Event Bank', 90000);
+    await showSection(page, 'transactions');
+
+    await page.locator('#expense-event').selectOption('new');
+    await expect(page.locator('#new-event-modal')).toBeVisible();
+    await page.locator('#new-event-name').fill('Housewarming');
+    await page.locator('[data-action="save-new-event"]').click();
+    await expect(page.locator('#expense-event option:checked')).toHaveText('Housewarming');
+
+    await page.locator('#expense-title').fill('Caterer');
+    await page.locator('#expense-amount').fill('12000');
+    await selectAccount(page, 'expense-payment-method', 'EVENT BANK');
+    await page.locator('[data-action="addExpense"]').click();
+    await expect(page.locator('#transactions-message')).toHaveText('Expense added successfully!');
+    await expect(page.locator('#expense-table-body tr', { hasText: 'Caterer' }).locator('.event-tag')).toHaveText('Housewarming');
+
+    await page.goto('/events');
+    await expect(page.locator('#events-list li', { hasText: 'Housewarming' })).toContainText(rupees(12000));
+    await page.locator('#events-list [data-action="openEvent"]', { hasText: 'Housewarming' }).click();
+    await expect(page.locator('#event-spent')).toHaveText(rupees(12000));
+    await expect(page.locator('#event-net-cost')).toHaveText(rupees(12000));
+    await expect(page.locator('#event-paid-from')).toContainText('EVENT BANK');
+    await expect(page.locator('#event-timeline')).toContainText('Caterer');
+});

@@ -78,6 +78,17 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
         // Uncategorised spending is neither, until it is categorised
         essential: row.system_key === null ? row.essential === true : null,
     }));
+    // Spending on one-off events (a wedding, a trip), so regular spending can leave it out
+    const oneOff = await pool.query(
+        `SELECT COALESCE(SUM(l.amount_paise), 0)::bigint AS paise
+         FROM journal_lines l
+         JOIN journal_entries e ON e.user_id = l.user_id AND e.id = l.entry_id
+         JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
+         JOIN events ev ON ev.user_id = e.user_id AND ev.id = e.event_id
+         WHERE l.user_id = $1 AND e.voided_at IS NULL AND e.entry_date BETWEEN $2::date AND $3::date
+           AND a.kind = 'expense' AND ev.one_off`,
+        [userId, firstDay, lastDay]);
+    const oneOffSpending = Number(oneOff.rows[0].paise) / 100;
     const spendingWhere = (test: (item: { essential: boolean | null }) => boolean) =>
         byCategory.rows.filter((row, index) => test(spendingByCategory[index]!)).reduce((sum, row) => sum + Number(row.paise), 0) / 100;
     // Balances at the end of the month: every entry dated on or before its last day
@@ -146,6 +157,8 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
         essentialSpending: spendingWhere(item => item.essential === true),
         discretionarySpending: spendingWhere(item => item.essential === false),
         uncategorisedSpending: spendingWhere(item => item.essential === null),
+        oneOffSpending,
+        regularSpending: monthExpenses - oneOffSpending,
         cash: { balance: cashRow.cash_balance_at_month_end || 0, initial_balance: cashRow.initial_balance || 0 },
         selectedMonth,
         selectedYear,

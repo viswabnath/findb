@@ -181,15 +181,20 @@ export const FEATURES: Feature[] = [
         group: 'track',
         name: 'Events, trips and projects',
         icon: 'calendar',
-        status: 'building',
+        status: 'available',
         short: 'Track a wedding, a housewarming, a trip or a house construction as one project.',
         summary:
             'Big life events are paid for over months, from many accounts. Give any entry a purpose, and FinDB adds it all up for you, without disturbing your regular monthly picture.',
         points: [
-            'Any expense, income, loan or purchase can belong to an event',
+            'Any expense, income or money moved can belong to an event, chosen or created as you add the entry',
             'Each event shows what was spent by category, what was received, and the net cost',
             'An optional budget, compared with what was actually spent',
-            'One-off events can be left out of your monthly averages, so a wedding does not make every month look expensive',
+            'Which accounts paid, and a timeline of every entry',
+            'One-off events are left out of your regular spending, so a wedding does not make the month look expensive',
+        ],
+        next: [
+            'Loans taken and assets bought for an event, once loans and assets arrive',
+            'Shared events, where parents and siblings also pay, counting only your share',
         ],
         example: {
             title: 'Your sister\'s wedding',
@@ -555,6 +560,7 @@ export const ROADMAP: RoadmapStage[] = [
             'Bank accounts, credit cards, wallets, meal cards and cash',
             'Income, expenses and money moved between your accounts',
             'Categories and tags, suggested from the title',
+            'Events and projects, with their net cost',
             'Accountant-grade records that never double-count',
             'Monthly summary',
             'Activity log with CSV export',
@@ -567,7 +573,7 @@ export const ROADMAP: RoadmapStage[] = [
         summary: 'The base every later feature is built on.',
         items: [
             'A new design for phones, tablets and computers, in light and dark',
-            'Events and repeating entries',
+            'Repeating entries',
             'Choose what you want to track',
         ],
     },
