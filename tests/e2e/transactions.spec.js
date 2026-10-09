@@ -257,3 +257,28 @@ test('an event is made from the entry form, and the Events screen shows what it 
     await expect(page.locator('#event-paid-from')).toContainText('EVENT BANK');
     await expect(page.locator('#event-timeline')).toContainText('Caterer');
 });
+
+test('a repeating bill waits to be confirmed, and is recorded with the amount it really was', async ({ page }) => {
+    await newUser(page);
+    await addBank(page, 'Repeat Bank', 20000);
+    await showSection(page, 'transactions');
+
+    await page.locator('[data-action="newRepeating"]').click();
+    await page.locator('#repeating-description').fill('Electricity');
+    await page.locator('#repeating-amount').fill('1500');
+    await page.locator('#repeating-account').selectOption({ label: 'REPEAT BANK' });
+    await page.locator('#repeating-category').selectOption({ label: 'Bills and utilities' });
+    await page.locator('#repeating-frequency').selectOption('daily');
+    await page.locator('[data-action="save-repeating"]').click();
+    await expect(toast(page, 'Repeating entry added')).toBeVisible();
+    await expect(page.locator('#repeating-list li', { hasText: 'Electricity' })).toContainText('Every day; you confirm each');
+
+    const due = page.locator('#repeating-due li', { hasText: 'Electricity' });
+    await expect(due).toBeVisible();
+    await due.locator('input.due-amount').fill('1723.40');
+    await due.locator('[data-action="confirmDue"]').click();
+    const row = page.locator('#expense-table-body tr', { hasText: 'Electricity' });
+    await expect(row).toContainText(rupees(1723.4));
+    await expect(row).toContainText('Bills and utilities');
+    await expect(page.locator('#repeating-due li', { hasText: 'Electricity' })).toHaveCount(0);
+});

@@ -105,11 +105,11 @@ export const FEATURES: Feature[] = [
             'Categories such as Groceries, Fuel and Restaurants, suggested from the title ("Swiggy" means Restaurants) and learning from your own choices',
             'Your own categories and tags, and putting many entries in a category at once',
             'Marking spending as essential or optional, to see what you really need each month',
+            'Repeating entries for salary, rent, EMIs, SIPs and subscriptions: recorded automatically, or confirmed with one tap, with a reminder before they are due',
             'A monthly summary: income, spending by category, savings and total wealth',
             'An activity log of every change, with the old and new values, and a CSV export',
         ],
         next: [
-            'Repeating entries for rent, EMIs, SIPs and subscriptions, confirmed with one tap',
             'Reimbursements: money your office or insurer will pay back is not counted as your spending',
         ],
         example: {
@@ -561,6 +561,7 @@ export const ROADMAP: RoadmapStage[] = [
             'Income, expenses and money moved between your accounts',
             'Categories and tags, suggested from the title',
             'Events and projects, with their net cost',
+            'Repeating entries, recorded or confirmed with one tap',
             'Accountant-grade records that never double-count',
             'Monthly summary',
             'Activity log with CSV export',
@@ -573,7 +574,6 @@ export const ROADMAP: RoadmapStage[] = [
         summary: 'The base every later feature is built on.',
         items: [
             'A new design for phones, tablets and computers, in light and dark',
-            'Repeating entries',
             'Choose what you want to track',
         ],
     },

@@ -507,6 +507,9 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .entry-category { font-size: 0.8rem; color: var(--muted); }
 .entry-category + .tag::before { content: none; }
 .tag { font-size: 0.75rem; padding: 1px 8px; border-radius: 999px; background: var(--tint); color: var(--tint-fg); font-weight: 600; }
+.due-amount { width: 120px; }
+#repeating-list li.paused .what { color: var(--muted); }
+#repeating-notice { margin-bottom: 16px; }
 .event-tag { background: var(--surface-2); color: var(--fg); border: 1px solid var(--line); }
 .select-entry { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
 .select-entry input { width: 16px; height: 16px; accent-color: var(--primary); }

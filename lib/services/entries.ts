@@ -100,7 +100,7 @@ function publicAccount({ sourceTable, ...account }: MoneyAccount & { sourceTable
 }
 
 /** One of the user's money accounts, locked for the rest of the transaction; 400 if it is not theirs or archived */
-async function lockedMoneyAccount(client: Client, userId: number, id: unknown, label = 'Account'): Promise<MoneyAccount & { sourceTable: string | null }> {
+export async function lockedMoneyAccount(client: Client, userId: number, id: unknown, label = 'Account'): Promise<MoneyAccount & { sourceTable: string | null }> {
     if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(400, `${label} is required`);
     const result = await client.query(
         `SELECT ${ACCOUNT_COLUMNS}, a.source_table, a.archived_at
@@ -415,7 +415,7 @@ async function categoryAccount(client: Client, userId: number, kind: 'income' | 
 }
 
 /** Validate the accounts and record the entry with its tags; returns its id */
-async function record(client: Client, userId: number, input: EntryInput, checkSpending: boolean)
+async function record(client: Client, userId: number, input: EntryInput, checkSpending: boolean, recurring?: { id: number; on: string })
     : Promise<{ id: number; account: MoneyAccount; toAccount: MoneyAccount | null; category: { id: number; name: string } | null }> {
     const account = await lockedMoneyAccount(client, userId, input.accountId);
     // Every reference is checked before the balance
@@ -440,7 +440,7 @@ async function record(client: Client, userId: number, input: EntryInput, checkSp
         if (checkSpending) await checkCanSpend(client, userId, account, input.paise);
         lines = [{ accountId: toAccount.id, paise: input.paise }, { accountId: account.id, paise: -input.paise }];
     }
-    const id = (await postEntry(client, { userId, date: input.date, description: input.description, type: input.type, eventId, lines }))!;
+    const id = (await postEntry(client, { userId, date: input.date, description: input.description, type: input.type, eventId, recurring, lines }))!;
     await setEntryTags(client, userId, id, input.tags ?? []);
     return { id, account, toAccount, category };
 }
@@ -457,14 +457,21 @@ const oldValues = (old: Entry) => ({
     ...(old.tags.length ? { tags: old.tags } : {}), ...(old.event ? { eventName: old.event.name } : {}),
 });
 
-export async function createEntry(pool: Pool, userId: number, body: Body): Promise<Entry> {
+/**
+ * Record a new entry on the caller's transaction, with its activity entry. Repeating entries
+ * (lib/services/recurring.ts) use this too, with the date they were due.
+ */
+export async function recordNewEntry(client: Client, userId: number, body: Body,
+    options: { checkSpending: boolean; recurring?: { id: number; on: string } }): Promise<Entry> {
     const input = readEntry(body);
-    return withTransaction(pool, async (client) => {
-        const { id, account, toAccount, category } = await record(client, userId, input, true);
-        await logActivity(client, userId, 'created', input.type, id, `Added ${input.type}: ${input.description}`, fromPaise(input.paise), null,
-            activityValues(input, account, toAccount, category));
-        return publicEntry(await lockedEntry(client, userId, id));
-    });
+    const { id, account, toAccount, category } = await record(client, userId, input, options.checkSpending, options.recurring);
+    await logActivity(client, userId, 'created', input.type, id, `Added ${input.type}: ${input.description}`, fromPaise(input.paise), null,
+        { ...activityValues(input, account, toAccount, category), ...(options.recurring ? { repeating: true } : {}) });
+    return publicEntry(await lockedEntry(client, userId, id));
+}
+
+export async function createEntry(pool: Pool, userId: number, body: Body): Promise<Entry> {
+    return withTransaction(pool, client => recordNewEntry(client, userId, body, { checkSpending: true }));
 }
 
 /** Remove the former row behind an entry recorded through /api/income or /api/expenses, if any */

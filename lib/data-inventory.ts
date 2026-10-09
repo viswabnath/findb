@@ -64,6 +64,11 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         retention: 'Until you delete it or your account',
     },
     {
+        table: 'recurring_entries', category: 'money', exported: true,
+        holds: 'Entries that repeat (salary, rent, EMIs, subscriptions): amount, account, category and when they fall due',
+        purpose: 'Adding or reminding you of regular entries', retention: 'Until you delete it or your account',
+    },
+    {
         table: 'tags', category: 'money', exported: true,
         holds: 'The tags you put on entries', purpose: 'Grouping your entries your way', retention: 'Until you delete your account',
     },

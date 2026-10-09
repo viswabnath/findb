@@ -8,6 +8,7 @@ import { useFormMessage } from '@/components/useFormMessage';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { filterYears, MONTH_NAMES, todayUtcIso } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
+import { RepeatingCard } from './RepeatingCard';
 
 /**
  * Income, expenses and transfers, recorded in the ledger (/api/entries) on any money account
@@ -559,6 +560,8 @@ export function TransactionsScreen() {
                 <button type="button" className="btn btn-primary btn-sm" data-action="bulkCategorise" onClick={categoriseSelected}>Put in category</button>
                 <button type="button" className="btn btn-secondary btn-sm" data-action="clearSelection" onClick={() => setSelected(new Set())}>Clear</button>
             </div>
+
+            <RepeatingCard accounts={accounts} categories={categories} onRecorded={() => loadEntries(period.month, period.year)} />
 
             <div id="transactions-history" className="histories">
                 <section id="income-history" className="card" style={{ display: showIncome ? undefined : 'none' }} aria-labelledby="income-history-title">
