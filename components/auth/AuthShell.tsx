@@ -3,6 +3,7 @@
 import { useState, type ComponentProps, type FormEvent, type ReactNode } from 'react';
 import { Check } from 'lucide-react';
 import { HydrationGate } from '@/components/HydrationGate';
+import { t } from '@/lib/i18n';
 
 export interface AuthMessage {
     kind: 'error' | 'success';
@@ -116,12 +117,12 @@ export function PasswordField({ id, label, aside, children, ...props }: Omit<Com
                 <button
                     type="button"
                     className="reveal-button"
-                    aria-label={visible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
+                    aria-label={t(visible ? 'auth.hideLabel' : 'auth.showLabel', { field: label.toLowerCase() })}
                     aria-pressed={visible}
                     onMouseDown={event => event.preventDefault()}
                     onClick={() => setVisible(value => !value)}
                 >
-                    {visible ? 'Hide' : 'Show'}
+                    {visible ? t('auth.hide') : t('auth.show')}
                 </button>
             </div>
             {children}
@@ -132,23 +133,23 @@ export function PasswordField({ id, label, aside, children, ...props }: Omit<Com
 /** The password rules (lib/auth-validation.ts), ticked off as the user types */
 export function PasswordRules({ password }: { password: string }) {
     const rules = [
-        { ok: password.length >= 8 && password.length <= 64, text: '8 to 64 characters' },
-        { ok: password.length >= 16 || (/[A-Z]/.test(password) && /[a-z]/.test(password)), text: 'Upper and lower case letters' },
-        { ok: password.length >= 16 || /[0-9]/.test(password), text: 'A number' },
-        { ok: password.length >= 16 || /[^A-Za-z0-9]/.test(password), text: 'A symbol, such as @ or #' },
+        { ok: password.length >= 8 && password.length <= 64, text: t('auth.rules.length') },
+        { ok: password.length >= 16 || (/[A-Z]/.test(password) && /[a-z]/.test(password)), text: t('auth.rules.cases') },
+        { ok: password.length >= 16 || /[0-9]/.test(password), text: t('auth.rules.number') },
+        { ok: password.length >= 16 || /[^A-Za-z0-9]/.test(password), text: t('auth.rules.symbol') },
     ];
     return (
         <>
-            <ul className="rules" aria-label="Password rules">
+            <ul className="rules" aria-label={t('auth.rules.label')}>
                 {rules.map(rule => (
                     <li key={rule.text} className={rule.ok ? 'ok' : undefined}>
                         <Check aria-hidden="true" />
                         {rule.text}
-                        <span className="sr-only">{rule.ok ? ', done' : ', not yet'}</span>
+                        <span className="sr-only">{rule.ok ? t('auth.rules.done') : t('auth.rules.notYet')}</span>
                     </li>
                 ))}
             </ul>
-            <small className="field-hint">Or use a passphrase of 16 characters or more, such as four unrelated words: then any characters will do.</small>
+            <small className="field-hint">{t('auth.rules.passphrase')}</small>
         </>
     );
 }

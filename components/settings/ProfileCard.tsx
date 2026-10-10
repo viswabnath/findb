@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Plus, Trash2, UserRound } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
+import { t } from '@/lib/i18n';
 
 /**
  * The profile (/api/profile) and dependants: all optional. PAN and demat account IDs are stored
@@ -16,7 +17,8 @@ interface Profile {
 }
 interface Dependant { id: number; relationship: string; name: string; dateOfBirth: string | null }
 
-const RELATIONSHIPS: Record<string, string> = { spouse: 'Spouse', child: 'Child', parent: 'Parent', other: 'Other' };
+const RELATIONSHIPS = ['spouse', 'child', 'parent', 'other'] as const;
+const relationship = (value: string) => (RELATIONSHIPS as readonly string[]).includes(value) ? t(`settings.profile.relationships.${value as typeof RELATIONSHIPS[number]}`) : value;
 
 export function ProfileCard() {
     const toast = useToast();
@@ -61,7 +63,7 @@ export function ProfileCard() {
         await save({
             dateOfBirth: form.dateOfBirth, city: form.city, taxResidency: form.taxResidency, aadhaarLast4: form.aadhaarLast4,
             ...(form.pan.trim() ? { pan: form.pan } : {}),
-        }, 'Profile saved');
+        }, t('settings.profile.saved'));
     }
 
     async function addDemat() {
@@ -71,7 +73,7 @@ export function ProfileCard() {
         const result = await apiPost<Profile>('/api/profile/demat', demat);
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
-        toast('success', 'Demat account added');
+        toast('success', t('settings.profile.dematAdded'));
         setDemat({ broker: '', accountId: '' });
         await load();
     }
@@ -87,7 +89,7 @@ export function ProfileCard() {
         const result = await apiPost('/api/profile/dependants', dependant);
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
-        toast('success', `${dependant.name.trim()} added`);
+        toast('success', t('settings.profile.dependantAdded', { name: dependant.name.trim() }));
         setDependant({ relationship: 'child', name: '', dateOfBirth: '' });
         await load();
     }
@@ -104,95 +106,92 @@ export function ProfileCard() {
     return (
         <section id="profile-section" className="card" aria-labelledby="profile-title">
             <div className="card-head">
-                <h3 id="profile-title"><span className="icon-tile t-bank" aria-hidden="true"><UserRound /></span>Profile</h3>
-                <span className="meta">All optional</span>
+                <h3 id="profile-title"><span className="icon-tile t-bank" aria-hidden="true"><UserRound /></span>{t('settings.profile.title')}</h3>
+                <span className="meta">{t('settings.profile.optional')}</span>
             </div>
-            <p className="card-pad form-note">
-                Used for age-based rules (such as senior citizen interest), tax and your financial review. PAN and account IDs are
-                encrypted before they are saved and only ever shown masked; FinDB keeps at most the last four digits of Aadhaar.
-            </p>
+            <p className="card-pad form-note">{t('settings.profile.note')}</p>
             <form className="card-pad form-grid two" onSubmit={event => { event.preventDefault(); saveDetails(); }}>
                 <div className="field">
-                    <label htmlFor="profile-dob">Date of birth</label>
+                    <label htmlFor="profile-dob">{t('settings.profile.dob')}</label>
                     <input type="date" id="profile-dob" value={form.dateOfBirth} onChange={event => setForm(value => ({ ...value, dateOfBirth: event.target.value }))} />
                 </div>
                 <div className="field">
-                    <label htmlFor="profile-city">City</label>
+                    <label htmlFor="profile-city">{t('settings.profile.city')}</label>
                     <input type="text" id="profile-city" maxLength={80} value={form.city} onChange={event => setForm(value => ({ ...value, city: event.target.value }))} />
                 </div>
                 <div className="field">
-                    <label htmlFor="profile-residency">Tax residency</label>
+                    <label htmlFor="profile-residency">{t('settings.profile.residency')}</label>
                     <select id="profile-residency" value={form.taxResidency} onChange={event => setForm(value => ({ ...value, taxResidency: event.target.value }))}>
-                        <option value="">Not set</option>
-                        <option value="resident">Resident</option>
-                        <option value="nri">Non-resident (NRI)</option>
-                        <option value="rnor">Resident but not ordinarily resident (RNOR)</option>
+                        <option value="">{t('settings.profile.notSet')}</option>
+                        <option value="resident">{t('settings.profile.resident')}</option>
+                        <option value="nri">{t('settings.profile.nri')}</option>
+                        <option value="rnor">{t('settings.profile.rnor')}</option>
                     </select>
                 </div>
                 <div className="field">
-                    <label htmlFor="profile-pan">PAN {profile.panMasked ? <span className="sub" id="profile-pan-masked">(saved: {profile.panMasked})</span> : null}</label>
-                    <input type="text" id="profile-pan" maxLength={10} autoComplete="off" placeholder={profile.panMasked ? 'Type a new PAN to replace it' : 'ABCDE1234F'}
+                    <label htmlFor="profile-pan">{t('settings.profile.pan')} {profile.panMasked ? <span className="sub" id="profile-pan-masked">{t('settings.profile.panSaved', { pan: profile.panMasked })}</span> : null}</label>
+                    <input type="text" id="profile-pan" maxLength={10} autoComplete="off" placeholder={profile.panMasked ? t('settings.profile.panReplace') : 'ABCDE1234F'}
                         value={form.pan} onChange={event => setForm(value => ({ ...value, pan: event.target.value.toUpperCase() }))} />
                 </div>
                 <div className="field">
-                    <label htmlFor="profile-aadhaar">Aadhaar, last four digits only</label>
+                    <label htmlFor="profile-aadhaar">{t('settings.profile.aadhaar')}</label>
                     <input type="text" id="profile-aadhaar" inputMode="numeric" maxLength={4} autoComplete="off" value={form.aadhaarLast4}
                         onChange={event => setForm(value => ({ ...value, aadhaarLast4: event.target.value.replace(/\D/g, '') }))} />
                 </div>
                 <div className="field profile-actions">
-                    <button type="submit" className="btn btn-primary" data-action="saveProfile">Save profile</button>
+                    <button type="submit" className="btn btn-primary" data-action="saveProfile">{t('settings.profile.save')}</button>
                     {profile.panMasked ? (
-                        <button type="button" className="btn btn-secondary" data-action="removePan" onClick={() => save({ pan: null }, 'PAN removed')}>Remove PAN</button>
+                        <button type="button" className="btn btn-secondary" data-action="removePan" onClick={() => save({ pan: null }, t('settings.profile.panRemoved'))}>{t('settings.profile.removePan')}</button>
                     ) : null}
                 </div>
             </form>
 
-            <h4 className="settings-subhead">Demat and broker accounts</h4>
+            <h4 className="settings-subhead">{t('settings.profile.demat')}</h4>
             <ul id="demat-list" className="settings-list">
-                {profile.dematAccounts.length === 0 ? <li>None saved</li> : profile.dematAccounts.map((account, index) => (
+                {profile.dematAccounts.length === 0 ? <li>{t('settings.profile.noneSaved')}</li> : profile.dematAccounts.map((account, index) => (
                     <li key={`${account.broker}-${index}`}>
                         <span><span className="what">{account.broker}</span> <span className="sub">{account.accountMasked}</span></span>
-                        <button type="button" className="icon-btn danger" data-action="removeDemat" onClick={() => removeDemat(index)}><Trash2 aria-hidden="true" /> Remove</button>
+                        <button type="button" className="icon-btn danger" data-action="removeDemat" onClick={() => removeDemat(index)}><Trash2 aria-hidden="true" /> {t('common.remove')}</button>
                     </li>
                 ))}
             </ul>
             <form className="add-row other-add-row" onSubmit={event => { event.preventDefault(); addDemat(); }}>
                 <div className="field">
-                    <label htmlFor="demat-broker">Broker</label>
-                    <input type="text" id="demat-broker" maxLength={60} placeholder="Zerodha, Groww..." value={demat.broker} onChange={event => setDemat(value => ({ ...value, broker: event.target.value }))} />
+                    <label htmlFor="demat-broker">{t('settings.profile.broker')}</label>
+                    <input type="text" id="demat-broker" maxLength={60} placeholder={t('settings.profile.brokerPlaceholder')} value={demat.broker} onChange={event => setDemat(value => ({ ...value, broker: event.target.value }))} />
                 </div>
                 <div className="field">
-                    <label htmlFor="demat-id">Client or demat ID</label>
+                    <label htmlFor="demat-id">{t('settings.profile.dematId')}</label>
                     <input type="text" id="demat-id" maxLength={32} autoComplete="off" value={demat.accountId} onChange={event => setDemat(value => ({ ...value, accountId: event.target.value }))} />
                 </div>
-                <button type="submit" className="btn btn-secondary" data-action="addDemat"><Plus aria-hidden="true" /> Add</button>
+                <button type="submit" className="btn btn-secondary" data-action="addDemat"><Plus aria-hidden="true" /> {t('common.add')}</button>
             </form>
 
-            <h4 className="settings-subhead">Dependants</h4>
+            <h4 className="settings-subhead">{t('settings.profile.dependants')}</h4>
             <ul id="dependants-list" className="settings-list">
-                {dependants.length === 0 ? <li>None added</li> : dependants.map(item => (
+                {dependants.length === 0 ? <li>{t('settings.profile.noneAdded')}</li> : dependants.map(item => (
                     <li key={item.id} data-dependant={item.id}>
-                        <span><span className="what">{item.name}</span> <span className="sub">{RELATIONSHIPS[item.relationship]}{item.dateOfBirth ? `, born ${item.dateOfBirth}` : ''}</span></span>
-                        <button type="button" className="icon-btn danger" data-action="removeDependant" onClick={() => removeDependant(item)}><Trash2 aria-hidden="true" /> Remove</button>
+                        <span><span className="what">{item.name}</span> <span className="sub">{relationship(item.relationship)}{item.dateOfBirth ? t('settings.profile.born', { date: item.dateOfBirth }) : ''}</span></span>
+                        <button type="button" className="icon-btn danger" data-action="removeDependant" onClick={() => removeDependant(item)}><Trash2 aria-hidden="true" /> {t('common.remove')}</button>
                     </li>
                 ))}
             </ul>
             <form className="add-row other-add-row" onSubmit={event => { event.preventDefault(); addDependant(); }}>
                 <div className="field">
-                    <label htmlFor="dependant-relationship">Relationship</label>
+                    <label htmlFor="dependant-relationship">{t('settings.profile.relationship')}</label>
                     <select id="dependant-relationship" value={dependant.relationship} onChange={event => setDependant(value => ({ ...value, relationship: event.target.value }))}>
-                        {Object.entries(RELATIONSHIPS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                        {RELATIONSHIPS.map(value => <option key={value} value={value}>{relationship(value)}</option>)}
                     </select>
                 </div>
                 <div className="field">
-                    <label htmlFor="dependant-name">Name</label>
+                    <label htmlFor="dependant-name">{t('settings.profile.name')}</label>
                     <input type="text" id="dependant-name" maxLength={80} value={dependant.name} onChange={event => setDependant(value => ({ ...value, name: event.target.value }))} />
                 </div>
                 <div className="field">
-                    <label htmlFor="dependant-dob">Date of birth (optional)</label>
+                    <label htmlFor="dependant-dob">{t('settings.profile.dependantDob')}</label>
                     <input type="date" id="dependant-dob" value={dependant.dateOfBirth} onChange={event => setDependant(value => ({ ...value, dateOfBirth: event.target.value }))} />
                 </div>
-                <button type="submit" className="btn btn-secondary" data-action="addDependant"><Plus aria-hidden="true" /> Add</button>
+                <button type="submit" className="btn btn-secondary" data-action="addDependant"><Plus aria-hidden="true" /> {t('common.add')}</button>
             </form>
         </section>
     );

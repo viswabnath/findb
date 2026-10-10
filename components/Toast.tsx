@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useRef, useState, type ReactNode } from 'react';
 import { AlertCircle, AlertTriangle, CheckCircle, Info } from 'lucide-react';
+import { t } from '@/lib/i18n';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -49,7 +50,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
                         <div className="toast-content">
                             <span className="toast-icon">{ICONS[toast.type]}</span>
                             <span className="toast-message">{toast.message}</span>
-                            <button className="toast-close" type="button" aria-label="Dismiss" onClick={() => dismiss(toast.id)}>
+                            <button className="toast-close" type="button" aria-label={t('shell.dismiss')} onClick={() => dismiss(toast.id)}>
                                 <span>&times;</span>
                             </button>
                         </div>

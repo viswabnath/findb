@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { ArrowRight, Compass } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, httpError, redirectIfUnauthorized } from '@/lib/api-client';
+import { t } from '@/lib/i18n';
 
 interface NextStep { kind: string; text: string; href?: string; label: string }
 
@@ -31,7 +32,7 @@ export function NextStepCard() {
     if (step === null || step.kind === 'sample') return null;
 
     return (
-        <section id="next-step" className="next-step" data-step={step.kind} aria-label="Next step">
+        <section id="next-step" className="next-step" data-step={step.kind} aria-label={t('nextStep.label')}>
             <span className="icon-tile t-income" aria-hidden="true"><Compass /></span>
             <p>{step.text}</p>
             <div className="next-step-actions">
@@ -40,7 +41,7 @@ export function NextStepCard() {
                 ) : (
                     <>
                         {step.kind === 'start' ? (
-                            <button type="button" className="btn btn-secondary" data-action="loadSample" onClick={() => sample(true)}>Try sample data</button>
+                            <button type="button" className="btn btn-secondary" data-action="loadSample" onClick={() => sample(true)}>{t('nextStep.trySample')}</button>
                         ) : null}
                         <a className="btn btn-primary" href={step.href} data-action="nextStep">{step.label} <ArrowRight aria-hidden="true" /></a>
                     </>

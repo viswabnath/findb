@@ -9,6 +9,7 @@ import { apiGet, redirectIfUnauthorized } from '@/lib/api-client';
 import { describeActivity, pageLinks, type ActivityIcon } from '@/lib/activity';
 import { filterYears, MONTH_NAMES } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 const PAGE_SIZE = 10;
 
@@ -50,10 +51,10 @@ function ActivityItem({ activity }: { activity: Activity }) {
             <div className="activity-icon" aria-hidden="true"><Icon /></div>
             <div className="activity-content">
                 <div className="activity-action">{label.text}</div>
-                <div className="activity-description">{activity.description || 'System operation'}</div>
+                <div className="activity-description">{activity.description || t('activity.systemOperation')}</div>
                 <div className="activity-meta">
-                    <span className="activity-account"><MapPin aria-hidden="true" /> {activity.account_info || 'System'}</span>
-                    <span className="activity-timestamp"><Clock aria-hidden="true" /> {day} at {time}</span>
+                    <span className="activity-account"><MapPin aria-hidden="true" /> {activity.account_info || t('activity.system')}</span>
+                    <span className="activity-timestamp"><Clock aria-hidden="true" /> {t('activity.at', { day, time })}</span>
                 </div>
             </div>
             <span className="activity-amount">{activity.amount ? formatRupees(activity.amount) : '—'}</span>
@@ -81,7 +82,7 @@ export function ActivityScreen() {
         setApplied(filters);
         setShown(result.ok && Array.isArray(result.data.activities)
             ? { kind: 'page', data: result.data }
-            : { kind: 'error', text: 'Failed to load activity data. Please try again.' });
+            : { kind: 'error', text: t('activity.loadFailed') });
     }
 
     async function run(kind: 'load' | 'clear', filters: Filters) {
@@ -113,7 +114,7 @@ export function ActivityScreen() {
     if (shown.kind === 'error') {
         feed = <p className="error-message">{shown.text}</p>;
     } else if (shown.data.activities.length === 0) {
-        feed = <div className="no-activities">No activities found</div>;
+        feed = <div className="no-activities">{t('activity.none')}</div>;
     } else {
         const { activities, currentPage, totalPages } = shown.data;
         const goTo = (page: number) => { if (page !== currentPage) load(applied, page); };
@@ -123,8 +124,8 @@ export function ActivityScreen() {
                     {activities.map(activity => <ActivityItem key={activity.id} activity={activity} />)}
                 </div>
                 {totalPages > 1 ? (
-                    <nav className="pagination" aria-label="Pages">
-                        {currentPage > 1 ? <button type="button" className="pagination-btn" data-page={currentPage - 1} onClick={() => goTo(currentPage - 1)}>Previous</button> : null}
+                    <nav className="pagination" aria-label={t('activity.pages')}>
+                        {currentPage > 1 ? <button type="button" className="pagination-btn" data-page={currentPage - 1} onClick={() => goTo(currentPage - 1)}>{t('activity.previous')}</button> : null}
                         {pageLinks(currentPage, totalPages).map((link, index) => (link === 'dots'
                             ? <span key={`dots-${index}`} className="pagination-dots">...</span>
                             : (
@@ -133,7 +134,7 @@ export function ActivityScreen() {
                                     {link}
                                 </button>
                             )))}
-                        {currentPage < totalPages ? <button type="button" className="pagination-btn" data-page={currentPage + 1} onClick={() => goTo(currentPage + 1)}>Next</button> : null}
+                        {currentPage < totalPages ? <button type="button" className="pagination-btn" data-page={currentPage + 1} onClick={() => goTo(currentPage + 1)}>{t('activity.next')}</button> : null}
                     </nav>
                 ) : null}
             </div>
@@ -145,37 +146,37 @@ export function ActivityScreen() {
         <div id="activity-section">
             <div className="page-header">
                 <div>
-                    <h2>Activity</h2>
-                    <p>Every change to your accounts and entries, with the old and new values.</p>
+                    <h2>{t('activity.title')}</h2>
+                    <p>{t('activity.subtitle')}</p>
                 </div>
             </div>
             <section className="card" aria-labelledby="activity-title">
                 <div className="card-head">
-                    <h3 id="activity-title"><span className="icon-tile t-bank" aria-hidden="true"><History /></span>Activity log</h3>
-                    <span className="meta">{total} {total === 1 ? 'change' : 'changes'}</span>
+                    <h3 id="activity-title"><span className="icon-tile t-bank" aria-hidden="true"><History /></span>{t('activity.log')}</h3>
+                    <span className="meta">{t('activity.changes', { count: total })}</span>
                 </div>
                 <div className="filters activity-filters">
                     <div className="field">
-                        <label htmlFor="activity-year">Year</label>
+                        <label htmlFor="activity-year">{t('activity.year')}</label>
                         <select id="activity-year" value={year} onChange={event => setYear(event.target.value)}>
-                            <option value="">All Years</option>
+                            <option value="">{t('activity.allYears')}</option>
                             {filterYears().map(option => <option key={option} value={option}>{option}</option>)}
                         </select>
                     </div>
                     <div className="field">
-                        <label htmlFor="activity-month">Month</label>
-                        <select id="activity-month" value={year ? month : ''} disabled={!year} title={year ? undefined : 'Choose a year to filter by month'}
+                        <label htmlFor="activity-month">{t('activity.month')}</label>
+                        <select id="activity-month" value={year ? month : ''} disabled={!year} title={year ? undefined : t('activity.monthNeedsYear')}
                             onChange={event => setMonth(event.target.value)}>
-                            <option value="">All Months</option>
+                            <option value="">{t('activity.allMonths')}</option>
                             {MONTH_NAMES.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}
                         </select>
                     </div>
                     <button type="button" data-action="filterActivity" className="btn btn-primary" disabled={busy !== null}
                         onClick={() => run('load', { month: year ? month : '', year })}>
-                        {busy === 'load' ? <Loader2 className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />} Show
+                        {busy === 'load' ? <Loader2 className="spin" aria-hidden="true" /> : <Search aria-hidden="true" />} {t('activity.show')}
                     </button>
                     <button type="button" data-action="clearActivityFilters" className="btn btn-secondary" disabled={busy !== null} onClick={clearFilters}>
-                        {busy === 'clear' ? <Loader2 className="spin" aria-hidden="true" /> : <X aria-hidden="true" />} Clear
+                        {busy === 'clear' ? <Loader2 className="spin" aria-hidden="true" /> : <X aria-hidden="true" />} {t('activity.clear')}
                     </button>
                 </div>
                 <div id="activity-feed">

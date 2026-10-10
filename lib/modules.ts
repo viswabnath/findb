@@ -8,6 +8,8 @@
  * in step with the modules (trackingFromModules) so everything that still reads it keeps working.
  */
 
+import { t } from './i18n';
+
 export type ModuleKey =
     | 'income' | 'spending' | 'credit_cards' | 'debts' | 'investments' | 'property'
     | 'savings' | 'insurance' | 'goals' | 'tax' | 'household';
@@ -21,29 +23,25 @@ export interface ModuleInfo {
     available: boolean;
 }
 
-export const MODULES: readonly ModuleInfo[] = [
-    { key: 'income', name: 'Income', line: 'What comes in: salary, freelance, rent, interest.', available: true },
-    { key: 'spending', name: 'Spending and budgets', line: 'Where the money goes, by category, with events and repeating bills.', available: true },
-    { key: 'credit_cards', name: 'Credit cards', line: 'Limits, what is used, and paying the bill without counting it twice.', available: true },
-    { key: 'debts', name: 'Debts and people', line: 'Loans and EMIs, and money lent to or borrowed from people.', available: false },
-    { key: 'investments', name: 'Investments and gold', line: 'Mutual funds, shares, gold and what they are worth.', available: false },
-    { key: 'property', name: 'Property and other assets', line: 'A home, land, a vehicle and other things you own.', available: false },
-    { key: 'savings', name: 'Savings and retirement', line: 'Fixed deposits, post office schemes, EPF, PPF and NPS.', available: false },
-    { key: 'insurance', name: 'Insurance', line: 'Policies, premiums and whether the cover is enough.', available: false },
-    { key: 'goals', name: 'Goals', line: 'Saving for a home, a child\'s education or retirement.', available: false },
-    { key: 'tax', name: 'Tax', line: 'What counts for income tax, deductions and reminders.', available: false },
-    { key: 'household', name: 'Household', line: 'Sharing with family, and what happens to it all later.', available: false },
-];
+// Names and lines are in messages/en.ts (modules.*)
+const AVAILABLE: Record<ModuleKey, boolean> = {
+    income: true, spending: true, credit_cards: true, debts: false, investments: false, property: false,
+    savings: false, insurance: false, goals: false, tax: false, household: false,
+};
+
+export const MODULES: readonly ModuleInfo[] = (Object.keys(AVAILABLE) as ModuleKey[]).map(key => ({
+    key, name: t(`modules.${key}.name`), line: t(`modules.${key}.line`), available: AVAILABLE[key],
+}));
 
 export const MODULE_KEYS = MODULES.map(module => module.key);
 
+const preset = (key: 'spending' | 'savings' | 'everything', modules: ModuleKey[]) => ({
+    key, name: t(`modules.presets.${key}.name`), line: t(`modules.presets.${key}.line`), modules,
+});
 export const PRESETS: ReadonlyArray<{ key: string; name: string; line: string; modules: ModuleKey[] }> = [
-    { key: 'spending', name: 'Just my spending', line: 'Where the money goes, with cards and cash.', modules: ['spending', 'credit_cards'] },
-    {
-        key: 'savings', name: 'My spending and savings', line: 'What comes in, what goes out, and what you save.',
-        modules: ['income', 'spending', 'credit_cards', 'savings'],
-    },
-    { key: 'everything', name: 'Everything', line: 'Every part of your money in one place.', modules: [...MODULE_KEYS] },
+    preset('spending', ['spending', 'credit_cards']),
+    preset('savings', ['income', 'spending', 'credit_cards', 'savings']),
+    preset('everything', [...MODULE_KEYS]),
 ];
 
 /** The modules a former income / expenses / both choice means */
@@ -64,8 +62,8 @@ export function trackingFromModules(modules: readonly string[]): 'income' | 'exp
 
 /** Whether a set of modules is acceptable; returns the problem, or null */
 export function modulesProblem(modules: unknown): string | null {
-    if (!Array.isArray(modules) || modules.some(module => !MODULE_KEYS.includes(module as ModuleKey))) return 'Choose from the listed modules';
-    if (!modules.includes('income') && !modules.includes('spending')) return 'Keep income or spending on: FinDB needs at least one to show your month';
+    if (!Array.isArray(modules) || modules.some(module => !MODULE_KEYS.includes(module as ModuleKey))) return t('modules.problem.unknown');
+    if (!modules.includes('income') && !modules.includes('spending')) return t('modules.problem.needOne');
     return null;
 }
 

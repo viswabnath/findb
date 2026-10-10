@@ -8,6 +8,7 @@ import { PrivacyNotice } from '@/components/privacy/PrivacyNotice';
 import { useToast } from '@/components/Toast';
 import { apiError, apiPost } from '@/lib/api-client';
 import { SECURITY_QUESTIONS, validateRegistration, type RegistrationInput } from '@/lib/auth-validation';
+import { t } from '@/lib/i18n';
 
 const EMPTY: RegistrationInput = {
     name: '', username: '', email: '', password: '', confirmPassword: '', securityQuestion: '', securityAnswer: '',
@@ -29,15 +30,15 @@ export function RegisterForm() {
     async function register() {
         try {
             const data = validateRegistration(form);
-            if (!acceptPrivacyNotice) throw new Error('Please read and accept the privacy notice to create an account');
+            if (!acceptPrivacyNotice) throw new Error(t('auth.register.needConsent'));
             const result = await apiPost<{ success?: boolean }>('/api/register', { ...data, acceptPrivacyNotice });
             if (result.data.success) {
                 setSettingUp(true);
             } else {
-                toast('error', apiError(result.data, 'Registration failed'));
+                toast('error', apiError(result.data, t('auth.register.failed')));
             }
         } catch (error) {
-            toast('error', error instanceof Error ? error.message : 'Registration failed');
+            toast('error', error instanceof Error ? error.message : t('auth.register.failed'));
         }
     }
 
@@ -47,7 +48,7 @@ export function RegisterForm() {
         return (
             <AuthShell>
                 <TwoFactorSetup onDone={() => window.location.assign('/welcome')}
-                    onExpired={() => { toast('error', 'Log in to finish setting up your account'); router.push('/login'); }} />
+                    onExpired={() => { toast('error', t('auth.register.finishSetup')); router.push('/login'); }} />
             </AuthShell>
         );
     }
@@ -55,44 +56,44 @@ export function RegisterForm() {
     return (
         <AuthShell>
             <AuthForm id="register-form" onSubmit={register}>
-                <AuthHead title="Create your free account">It takes a minute. Nothing is connected to your bank.</AuthHead>
+                <AuthHead title={t('auth.register.title')}>{t('auth.register.lead')}</AuthHead>
                 <div className="form-grid">
                     <div className="form-grid two">
-                        <Field id="register-name" label="Full name" type="text" autoComplete="name" required {...field('name')} />
-                        <Field id="register-username" label="Username" type="text" autoComplete="username" autoCapitalize="none" required
-                            help="Letters, numbers and underscores" {...field('username')} />
+                        <Field id="register-name" label={t('auth.register.name')} type="text" autoComplete="name" required {...field('name')} />
+                        <Field id="register-username" label={t('auth.username')} type="text" autoComplete="username" autoCapitalize="none" required
+                            help={t('auth.usernameHelp')} {...field('username')} />
                     </div>
-                    <Field id="register-email" label="Email" type="email" autoComplete="email" required {...field('email')} />
-                    <PasswordField id="register-password" label="Password" autoComplete="new-password" required {...field('password')}>
+                    <Field id="register-email" label={t('auth.email')} type="email" autoComplete="email" required {...field('email')} />
+                    <PasswordField id="register-password" label={t('auth.password')} autoComplete="new-password" required {...field('password')}>
                         <PasswordRules password={form.password} />
                     </PasswordField>
-                    <PasswordField id="register-confirm-password" label="Confirm password" autoComplete="new-password" required {...field('confirmPassword')} />
+                    <PasswordField id="register-confirm-password" label={t('auth.register.confirm')} autoComplete="new-password" required {...field('confirmPassword')} />
 
-                    <span className="auth-section-title">Account recovery</span>
-                    <span className="auth-section-note">If you forget your username or password, you will answer this question.</span>
+                    <span className="auth-section-title">{t('auth.register.recovery')}</span>
+                    <span className="auth-section-note">{t('auth.register.recoveryNote')}</span>
                     <div className="field">
-                        <label htmlFor="register-security-question">Security question</label>
+                        <label htmlFor="register-security-question">{t('auth.securityQuestion')}</label>
                         <select id="register-security-question" required {...field('securityQuestion')}>
-                            <option value="">Choose a question</option>
+                            <option value="">{t('auth.register.chooseQuestion')}</option>
                             {SECURITY_QUESTIONS.map(question => (
                                 <option key={question.value} value={question.value}>{question.label}</option>
                             ))}
                         </select>
                     </div>
-                    <Field id="register-security-answer" label="Your answer" type="text" autoComplete="off" required {...field('securityAnswer')} />
+                    <Field id="register-security-answer" label={t('auth.yourAnswer')} type="text" autoComplete="off" required {...field('securityAnswer')} />
 
-                    <span className="auth-section-title">Your privacy</span>
+                    <span className="auth-section-title">{t('auth.register.privacy')}</span>
                     <PrivacyNotice id="register-privacy-notice" />
                     <label className="check-line">
                         <input id="register-privacy-consent" type="checkbox" checked={acceptPrivacyNotice}
                             onChange={event => setAcceptPrivacyNotice(event.target.checked)} />
-                        I have read the privacy notice and agree to FinDB using my data as it describes
+                        {t('auth.register.agree')}
                     </label>
                 </div>
-                <AuthButton action="register" submit className="btn btn-primary btn-block">Create free account</AuthButton>
+                <AuthButton action="register" submit className="btn btn-primary btn-block">{t('auth.register.submit')}</AuthButton>
                 <p className="auth-alt">
-                    Already have an account?{' '}
-                    <AuthButton action="showLogin" className="btn-link" onClick={() => router.push('/login')}>Log in</AuthButton>
+                    {t('auth.register.haveAccount')}{' '}
+                    <AuthButton action="showLogin" className="btn-link" onClick={() => router.push('/login')}>{t('auth.register.logIn')}</AuthButton>
                 </p>
             </AuthForm>
         </AuthShell>

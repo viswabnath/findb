@@ -6,6 +6,7 @@ import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { todayUtcIso } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 /**
  * Reconcile an account against a statement (/api/reconciliations): enter the balance the statement
@@ -57,7 +58,7 @@ export function ReconcileScreen() {
     }, []);
 
     async function start() {
-        if (!form.accountId || form.statementBalance === '') return toast('error', 'Choose the account and enter the statement balance');
+        if (!form.accountId || form.statementBalance === '') return toast('error', t('reconcile.need'));
         const result = await apiPost<Reconciliation>('/api/reconciliations', {
             accountId: Number(form.accountId), statementDate: form.statementDate, statementBalance: form.statementBalance,
         });
@@ -80,7 +81,7 @@ export function ReconcileScreen() {
         const result = await apiPost<Reconciliation>(`/api/reconciliations/${current.id}/finish`, { adjust });
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
-        toast('success', `${current.account.name} matches the statement of ${day(current.statementDate)}`);
+        toast('success', t('reconcile.matches', { account: current.account.name, date: day(current.statementDate) }));
         setCurrent(null);
         await loadHistory(form.accountId);
     }
@@ -101,50 +102,50 @@ export function ReconcileScreen() {
         <div id="reconcile-section">
             <div className="page-header">
                 <div>
-                    <h2>Reconcile</h2>
-                    <p>Check an account against its statement: tick the entries that appear on it until nothing is left over.</p>
+                    <h2>{t('reconcile.title')}</h2>
+                    <p>{t('reconcile.subtitle')}</p>
                 </div>
             </div>
             <section className="card" aria-labelledby="statement-title">
                 <div className="card-head">
-                    <h3 id="statement-title"><span className="icon-tile t-bank" aria-hidden="true"><Scale /></span>Statement</h3>
+                    <h3 id="statement-title"><span className="icon-tile t-bank" aria-hidden="true"><Scale /></span>{t('reconcile.statement')}</h3>
                 </div>
                 <form className="add-row other-add-row" onSubmit={event => { event.preventDefault(); start(); }}>
                     <div className="field">
-                        <label htmlFor="reconcile-account">Account</label>
+                        <label htmlFor="reconcile-account">{t('reconcile.account')}</label>
                         <select id="reconcile-account" value={form.accountId}
                             onChange={event => { setForm(value => ({ ...value, accountId: event.target.value })); loadHistory(event.target.value); }}>
                             {accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
                         </select>
                     </div>
                     <div className="field">
-                        <label htmlFor="reconcile-date">Statement date</label>
+                        <label htmlFor="reconcile-date">{t('reconcile.date')}</label>
                         <input type="date" id="reconcile-date" value={form.statementDate} onChange={event => setForm(value => ({ ...value, statementDate: event.target.value }))} />
                     </div>
                     <div className="field">
-                        <label htmlFor="reconcile-balance">{isCard ? 'Amount owed on the statement (₹)' : 'Balance on the statement (₹)'}</label>
+                        <label htmlFor="reconcile-balance">{isCard ? t('reconcile.owed') : t('reconcile.balance')}</label>
                         <input type="number" id="reconcile-balance" inputMode="decimal" step="0.01" value={form.statementBalance}
                             onChange={event => setForm(value => ({ ...value, statementBalance: event.target.value }))} />
                     </div>
-                    <button type="submit" className="btn btn-primary" data-action="startReconcile">{current ? 'Update statement' : 'Start'}</button>
+                    <button type="submit" className="btn btn-primary" data-action="startReconcile">{current ? t('reconcile.update') : t('reconcile.start')}</button>
                 </form>
             </section>
 
             {current ? (
                 <section id="reconcile-current" className="card" aria-labelledby="current-title">
                     <div className="card-head">
-                        <h3 id="current-title">{current.account.name}, statement of {day(current.statementDate)}</h3>
+                        <h3 id="current-title">{t('reconcile.current', { account: current.account.name, date: day(current.statementDate) })}</h3>
                         <span className={`meta${difference === 0 ? ' ok' : ''}`} id="reconcile-difference">
-                            {difference === 0 ? 'No difference' : `Difference ${formatRupees(current.difference)}`}
+                            {difference === 0 ? t('reconcile.noDifference') : t('reconcile.difference', { amount: formatRupees(current.difference) })}
                         </span>
                     </div>
                     <p className="card-pad form-note">
-                        Statement {formatRupees(current.statementBalance)}; cleared {formatRupees(current.clearedBalance)}
-                        {parseFloat(current.previouslyCleared) !== 0 ? ` (including ${formatRupees(current.previouslyCleared)} from earlier statements)` : ''}.
-                        Tick each entry you can see on the statement.
+                        {t('reconcile.cleared', { statement: formatRupees(current.statementBalance), cleared: formatRupees(current.clearedBalance) })}
+                        {parseFloat(current.previouslyCleared) !== 0 ? t('reconcile.earlier', { amount: formatRupees(current.previouslyCleared) }) : ''}
+                        {t('reconcile.tickNote')}
                     </p>
                     <ul id="reconcile-lines" className="settings-list">
-                        {current.lines.length === 0 ? <li>No entries on this account up to the statement date.</li> : current.lines.map(line => (
+                        {current.lines.length === 0 ? <li>{t('reconcile.noLines')}</li> : current.lines.map(line => (
                             <li key={line.lineId} data-line={line.lineId}>
                                 <label className="select-entry">
                                     <input type="checkbox" data-action="tickLine" checked={line.ticked} onChange={() => tick(line)} />
@@ -159,21 +160,21 @@ export function ReconcileScreen() {
                     </ul>
                     <div className="settings-actions">
                         <button type="button" className="btn btn-primary" data-action="finishReconcile" disabled={difference !== 0} onClick={() => finish(false)}>
-                            <CheckCheck aria-hidden="true" /> Finish
+                            <CheckCheck aria-hidden="true" /> {t('reconcile.finish')}
                         </button>
                         {difference !== 0 ? (
                             <button type="button" className="btn btn-secondary" data-action="adjustReconcile" onClick={() => finish(true)}>
-                                Record the difference as an adjustment
+                                {t('reconcile.adjust')}
                             </button>
                         ) : null}
-                        <button type="button" className="btn btn-secondary" data-action="cancelReconcile" onClick={cancel}>Cancel</button>
+                        <button type="button" className="btn btn-secondary" data-action="cancelReconcile" onClick={cancel}>{t('common.cancel')}</button>
                     </div>
                 </section>
             ) : null}
 
             {history.filter(item => item.status === 'done').length > 0 ? (
                 <section className="card" aria-labelledby="reconcile-history-title">
-                    <div className="card-head"><h3 id="reconcile-history-title">Earlier statements</h3></div>
+                    <div className="card-head"><h3 id="reconcile-history-title">{t('reconcile.history')}</h3></div>
                     <ul id="reconcile-history" className="settings-list">
                         {history.filter(item => item.status === 'done').map(item => (
                             <li key={item.id}>

@@ -3,6 +3,8 @@
  * CSS classes as the legacy feed, plus the account entries added with the recovery fix.
  */
 
+import { t } from './i18n';
+
 export type ActivityIcon =
     | 'banknote' | 'landmark' | 'credit-card' | 'trending-up' | 'trending-down'
     | 'plus' | 'pencil' | 'trash-2' | 'refresh-cw' | 'shield-alert' | 'key-round';
@@ -13,79 +15,99 @@ export interface ActivityLabel {
     className: string;
 }
 
-type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating' | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant';
+type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating'
+    | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant' | 'modules' | 'sample_data';
+type Action = 'created' | 'updated' | 'deleted';
 
-const CREATED: Record<Entity, ActivityLabel> = {
-    cash_balance: { icon: 'banknote', text: 'Cash Balance Set', className: 'action-cash-add' },
-    bank: { icon: 'landmark', text: 'Bank Added', className: 'action-bank-add' },
-    credit_card: { icon: 'credit-card', text: 'Credit Card Added', className: 'action-card-add' },
-    income: { icon: 'trending-up', text: 'Income Added', className: 'action-income' },
-    expense: { icon: 'trending-down', text: 'Expense Added', className: 'action-expense' },
-    transfer: { icon: 'refresh-cw', text: 'Transfer Added', className: 'action-update' },
-    account: { icon: 'plus', text: 'Account Added', className: 'action-bank-add' },
-    category: { icon: 'plus', text: 'Category Added', className: 'action-create' },
-    event: { icon: 'plus', text: 'Event Added', className: 'action-create' },
-    repeating: { icon: 'refresh-cw', text: 'Repeating Entry Added', className: 'action-create' },
-    reimbursement: { icon: 'refresh-cw', text: 'Reimbursement Added', className: 'action-create' },
-    reconciliation: { icon: 'landmark', text: 'Reconciliation Started', className: 'action-bank-update' },
-    profile: { icon: 'pencil', text: 'Profile Updated', className: 'action-update' },
-    dependant: { icon: 'plus', text: 'Dependant Added', className: 'action-create' },
+/** Each entry's icon and CSS class; the words are in messages/en.ts (activity.labels) */
+const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
+    created: {
+        cash_balance: { icon: 'banknote', className: 'action-cash-add' },
+        bank: { icon: 'landmark', className: 'action-bank-add' },
+        credit_card: { icon: 'credit-card', className: 'action-card-add' },
+        income: { icon: 'trending-up', className: 'action-income' },
+        expense: { icon: 'trending-down', className: 'action-expense' },
+        transfer: { icon: 'refresh-cw', className: 'action-update' },
+        account: { icon: 'plus', className: 'action-bank-add' },
+        category: { icon: 'plus', className: 'action-create' },
+        event: { icon: 'plus', className: 'action-create' },
+        repeating: { icon: 'refresh-cw', className: 'action-create' },
+        reimbursement: { icon: 'refresh-cw', className: 'action-create' },
+        reconciliation: { icon: 'landmark', className: 'action-bank-update' },
+        profile: { icon: 'pencil', className: 'action-update' },
+        dependant: { icon: 'plus', className: 'action-create' },
+        modules: { icon: 'pencil', className: 'action-update' },
+        sample_data: { icon: 'plus', className: 'action-create' },
+    },
+    updated: {
+        cash_balance: { icon: 'banknote', className: 'action-cash-update' },
+        bank: { icon: 'landmark', className: 'action-bank-update' },
+        credit_card: { icon: 'credit-card', className: 'action-card-update' },
+        income: { icon: 'trending-up', className: 'action-income-update' },
+        expense: { icon: 'pencil', className: 'action-expense-update' },
+        transfer: { icon: 'refresh-cw', className: 'action-update' },
+        account: { icon: 'pencil', className: 'action-bank-update' },
+        category: { icon: 'pencil', className: 'action-update' },
+        event: { icon: 'pencil', className: 'action-update' },
+        repeating: { icon: 'refresh-cw', className: 'action-update' },
+        reimbursement: { icon: 'refresh-cw', className: 'action-update' },
+        reconciliation: { icon: 'landmark', className: 'action-bank-update' },
+        profile: { icon: 'pencil', className: 'action-update' },
+        dependant: { icon: 'pencil', className: 'action-update' },
+        modules: { icon: 'pencil', className: 'action-update' },
+        sample_data: { icon: 'pencil', className: 'action-update' },
+    },
+    deleted: {
+        cash_balance: { icon: 'banknote', className: 'action-cash-delete' },
+        bank: { icon: 'landmark', className: 'action-bank-delete' },
+        credit_card: { icon: 'credit-card', className: 'action-card-delete' },
+        income: { icon: 'trending-up', className: 'action-income-delete' },
+        expense: { icon: 'trash-2', className: 'action-expense-delete' },
+        transfer: { icon: 'trash-2', className: 'action-delete' },
+        account: { icon: 'trash-2', className: 'action-bank-delete' },
+        category: { icon: 'trash-2', className: 'action-delete' },
+        event: { icon: 'trash-2', className: 'action-delete' },
+        repeating: { icon: 'trash-2', className: 'action-delete' },
+        reimbursement: { icon: 'trash-2', className: 'action-delete' },
+        reconciliation: { icon: 'trash-2', className: 'action-delete' },
+        profile: { icon: 'trash-2', className: 'action-delete' },
+        dependant: { icon: 'trash-2', className: 'action-delete' },
+        modules: { icon: 'pencil', className: 'action-update' },
+        sample_data: { icon: 'trash-2', className: 'action-delete' },
+    },
+};
+const OTHER: Record<Action, Omit<ActivityLabel, 'text'>> = {
+    created: { icon: 'plus', className: 'action-create' },
+    updated: { icon: 'pencil', className: 'action-update' },
+    deleted: { icon: 'trash-2', className: 'action-delete' },
 };
 
-const UPDATED: Record<Entity, ActivityLabel> = {
-    cash_balance: { icon: 'banknote', text: 'Cash Balance Updated', className: 'action-cash-update' },
-    bank: { icon: 'landmark', text: 'Bank Updated', className: 'action-bank-update' },
-    credit_card: { icon: 'credit-card', text: 'Credit Card Updated', className: 'action-card-update' },
-    income: { icon: 'trending-up', text: 'Income Updated', className: 'action-income-update' },
-    expense: { icon: 'pencil', text: 'Expense Updated', className: 'action-expense-update' },
-    transfer: { icon: 'refresh-cw', text: 'Transfer Updated', className: 'action-update' },
-    account: { icon: 'pencil', text: 'Account Updated', className: 'action-bank-update' },
-    category: { icon: 'pencil', text: 'Category Updated', className: 'action-update' },
-    event: { icon: 'pencil', text: 'Event Updated', className: 'action-update' },
-    repeating: { icon: 'refresh-cw', text: 'Repeating Entry Updated', className: 'action-update' },
-    reimbursement: { icon: 'refresh-cw', text: 'Reimbursement Updated', className: 'action-update' },
-    reconciliation: { icon: 'landmark', text: 'Account Reconciled', className: 'action-bank-update' },
-    profile: { icon: 'pencil', text: 'Profile Updated', className: 'action-update' },
-    dependant: { icon: 'pencil', text: 'Dependant Updated', className: 'action-update' },
-};
+const isEntity = (value: string): value is Entity => Object.prototype.hasOwnProperty.call(LOOKS.created, value);
 
-const DELETED: Record<Entity, ActivityLabel> = {
-    cash_balance: { icon: 'banknote', text: 'Cash Balance Deleted', className: 'action-cash-delete' },
-    bank: { icon: 'landmark', text: 'Bank Deleted', className: 'action-bank-delete' },
-    credit_card: { icon: 'credit-card', text: 'Credit Card Deleted', className: 'action-card-delete' },
-    income: { icon: 'trending-up', text: 'Income Deleted', className: 'action-income-delete' },
-    expense: { icon: 'trash-2', text: 'Expense Deleted', className: 'action-expense-delete' },
-    transfer: { icon: 'trash-2', text: 'Transfer Deleted', className: 'action-delete' },
-    account: { icon: 'trash-2', text: 'Account Removed', className: 'action-bank-delete' },
-    category: { icon: 'trash-2', text: 'Category Removed', className: 'action-delete' },
-    event: { icon: 'trash-2', text: 'Event Removed', className: 'action-delete' },
-    repeating: { icon: 'trash-2', text: 'Repeating Entry Deleted', className: 'action-delete' },
-    reimbursement: { icon: 'trash-2', text: 'Reimbursement Deleted', className: 'action-delete' },
-    reconciliation: { icon: 'trash-2', text: 'Reconciliation Removed', className: 'action-delete' },
-    profile: { icon: 'trash-2', text: 'Profile Cleared', className: 'action-delete' },
-    dependant: { icon: 'trash-2', text: 'Dependant Removed', className: 'action-delete' },
-};
-
-const isEntity = (value: string): value is Entity => Object.prototype.hasOwnProperty.call(CREATED, value);
+function label(action: Action, activityType: string): ActivityLabel {
+    const entity = isEntity(activityType) ? activityType : 'other';
+    const look = entity === 'other' ? OTHER[action] : LOOKS[action][entity];
+    return { ...look, text: t(`activity.labels.${action}.${entity}`) };
+}
 
 /** The label for an entry, from its action_type and activity_type (the log's entity_type) */
 export function describeActivity(actionType: string, activityType: string): ActivityLabel {
     switch (actionType) {
     case 'create':
     case 'created':
-        return isEntity(activityType) ? CREATED[activityType] : { icon: 'plus', text: 'Created', className: 'action-create' };
+        return label('created', activityType);
     case 'update':
     case 'updated':
-        return isEntity(activityType) ? UPDATED[activityType] : { icon: 'pencil', text: 'Updated', className: 'action-update' };
+        return label('updated', activityType);
     case 'delete':
     case 'deleted':
-        return isEntity(activityType) ? DELETED[activityType] : { icon: 'trash-2', text: 'Deleted', className: 'action-delete' };
+        return label('deleted', activityType);
     case 'recovery_failed':
-        return { icon: 'shield-alert', text: 'Recovery Attempt Failed', className: 'action-delete' };
+        return { icon: 'shield-alert', text: t('activity.labels.recoveryFailed'), className: 'action-delete' };
     case 'password_reset':
-        return { icon: 'key-round', text: 'Password Reset', className: 'action-update' };
+        return { icon: 'key-round', text: t('activity.labels.passwordReset'), className: 'action-update' };
     default:
-        return { icon: 'refresh-cw', text: 'Modified', className: 'action-other' };
+        return { icon: 'refresh-cw', text: t('activity.labels.modified'), className: 'action-other' };
     }
 }
 

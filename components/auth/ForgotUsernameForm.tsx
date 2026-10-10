@@ -7,6 +7,7 @@ import { PREFILL_USERNAME_KEY } from './LoginForm';
 import { useToast } from '@/components/Toast';
 import { apiError, apiPost } from '@/lib/api-client';
 import { isValidEmail, requireValue, securityQuestionText } from '@/lib/auth-validation';
+import { t } from '@/lib/i18n';
 
 /**
  * Two steps: the email, then the answer to the account's security question. The API shows a
@@ -24,17 +25,17 @@ export function ForgotUsernameForm() {
         try {
             const value = requireValue(email, 'Email');
             if (!isValidEmail(value)) {
-                throw new Error('Please enter a valid email address');
+                throw new Error(t('auth.forgotUsername.badEmail'));
             }
             const result = await apiPost<{ success?: boolean; securityQuestion?: string }>('/api/forgot-username', { email: value });
             if (result.data.success && result.data.securityQuestion) {
                 setEmail(value);
                 setQuestion(securityQuestionText(result.data.securityQuestion));
             } else {
-                toast('error', apiError(result.data, 'Failed to retrieve username'));
+                toast('error', apiError(result.data, t('auth.forgotUsername.failed')));
             }
         } catch (error) {
-            toast('error', error instanceof Error ? error.message : 'Failed to retrieve username');
+            toast('error', error instanceof Error ? error.message : t('auth.forgotUsername.failed'));
         }
     }
 
@@ -44,7 +45,7 @@ export function ForgotUsernameForm() {
             const result = await apiPost<{ success?: boolean; username?: string }>('/api/forgot-username', { email, securityAnswer });
             if (result.data.success && result.data.username) {
                 const username = result.data.username;
-                const text = `Username found: ${username}`;
+                const text = t('auth.forgotUsername.found', { username });
                 setMessage({ kind: 'success', text });
                 toast('success', text);
                 // Like the legacy app: return to login with the username filled in
@@ -53,19 +54,19 @@ export function ForgotUsernameForm() {
                     router.push('/login');
                 }, 2000);
             } else {
-                const text = apiError(result.data, 'Failed to retrieve username');
+                const text = apiError(result.data, t('auth.forgotUsername.failed'));
                 setMessage({ kind: 'error', text });
                 toast('error', text);
             }
         } catch (error) {
-            toast('error', error instanceof Error ? error.message : 'Failed to retrieve username');
+            toast('error', error instanceof Error ? error.message : t('auth.forgotUsername.failed'));
         }
     }
 
     const backToLogin = (
         <p className="auth-alt">
-            Remembered it?{' '}
-            <AuthButton action="showLogin" className="btn-link" onClick={() => router.push('/login')}>Back to log in</AuthButton>
+            {t('auth.remembered')}{' '}
+            <AuthButton action="showLogin" className="btn-link" onClick={() => router.push('/login')}>{t('auth.backToLogin')}</AuthButton>
         </p>
     );
 
@@ -73,36 +74,36 @@ export function ForgotUsernameForm() {
         <AuthShell message={message}>
             {question === null ? (
                 <AuthForm id="forgot-username-form" onSubmit={showQuestion}>
-                    <AuthHead step="Step 1 of 2" title="Find your username">Enter the email you signed up with.</AuthHead>
+                    <AuthHead step={t('auth.step1')} title={t('auth.forgotUsername.title')}>{t('auth.forgotUsername.lead1')}</AuthHead>
                     <Field
                         id="forgot-username-email-input"
-                        label="Email"
+                        label={t('auth.email')}
                         type="email"
                         autoComplete="email"
                         required
                         value={email}
                         onChange={event => setEmail(event.target.value)}
                     />
-                    <AuthButton action="forgotUsername" submit className="btn btn-primary btn-block">Continue</AuthButton>
+                    <AuthButton action="forgotUsername" submit className="btn btn-primary btn-block">{t('auth.continue')}</AuthButton>
                     {backToLogin}
                 </AuthForm>
             ) : (
                 <AuthForm id="forgot-username-answer-form" onSubmit={findUsername}>
-                    <AuthHead step="Step 2 of 2" title="Find your username">Answer your security question.</AuthHead>
+                    <AuthHead step={t('auth.step2')} title={t('auth.forgotUsername.title')}>{t('auth.forgotUsername.lead2')}</AuthHead>
                     <div className="question-box">
-                        <small>Security question</small>
+                        <small>{t('auth.securityQuestion')}</small>
                         <span id="forgot-username-question">{question}</span>
                     </div>
                     <Field
                         id="forgot-username-answer"
-                        label="Your answer"
+                        label={t('auth.yourAnswer')}
                         type="text"
                         autoComplete="off"
                         required
                         value={answer}
                         onChange={event => setAnswer(event.target.value)}
                     />
-                    <AuthButton action="verifyUsernameRecovery" submit className="btn btn-primary btn-block">Find my username</AuthButton>
+                    <AuthButton action="verifyUsernameRecovery" submit className="btn btn-primary btn-block">{t('auth.forgotUsername.submit')}</AuthButton>
                     {backToLogin}
                 </AuthForm>
             )}

@@ -2,6 +2,7 @@ import type { Pool } from 'pg';
 import { logActivity } from '../activity-log';
 import { MODULE_KEYS, modulesFromTracking, modulesProblem, suggestModule, trackingFromModules, type ModuleInfo } from '../modules';
 import { RequestError, withTransaction } from '../transaction';
+import { t } from '../i18n';
 
 /**
  * Module switches (lib/modules.ts): what a user tracks. Turning one off keeps its data. The former
@@ -39,7 +40,7 @@ export async function setModules(pool: Pool, userId: number, body: Body): Promis
 /** Answer a suggestion: { module, accept }. Accepting turns it on; declining means it is not offered again. */
 export async function answerSuggestion(pool: Pool, userId: number, body: Body): Promise<UserModules> {
     const key = body.module;
-    if (typeof key !== 'string' || !MODULE_KEYS.includes(key as never)) throw new RequestError(400, 'Choose from the listed modules');
+    if (typeof key !== 'string' || !MODULE_KEYS.includes(key as never)) throw new RequestError(400, t('modules.problem.unknown'));
     const current = await getModules(pool, userId);
     if (body.accept === true) {
         if (current.modules.includes(key)) return current;

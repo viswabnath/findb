@@ -6,6 +6,7 @@ import { AuthButton, AuthForm, AuthHead, AuthShell, Field, PasswordField, Passwo
 import { useToast } from '@/components/Toast';
 import { apiError, apiPost } from '@/lib/api-client';
 import { isValidEmail, isValidUsername, passwordProblem, requireValue, securityQuestionText } from '@/lib/auth-validation';
+import { t } from '@/lib/i18n';
 
 interface ResetTarget {
     /** { username } or { email }, sent again with the answer */
@@ -32,7 +33,7 @@ export function ForgotPasswordForm() {
             const input = requireValue(identifier, 'Username or Email');
             const isEmail = isValidEmail(input);
             if (!isEmail && !isValidUsername(input)) {
-                throw new Error('Please enter a valid username (letters, numbers, underscore only) or a valid email address');
+                throw new Error(t('auth.forgotPassword.badIdentifier'));
             }
             const account = isEmail ? { email: input } : { username: input };
             const result = await apiPost<{ success?: boolean; securityQuestion?: string }>('/api/forgot-password', account);
@@ -40,10 +41,10 @@ export function ForgotPasswordForm() {
                 setTarget({ account, question: securityQuestionText(result.data.securityQuestion) });
                 setMessage(null);
             } else {
-                toast('error', apiError(result.data, 'Error occurred. Please try again.'));
+                toast('error', apiError(result.data, t('auth.forgotPassword.failed')));
             }
         } catch (error) {
-            toast('error', error instanceof Error ? error.message : 'Error occurred. Please try again.');
+            toast('error', error instanceof Error ? error.message : t('auth.forgotPassword.failed'));
         }
     }
 
@@ -58,7 +59,7 @@ export function ForgotPasswordForm() {
                 throw new Error(problem);
             }
             if (password !== confirm) {
-                throw new Error('Passwords do not match');
+                throw new Error(t('auth.forgotPassword.mismatch'));
             }
             const result = await apiPost<{ success?: boolean }>('/api/reset-password', {
                 ...target.account,
@@ -66,24 +67,24 @@ export function ForgotPasswordForm() {
                 newPassword: password,
             });
             if (result.data.success) {
-                const text = 'Password reset successfully! You can now login with your new password.';
+                const text = t('auth.forgotPassword.done');
                 setMessage({ kind: 'success', text });
                 toast('success', text);
                 setTimeout(() => router.push('/login'), 2000);
             } else {
-                const text = apiError(result.data, 'Error occurred. Please try again.');
+                const text = apiError(result.data, t('auth.forgotPassword.failed'));
                 setMessage({ kind: 'error', text });
                 toast('error', text);
             }
         } catch (error) {
-            toast('error', error instanceof Error ? error.message : 'Error occurred. Please try again.');
+            toast('error', error instanceof Error ? error.message : t('auth.forgotPassword.failed'));
         }
     }
 
     const backToLogin = (
         <p className="auth-alt">
-            Remembered it?{' '}
-            <AuthButton action="showLogin" className="btn-link" onClick={() => router.push('/login')}>Back to log in</AuthButton>
+            {t('auth.remembered')}{' '}
+            <AuthButton action="showLogin" className="btn-link" onClick={() => router.push('/login')}>{t('auth.backToLogin')}</AuthButton>
         </p>
     );
 
@@ -91,32 +92,32 @@ export function ForgotPasswordForm() {
         <AuthShell message={message}>
             {target === null ? (
                 <AuthForm id="forgot-password-form" onSubmit={requestReset}>
-                    <AuthHead step="Step 1 of 2" title="Reset your password">Enter your username or the email you signed up with.</AuthHead>
+                    <AuthHead step={t('auth.step1')} title={t('auth.forgotPassword.title')}>{t('auth.forgotPassword.lead1')}</AuthHead>
                     <Field
                         id="forgot-username-email"
-                        label="Username or email"
+                        label={t('auth.forgotPassword.identifier')}
                         type="text"
                         autoComplete="username"
                         autoCapitalize="none"
                         required
                         value={identifier}
                         onChange={event => setIdentifier(event.target.value)}
-                        help="A username uses letters, numbers and underscores"
+                        help={t('auth.forgotPassword.identifierHelp')}
                     />
-                    <AuthButton action="requestPasswordReset" submit className="btn btn-primary btn-block">Continue</AuthButton>
+                    <AuthButton action="requestPasswordReset" submit className="btn btn-primary btn-block">{t('auth.continue')}</AuthButton>
                     {backToLogin}
                 </AuthForm>
             ) : (
                 <AuthForm id="reset-password-form" onSubmit={resetPassword}>
-                    <AuthHead step="Step 2 of 2" title="Choose a new password">Answer your security question, then set a new password.</AuthHead>
+                    <AuthHead step={t('auth.step2')} title={t('auth.forgotPassword.title2')}>{t('auth.forgotPassword.lead2')}</AuthHead>
                     <div className="question-box">
-                        <small>Security question</small>
+                        <small>{t('auth.securityQuestion')}</small>
                         <span id="reset-security-question">{target.question}</span>
                     </div>
                     <div className="form-grid">
                         <Field
                             id="reset-security-answer"
-                            label="Your answer"
+                            label={t('auth.yourAnswer')}
                             type="text"
                             autoComplete="off"
                             required
@@ -125,7 +126,7 @@ export function ForgotPasswordForm() {
                         />
                         <PasswordField
                             id="reset-new-password"
-                            label="New password"
+                            label={t('auth.forgotPassword.newPassword')}
                             autoComplete="new-password"
                             required
                             value={newPassword}
@@ -135,14 +136,14 @@ export function ForgotPasswordForm() {
                         </PasswordField>
                         <PasswordField
                             id="reset-confirm-password"
-                            label="Confirm new password"
+                            label={t('auth.forgotPassword.confirm')}
                             autoComplete="new-password"
                             required
                             value={confirmPassword}
                             onChange={event => setConfirmPassword(event.target.value)}
                         />
                     </div>
-                    <AuthButton action="resetPassword" submit className="btn btn-primary btn-block">Reset password</AuthButton>
+                    <AuthButton action="resetPassword" submit className="btn btn-primary btn-block">{t('auth.forgotPassword.submit')}</AuthButton>
                     {backToLogin}
                 </AuthForm>
             )}

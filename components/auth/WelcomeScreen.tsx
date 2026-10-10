@@ -7,6 +7,7 @@ import { HydrationGate } from '@/components/HydrationGate';
 import { useToast } from '@/components/Toast';
 import { apiError, apiGet, apiPut } from '@/lib/api-client';
 import { MODULES, PRESETS } from '@/lib/modules';
+import { t } from '@/lib/i18n';
 
 const PRESET_LOOK: Record<string, { icon: LucideIcon; tile: string; recommended?: boolean }> = {
     spending: { icon: TrendingDown, tile: 't-expense' },
@@ -40,7 +41,7 @@ export function WelcomeScreen() {
         if (result.ok) {
             window.location.assign('/setup');
         } else {
-            toast('error', apiError(result.data, 'Could not save what you want to track. Please try again.'));
+            toast('error', apiError(result.data, t('auth.welcome.failed')));
         }
     }
 
@@ -51,9 +52,9 @@ export function WelcomeScreen() {
     return (
         <div id="welcome-section" className="auth-card">
             <div className="auth-head">
-                <span className="auth-step">Account created</span>
-                <h1>Welcome{name ? <>, <span id="user-name">{name}</span></> : null}</h1>
-                <p>What would you like to track? Accounts and transactions are always there; you can change the rest any time in Settings.</p>
+                <span className="auth-step">{t('auth.welcome.created')}</span>
+                <h1>{t('auth.welcome.title')}{name ? <>, <span id="user-name">{name}</span></> : null}</h1>
+                <p>{t('auth.welcome.lead')}</p>
             </div>
             <HydrationGate>
                 {custom ? (
@@ -63,14 +64,14 @@ export function WelcomeScreen() {
                                 <input type="checkbox" data-module={module.key} checked={chosen.includes(module.key)}
                                     onChange={event => toggle(module.key, event.target.checked)} />
                                 <span>
-                                    <b>{module.name}{module.available ? null : <span className="tag">Coming soon</span>}</b>
+                                    <b>{module.name}{module.available ? null : <span className="tag">{t('auth.welcome.comingSoon')}</span>}</b>
                                     <small>{module.line}</small>
                                 </span>
                             </label>
                         ))}
                         <div className="module-actions">
-                            <button type="button" className="btn btn-secondary" onClick={() => setCustom(false)}>Back</button>
-                            <button type="submit" className="btn btn-primary" data-action="saveModules">Continue</button>
+                            <button type="button" className="btn btn-secondary" onClick={() => setCustom(false)}>{t('auth.welcome.back')}</button>
+                            <button type="submit" className="btn btn-primary" data-action="saveModules">{t('auth.welcome.continue')}</button>
                         </div>
                     </form>
                 ) : (
@@ -88,7 +89,7 @@ export function WelcomeScreen() {
                                 >
                                     <span className={`icon-tile ${look.tile}`} aria-hidden="true"><Icon /></span>
                                     <span>
-                                        <b>{preset.name}{look.recommended ? <span className="tag">Recommended</span> : null}</b>
+                                        <b>{preset.name}{look.recommended ? <span className="tag">{t('auth.welcome.recommended')}</span> : null}</b>
                                         <small>{preset.line}</small>
                                     </span>
                                     <ChevronRight className="chev" aria-hidden="true" />
@@ -98,8 +99,8 @@ export function WelcomeScreen() {
                         <AuthButton action="chooseOwn" className="choice" onClick={() => setCustom(true)}>
                             <span className="icon-tile t-wealth" aria-hidden="true"><SlidersHorizontal /></span>
                             <span>
-                                <b>Choose my own</b>
-                                <small>Pick each part you want, such as just your income.</small>
+                                <b>{t('auth.welcome.own')}</b>
+                                <small>{t('auth.welcome.ownLine')}</small>
                             </span>
                             <ChevronRight className="chev" aria-hidden="true" />
                         </AuthButton>
