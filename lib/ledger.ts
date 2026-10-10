@@ -116,6 +116,8 @@ export interface NewEntry {
     recurring?: { id: number; on: string } | null;
     /** The reimbursement this entry belongs to (migration 0014) */
     reimbursementId?: number | null;
+    /** Part of the sample data (migration 0018, lib/services/sample-data.ts) */
+    sample?: boolean;
     lines: EntryLine[];
 }
 
@@ -131,10 +133,10 @@ export async function postEntry(client: Client, entry: NewEntry): Promise<number
         throw new Error(`Journal entry does not balance: ${entry.description}`);
     }
     const created = await client.query(
-        `INSERT INTO journal_entries (user_id, entry_date, description, entry_type, source_table, source_id, event_id, recurring_id, recurring_on, reimbursement_id)
-         VALUES ($1, COALESCE($2::date, CURRENT_DATE), $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
+        `INSERT INTO journal_entries (user_id, entry_date, description, entry_type, source_table, source_id, event_id, recurring_id, recurring_on, reimbursement_id, sample)
+         VALUES ($1, COALESCE($2::date, CURRENT_DATE), $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
         [entry.userId, entry.date ?? null, entry.description, entry.type, entry.source?.table ?? null, entry.source?.id ?? null,
-            entry.eventId ?? null, entry.recurring?.id ?? null, entry.recurring?.on ?? null, entry.reimbursementId ?? null],
+            entry.eventId ?? null, entry.recurring?.id ?? null, entry.recurring?.on ?? null, entry.reimbursementId ?? null, entry.sample ?? false],
     );
     const entryId = Number(created.rows[0].id);
     for (const line of lines) {

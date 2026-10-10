@@ -117,3 +117,7 @@ Since migration 0014 (`lib/services/reimbursements.ts`): paying for something so
 ## Reconciliation
 
 Since migration 0015 (`lib/services/reconciliation.ts`, the `/reconcile` screen): a reconciliation holds an account's statement date and balance; ticking a line sets its `journal_lines.reconciliation_id`. The cleared balance is every line ticked by finished reconciliations of the account plus those ticked now; the difference is the statement balance less it (signs follow the statement, so a card's is the amount owed). Finishing at a difference can record it as an `adjustment` entry against "Balance adjustments", ticked as part of it. An edit or categorisation moves a tick to the new entry's line when the account and amount are the same (`carryCleared`); otherwise changing or deleting a reconciled entry needs `confirmReconciled`.
+
+## Sample data
+
+Since migration 0018 (`lib/services/sample-data.ts`): rows made by sample data carry `sample = true` (ledger accounts, journal entries, banks, credit cards, events, tags). Two triggers keep it apart from real money, refusing with SQLSTATE `FS001` (shown to the user as a `400`): no real journal entry while the user has sample accounts, and no line that mixes a sample entry with a real money account or a real entry with a sample account. Categories and Opening balances are shared. Clearing deletes the sample rows outright: sample data is not history, so it is not voided. The monthly summary starts at the earliest sample entry when that is before registration.

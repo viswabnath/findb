@@ -32,6 +32,8 @@ interface Entry {
     category: { id: number; name: string } | null;
     tags: string[];
     event: { id: number; name: string } | null;
+    /** Part of a reimbursement: changed under Owed back to you, not here */
+    reimbursement?: boolean;
 }
 interface Draft {
     id: number; type: EntryType; description: string; amount: string; accountId: string; toAccountId: string; date: string;
@@ -377,7 +379,9 @@ export function TransactionsScreen() {
     const incomeTotal = sum(incomes);
     const expenseTotal = sum(expenses);
     const periodName = `${MONTH_NAMES[period.month - 1]} ${period.year}`;
-    const rowActions = (entry: Entry) => (
+    const rowActions = (entry: Entry) => entry.reimbursement ? (
+        <span className="row-actions sub">From a reimbursement</span>
+    ) : (
         <span className="row-actions">
             <button type="button" className="icon-btn" data-action={`edit-${entry.type}`} data-id={entry.id} onClick={() => startEdit(entry)}>
                 <Pencil aria-hidden="true" /> Edit
@@ -622,7 +626,7 @@ export function TransactionsScreen() {
                                         <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
                                         <td className="name">
                                             <label className="select-entry">
-                                                <input type="checkbox" data-action="select-entry" data-id={entry.id} checked={selected.has(entry.id)}
+                                                <input type="checkbox" data-action="select-entry" data-id={entry.id} checked={selected.has(entry.id)} disabled={entry.reimbursement}
                                                     onChange={() => toggleSelected(entry.id)} aria-label={`Select ${entry.description}`} />
                                                 {entry.description}
                                             </label>
@@ -653,7 +657,7 @@ export function TransactionsScreen() {
                                         <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
                                         <td className="name">
                                             <label className="select-entry">
-                                                <input type="checkbox" data-action="select-entry" data-id={entry.id} checked={selected.has(entry.id)}
+                                                <input type="checkbox" data-action="select-entry" data-id={entry.id} checked={selected.has(entry.id)} disabled={entry.reimbursement}
                                                     onChange={() => toggleSelected(entry.id)} aria-label={`Select ${entry.description}`} />
                                                 {entry.description}
                                             </label>

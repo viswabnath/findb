@@ -44,7 +44,9 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
     }
 
     const userResult = await pool.query(
-        'SELECT created_at, COALESCE(tracking_option, \'both\') as tracking_option FROM users WHERE id = $1',
+        // Sample data (lib/services/sample-data.ts) goes back before registration, so its months show too
+        `SELECT LEAST(created_at, (SELECT MIN(entry_date) FROM journal_entries WHERE user_id = $1 AND sample AND voided_at IS NULL)) AS created_at,
+                COALESCE(tracking_option, 'both') as tracking_option FROM users WHERE id = $1`,
         [userId],
     );
     if (userResult.rows.length === 0) throw new RequestError(404, 'User not found');

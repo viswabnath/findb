@@ -104,18 +104,35 @@ export async function withTransaction<T>(
     try {
         await client.query(`BEGIN; ${TRANSACTION_LIMITS}`);
         const result = await fn(Object.assign(Object.create(null), { query: timed(client), release: () => undefined }) as PoolClient);
-        await client.query('COMMIT');
+        await commit(client);
         return result;
     } catch (error) {
         if (isConnectionError(error)) {
             broken = error as Error;
-        } else {
+        } else if (!(error instanceof RolledBackAtCommit)) {
             // A failed ROLLBACK must not hide the original error
             await client.query('ROLLBACK').catch((rollbackError: Error) => { broken = rollbackError; });
         }
         throw error;
     } finally {
         client.release(broken);
+    }
+}
+
+/**
+ * COMMIT, and make sure it was one: Postgres answers COMMIT in a transaction broken by an earlier
+ * error with ROLLBACK and no error, which would let a request report success for changes that
+ * were never saved.
+ */
+async function commit(client: Pick<PoolClient, 'query'>): Promise<void> {
+    const result = await client.query('COMMIT');
+    if ((result as { command?: string } | undefined)?.command === 'ROLLBACK') throw new RolledBackAtCommit();
+}
+
+/** Thrown by commit(): the transaction is over (nothing to roll back), and nothing was saved */
+class RolledBackAtCommit extends Error {
+    constructor() {
+        super('The transaction was rolled back at COMMIT: an earlier statement failed');
     }
 }
 
@@ -163,8 +180,11 @@ export async function withUserScope<T>(pool: Pool, userId: number, fn: (scoped: 
             closed = true;
             throw error;
         }
-        await client.query('COMMIT');
-        closed = true;
+        try {
+            await commit(client);
+        } finally {
+            closed = true;
+        }
         return result;
     } catch (error) {
         if (isConnectionError(error)) broken ??= error as Error;

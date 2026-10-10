@@ -569,6 +569,7 @@ export const ROADMAP: RoadmapStage[] = [
             'Activity log with CSV export',
             'Two-step login with an authenticator app',
             'Choose what you want to track, and change it any time',
+            'Try it first with a sample family\'s money',
         ],
     },
     {

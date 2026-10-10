@@ -237,6 +237,11 @@ export interface Entry {
     event: { id: number; name: string } | null;
     /** Recorded through the former routes, with a row in income_entries or expenses */
     legacy: boolean;
+    /**
+     * Part of a reimbursement (the unpaid part counted as spending when it was closed): its account
+     * is "Reimbursements due", and it is changed from the reimbursement, not as an entry
+     */
+    reimbursement: boolean;
 }
 
 interface LineRow { account: number; paise: number; kind: string; subtype: string; name: string }
@@ -257,18 +262,20 @@ function toEntry(row: Record<string, unknown>): Entry {
         date: String(row.entry_date),
         description: String(row.description),
         amount: fromPaise(amount),
-        account: ref(main ?? money[0])!,
+        // A reimbursement's closing expense comes out of "Reimbursements due", which is no money account
+        account: ref(main ?? money[0] ?? lines.find(line => line.kind === 'asset' || line.kind === 'liability'))!,
         toAccount: type === 'transfer' ? ref(into) : null,
         category: other ? { id: Number(other.account), name: other.name } : null,
         tags: (row.tags as string[] | null) ?? [],
         event: row.event_id === null || row.event_id === undefined ? null : { id: Number(row.event_id), name: String(row.event_name) },
         legacy: row.source_table !== null,
+        reimbursement: row.reimbursement_id !== null && row.reimbursement_id !== undefined,
     };
 }
 
 const ENTRY_QUERY = `
     SELECT e.id, e.entry_type, e.entry_date::text AS entry_date, e.description, e.source_table, e.source_id,
-           e.event_id, ev.name AS event_name,
+           e.event_id, ev.name AS event_name, e.reimbursement_id,
            json_agg(json_build_object('account', l.account_id, 'paise', l.amount_paise, 'kind', a.kind,
                                       'subtype', a.subtype, 'name', a.name) ORDER BY l.id) AS lines,
            (SELECT coalesce(json_agg(t.name ORDER BY lower(t.name)), '[]'::json)
@@ -299,6 +306,13 @@ export async function listEntries(pool: Pool, userId: number, month: string | nu
 export async function listEntriesForEvent(pool: Pool, userId: number, eventId: number): Promise<Entry[]> {
     const result = await pool.query(`${ENTRY_QUERY} AND e.event_id = $2 GROUP BY e.id, ev.id ORDER BY e.entry_date DESC, e.id DESC`, [userId, eventId]);
     return result.rows.map(toEntry);
+}
+
+/** Entries that belong to a reimbursement are changed there (lib/services/reimbursements.ts) */
+function requireOwnEntry(entry: Entry): void {
+    if (entry.reimbursement) {
+        throw new RequestError(400, `${entry.description} belongs to a reimbursement: change it under Owed back to you`);
+    }
 }
 
 function publicEntry({ sourceTable, sourceId, ...entry }: Entry & { sourceTable: string | null; sourceId: number | null }): Entry {
@@ -520,6 +534,7 @@ export async function updateEntry(pool: Pool, userId: number, id: string, body: 
     const input = readEntry(body);
     return withTransaction(pool, async (client) => {
         const old = await lockedEntry(client, userId, id);
+        requireOwnEntry(old);
         await removeFormerRow(client, userId, old);
         await voidEntry(client, userId, old.id);
         // Left out, the category and tags stay as they were
@@ -540,6 +555,7 @@ export async function updateEntry(pool: Pool, userId: number, id: string, body: 
 export async function deleteEntry(pool: Pool, userId: number, id: string, body: Body = {}): Promise<void> {
     await withTransaction(pool, async (client) => {
         const old = await lockedEntry(client, userId, id);
+        requireOwnEntry(old);
         requireConfirmation(await carryCleared(client, userId, old.id, null), body);
         await removeFormerRow(client, userId, old);
         await voidEntry(client, userId, old.id);
@@ -565,6 +581,7 @@ export async function categoriseEntries(pool: Pool, userId: number, body: Body):
         let changed = 0;
         for (const id of [...new Set(ids.map(String))]) {
             const old = await lockedEntry(client, userId, id);
+            requireOwnEntry(old);
             if (old.type !== category.kind) {
                 throw new RequestError(400, `${old.description} is ${old.type === 'transfer' ? 'a transfer' : old.type}; ${category.name} is for ${category.kind === 'income' ? 'income' : 'spending'}`);
             }
