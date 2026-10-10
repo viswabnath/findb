@@ -28,7 +28,7 @@ A card is a liability, so money spent on it is a negative balance: a card with â
 
 1. **Expand (done).** The ledger is created and filled from today's data (`db/migrations/0002_ledger_backfill.sql`). From then on, every change to banks, cards, cash, income and expenses also writes the ledger in the same transaction (`lib/ledger.ts`, called from `lib/services/accounts.ts` and `transactions.ts`).
 2. **Switch reads (done).** Every balance shown comes from the ledger: a bank's `current_balance`, a card's `used_limit` and cash in the account lists, the overspend check on a new expense, and the monthly summary (`lib/services/reports.ts`). The API's response shapes are unchanged. The former balance columns were still written then, and compared with the ledger by `ledger_balance_check`.
-3. **Contract (in progress).** Migration 0009: the former balance columns are no longer written, so the ledger can hold movements the former tables cannot (transfers, wallets). `ledger_balance_check` is replaced by `ledger_entry_check`. The columns are dropped in the last step, once nothing deployed uses them.
+3. **Contract (done).** Migration 0009: the former balance columns are no longer written, so the ledger can hold movements the former tables cannot (transfers, wallets). `ledger_balance_check` is replaced by `ledger_entry_check`. Migration 0019 drops the columns (`banks.current_balance`, `credit_cards.used_limit`, `cash_balance.balance`). The API still returns `current_balance`, `used_limit` and `balance`, worked out from the ledger. `setup-db.js` still creates them on a new database, because 0001's original view refers to them, and 0019 removes them again.
 
 ### The monthly summary
 

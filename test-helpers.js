@@ -161,7 +161,7 @@ async function createTestBank(userId, bankData = {}) {
 
     try {
         const result = await client.query(
-            'INSERT INTO banks (user_id, name, initial_balance, current_balance) VALUES ($1, $2, $3, $3) RETURNING *',
+            'INSERT INTO banks (user_id, name, initial_balance) VALUES ($1, $2, $3) RETURNING *',
             [userId, name, balance]
         );
         await syncLedger(client);
@@ -204,7 +204,7 @@ async function createTestCashBalance(userId, amount = 500) {
 
     try {
         const result = await client.query(
-            'INSERT INTO cash_balance (user_id, balance, initial_balance) VALUES ($1, $2, $2) RETURNING *',
+            'INSERT INTO cash_balance (user_id, initial_balance) VALUES ($1, $2) RETURNING *',
             [userId, amount]
         );
         await syncLedger(client);

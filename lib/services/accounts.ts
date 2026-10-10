@@ -46,14 +46,14 @@ export async function addBank(pool: Pool, userId: number, body: Body): Promise<Q
     try {
         return await withTransaction(pool, async (client) => {
             const result = await client.query(
-                'INSERT INTO banks (user_id, name, initial_balance, current_balance) VALUES ($1, $2, $3, $3) RETURNING *',
+                'INSERT INTO banks (user_id, name, initial_balance) VALUES ($1, $2, $3) RETURNING *',
                 [userId, name, initialBalance],
             );
             const bank = result.rows[0];
             await recordBankOpening(client, userId, bank.id, name, initialBalance);
             await logActivity(client, userId, 'create', 'bank', bank.id, `Added bank account: ${name}`, initialBalance, null,
                 { name, initialBalance, currentBalance: initialBalance });
-            return bank;
+            return { ...bank, current_balance: fromPaise(await accountBalance(client, await bankAccount(client, userId, bank.id))) };
         });
     } catch (error) {
         if (isUniqueViolation(error)) throw new RequestError(400, 'Bank already exists');
@@ -125,7 +125,8 @@ export async function addCard(pool: Pool, userId: number, body: Body): Promise<Q
             await cardAccount(client, userId, card.id);
             await logActivity(client, userId, 'create', 'credit_card', card.id, `Added credit card: ${name}`, creditLimit, null,
                 { name, creditLimit, usedLimit: 0, availableLimit: creditLimit });
-            return card;
+            // A new card has nothing used yet
+            return { ...card, used_limit: '0.00' };
         });
     } catch (error) {
         if (isUniqueViolation(error)) throw new RequestError(400, 'Credit card already exists');
@@ -223,8 +224,8 @@ export async function setCash(pool: Pool, userId: number, body: Body): Promise<Q
 
         const initialValue = initialBalance !== undefined ? initialBalance : balance;
         const result = await client.query(
-            'INSERT INTO cash_balance (user_id, balance, initial_balance) VALUES ($1, $2, $3) RETURNING *',
-            [userId, balance || 0, initialValue || 0],
+            'INSERT INTO cash_balance (user_id, initial_balance) VALUES ($1, $2) RETURNING *',
+            [userId, initialValue || 0],
         );
         await recordCashSetTo(client, userId, result.rows[0].id, balance || 0, true);
         await logActivity(client, userId, 'created', 'cash_balance', result.rows[0].id,
