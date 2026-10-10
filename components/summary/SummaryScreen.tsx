@@ -6,6 +6,9 @@ import { Banknote, CalendarX, ChartColumn, CreditCard, Gem, Landmark, List, Pigg
 import { apiGet, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { filterYears, MONTH_NAMES } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
+import { t } from '@/lib/i18n';
+import { AccountList, AccountRow } from '@/components/ui/AccountList';
+import { BarList, type ChartRow } from '@/components/ui/Charts';
 
 type Amount = string | number | null | undefined;
 
@@ -40,10 +43,10 @@ const present = (value: Amount): value is string | number => value !== undefined
 
 /** The legacy explanation under a "no data" message */
 function messageDetail(message: string): string {
-    if (message.includes('Future')) return 'Cannot show data for future dates.';
-    if (message.includes('before registration')) return 'You were not registered during this period.';
-    if (message.includes('No transactions found')) return 'You were registered but haven\'t added any transactions or setup accounts for this month.';
-    return 'No data available for the selected period.';
+    if (message.includes('Future')) return t('summary.noData.future');
+    if (message.includes('before registration')) return t('summary.noData.beforeRegistration');
+    if (message.includes('No transactions found')) return t('summary.noData.noTransactions');
+    return t('summary.noData.other');
 }
 
 function SummaryCard({ kind, tile, icon: Icon, title, amount, subtitle, missingSubtitle }: {
@@ -59,12 +62,16 @@ function SummaryCard({ kind, tile, icon: Icon, title, amount, subtitle, missingS
     );
 }
 
+/** Categories after the largest few are shown as one "Other" bar, so the chart stays readable */
+const CHART_CATEGORIES = 7;
+
 function SummaryView({ data, month, year }: { data: Summary; month: number; year: number }) {
     const router = useRouter();
-    const monthName = MONTH_NAMES[month - 1];
+    const monthName = MONTH_NAMES[month - 1] ?? '';
+    const period = `${monthName} ${year}`;
     // "as of now" for the current month, otherwise the month's end
-    const timeReference = data.isCurrentMonth ? 'as of now' : `at End of ${monthName}`;
-    const heading = <h3 className="sr-only">{monthName} {year} Financial Summary</h3>;
+    const timeReference = data.isCurrentMonth ? t('summary.asOfNow') : t('summary.atEnd', { month: monthName });
+    const heading = <h3 className="sr-only">{t('summary.srHeading', { period })}</h3>;
 
     if (data.message) {
         const noTransactions = data.message.includes('No transactions found');
@@ -72,16 +79,16 @@ function SummaryView({ data, month, year }: { data: Summary; month: number; year
             <>
                 {heading}
                 <div className="card summary-message summary">
-                    <CalendarX size={36} aria-hidden="true" style={{ color: 'var(--line-strong)' }} />
+                    <CalendarX size={36} aria-hidden="true" className="summary-message-icon" />
                     <h3>{data.message}</h3>
                     <p>{messageDetail(data.message)}</p>
                     {noTransactions ? (
                         <div className="actions">
                             <button type="button" className="btn btn-secondary setup-accounts-btn" onClick={() => router.push('/setup')}>
-                                <Wallet aria-hidden="true" /> Set up accounts
+                                <Wallet aria-hidden="true" /> {t('summary.setUpAccounts')}
                             </button>
                             <button type="button" className="btn btn-primary add-transactions-btn" onClick={() => router.push('/transactions')}>
-                                <Plus aria-hidden="true" /> Add transactions
+                                <Plus aria-hidden="true" /> {t('summary.addTransactions')}
                             </button>
                         </div>
                     ) : null}
@@ -97,127 +104,114 @@ function SummaryView({ data, month, year }: { data: Summary; month: number; year
     const showBreakdown = present(data.netSavings) && data.monthlyIncome !== undefined && data.totalExpenses !== undefined;
     const income = parseFloat(String(data.monthlyIncome ?? 0)) || 0;
     const expenses = parseFloat(String(data.totalExpenses ?? 0)) || 0;
-    const largest = Math.max(income, expenses, 1);
+    const categories = (data.spendingByCategory ?? []).map(item => ({ ...item, value: parseFloat(String(item.amount)) || 0 }));
+    const shownCategories: ChartRow[] = categories.slice(0, CHART_CATEGORIES).map(item => ({ label: item.name, amount: item.value }));
+    const rest = categories.slice(CHART_CATEGORIES).reduce((total, item) => total + item.value, 0);
+    if (rest > 0) shownCategories.push({ label: t('summary.other'), amount: rest });
 
     return (
         <div className="stack">
             {heading}
-            <div className="stats">
-                <SummaryCard kind="income" tile="t-income" icon={TrendingUp} title="Income" amount={data.monthlyIncome}
-                    subtitle="Money earned this month" missingSubtitle="No income data available" />
-                <SummaryCard kind="expense" tile="t-expense" icon={TrendingDown} title="Expenses" amount={data.totalExpenses}
-                    subtitle="Money spent this month" missingSubtitle="No expense data available" />
-                <SummaryCard kind="wealth" tile="t-wealth" icon={Gem} title="Total wealth" amount={data.totalCurrentWealth}
-                    subtitle={`Banks, cash and wallets ${timeReference}`} missingSubtitle="Unable to calculate wealth" />
+            <div className="figures">
+                <SummaryCard kind="income" tile="t-income" icon={TrendingUp} title={t('summary.income')} amount={data.monthlyIncome}
+                    subtitle={t('summary.incomeNote')} missingSubtitle={t('summary.incomeMissing')} />
+                <SummaryCard kind="expense" tile="t-expense" icon={TrendingDown} title={t('summary.expenses')} amount={data.totalExpenses}
+                    subtitle={t('summary.expensesNote')} missingSubtitle={t('summary.expensesMissing')} />
                 <SummaryCard kind="savings" tile={netSavingsNegative ? 't-expense' : 't-income'} icon={PiggyBank}
-                    title="Net savings" amount={data.netSavings}
-                    subtitle="Income - Expenses + Initial" missingSubtitle="Unable to calculate savings" />
+                    title={t('summary.savings')} amount={data.netSavings}
+                    subtitle={t('summary.savingsNote')} missingSubtitle={t('summary.savingsMissing')} />
+                <SummaryCard kind="wealth" tile="t-wealth" icon={Gem} title={t('summary.wealth')} amount={data.totalCurrentWealth}
+                    subtitle={t('summary.wealthNote', { when: timeReference })} missingSubtitle={t('summary.wealthMissing')} />
             </div>
 
             {data.monthlyIncome !== undefined || data.totalExpenses !== undefined ? (
                 <section className="card" aria-labelledby="flow-title">
-                    <div className="card-head"><h3 id="flow-title">Money in and out</h3><span className="meta">{monthName} {year}</span></div>
-                    <div className="flow">
-                        <div className="flow-row">
-                            <span>Came in</span>
-                            <span className="flow-bar"><i className="in" style={{ width: `${(income / largest) * 100}%` }} /></span>
-                            <span className="amount">{formatRupees(income)}</span>
-                        </div>
-                        <div className="flow-row">
-                            <span>Went out</span>
-                            <span className="flow-bar"><i className="out" style={{ width: `${(expenses / largest) * 100}%` }} /></span>
-                            <span className="amount">{formatRupees(expenses)}</span>
-                        </div>
+                    <div className="card-head"><h3 id="flow-title">{t('summary.flowTitle')}</h3><span className="meta">{period}</span></div>
+                    <div className="card-pad">
+                        <BarList label={t('summary.flowChart', { period })} labelWidth={84} rows={[
+                            { label: t('summary.cameIn'), amount: income, tone: 'in' },
+                            { label: t('summary.wentOut'), amount: expenses, tone: 'out' },
+                        ]} />
                     </div>
+                </section>
+            ) : null}
+
+            {categories.length > 0 ? (
+                <section id="spending-by-category" className="card" aria-labelledby="by-category-title">
+                    <div className="card-head">
+                        <h3 id="by-category-title">{t('summary.byCategory')}</h3>
+                        <span className="meta">
+                            {t('summary.split', { essential: formatRupees(data.essentialSpending ?? 0), discretionary: formatRupees(data.discretionarySpending ?? 0) })}
+                            {parseFloat(String(data.uncategorisedSpending ?? 0)) > 0 ? t('summary.notCategorised', { amount: formatRupees(data.uncategorisedSpending ?? 0) }) : ''}
+                        </span>
+                    </div>
+                    <div className="card-pad">
+                        <BarList label={t('summary.byCategoryChart', { period })} labelWidth={150} rows={shownCategories} />
+                    </div>
+                    <ul className="category-bars">
+                        {categories.map(item => (
+                            <li key={item.id} data-category={item.id}>
+                                <span className="category-name">
+                                    {item.name}
+                                    {item.essential === true ? <span className="tag">{t('summary.essential')}</span> : null}
+                                </span>
+                                <span className="category-share">{expenses > 0 ? `${Math.round((item.value / expenses) * 100)}%` : ''}</span>
+                                <span className="category-amount">{formatRupees(item.amount)}</span>
+                            </li>
+                        ))}
+                    </ul>
                 </section>
             ) : null}
 
             <section className="card accounts-section" aria-labelledby="balances-title">
                 <div className="card-head">
-                    <h3 id="balances-title">Account balances {timeReference}</h3>
+                    <h3 id="balances-title">{t('summary.balancesTitle', { when: timeReference })}</h3>
                 </div>
-                <div className="accounts-grid">
-                    {data.cash ? (
-                        <div className={`account-card cash${cashAvailable ? '' : ' dim'}`}>
-                            <h4><span className="icon-tile t-cash" aria-hidden="true"><Banknote /></span> Cash</h4>
-                            <div className="account-balance">{cashAvailable ? formatRupees(cashBalance) : 'Unavailable'}</div>
-                        </div>
-                    ) : null}
-                    {(data.banks ?? []).map((bank, index) => (
-                        <div key={bank.id ?? `bank-${index}`} className={`account-card bank${present(bank.current_balance) ? '' : ' dim'}`}>
-                            <h4><span className="icon-tile t-bank" aria-hidden="true"><Landmark /></span> {bank.name || 'Unknown Bank'}</h4>
-                            <div className="account-balance">{present(bank.current_balance) ? formatRupees(bank.current_balance) : 'Unavailable'}</div>
-                        </div>
-                    ))}
-                    {(data.otherAccounts ?? []).map((account, index) => (
-                        <div key={account.id ?? `other-${index}`} className="account-card wallet">
-                            <h4><span className="icon-tile t-cash" aria-hidden="true"><Wallet /></span> {account.name || 'Wallet'}</h4>
-                            <div className="account-balance">{formatRupees(account.current_balance ?? 0)}</div>
-                            <div className="account-note">{account.type === 'meal_card' ? 'Meal card' : 'Wallet'}</div>
-                        </div>
-                    ))}
-                    {showCards ? (data.creditCards ?? []).map((card, index) => {
-                        const limit = parseFloat(String(card.credit_limit || 0));
-                        const used = parseFloat(String(card.current_balance || 0));
-                        const share = limit > 0 ? Math.min(used / limit, 1) : 0;
-                        return (
-                            <div key={card.id ?? `card-${index}`} className="account-card credit">
-                                <h4><span className="icon-tile t-card" aria-hidden="true"><CreditCard /></span> {card.name || 'Unknown Card'}</h4>
-                                <div className="account-balance">{formatRupees(used)} used</div>
-                                <span className="meter"><i className={share > 0.7 ? 'high' : share > 0.3 ? 'warn' : undefined} style={{ width: `${share * 100}%` }} /></span>
-                                <div className="account-note">{formatRupees(limit - used)} available of {formatRupees(limit)}</div>
-                            </div>
-                        );
-                    }) : null}
-                </div>
-            </section>
-
-            {(data.spendingByCategory ?? []).length > 0 ? (
-                <section id="spending-by-category" className="card" aria-labelledby="by-category-title">
-                    <div className="card-head">
-                        <h3 id="by-category-title">Spending by category</h3>
-                        <span className="meta">
-                            Essential {formatRupees(data.essentialSpending ?? 0)}, discretionary {formatRupees(data.discretionarySpending ?? 0)}
-                            {parseFloat(String(data.uncategorisedSpending ?? 0)) > 0 ? `, not categorised ${formatRupees(data.uncategorisedSpending ?? 0)}` : ''}
-                        </span>
-                    </div>
-                    <ul className="category-bars">
-                        {(data.spendingByCategory ?? []).map(item => {
-                            const share = expenses > 0 ? Math.min(parseFloat(String(item.amount)) / expenses, 1) : 0;
+                <AccountList>
+                    {[
+                        ...(data.cash ? [
+                            <AccountRow key="cash" className="account-card cash" icon={Banknote} tile="t-cash" name={t('summary.cash')}
+                                amount={cashAvailable ? cashBalance : 0} sub={cashAvailable ? undefined : t('summary.unavailable')} />,
+                        ] : []),
+                        ...(data.banks ?? []).map((bank, index) => (
+                            <AccountRow key={bank.id ?? `bank-${index}`} className="account-card bank" icon={Landmark} tile="t-bank" name={bank.name || t('summary.unknownBank')}
+                                amount={present(bank.current_balance) ? bank.current_balance : 0} sub={present(bank.current_balance) ? undefined : t('summary.unavailable')} />
+                        )),
+                        ...(data.otherAccounts ?? []).map((account, index) => (
+                            <AccountRow key={account.id ?? `other-${index}`} className="account-card wallet" icon={Wallet} tile="t-cash" name={account.name || t('summary.wallet')}
+                                amount={account.current_balance ?? 0} sub={account.type === 'meal_card' ? t('summary.mealCard') : t('summary.wallet')} />
+                        )),
+                        ...(showCards ? (data.creditCards ?? []).map((card, index) => {
+                            const limit = parseFloat(String(card.credit_limit || 0));
+                            const used = parseFloat(String(card.current_balance || 0));
+                            const share = limit > 0 ? Math.min(used / limit, 1) : 0;
                             return (
-                                <li key={item.id} data-category={item.id}>
-                                    <span className="category-name">
-                                        {item.name}
-                                        {item.essential === true ? <span className="tag">Essential</span> : null}
-                                    </span>
-                                    <span className="meter"><i style={{ width: `${share * 100}%` }} /></span>
-                                    <span className="category-amount">{formatRupees(item.amount)}</span>
-                                </li>
+                                <AccountRow key={card.id ?? `card-${index}`} className="account-card credit" icon={CreditCard} tile="t-card" name={card.name || t('summary.unknownCard')}
+                                    amount={used} sub={t('summary.cardUsed', { amount: formatRupees(used) })}
+                                    meter={{ share, label: t('accounts.cards.usedShare', { percent: Math.round(share * 100) }) }}
+                                    amountNote={t('summary.cardAvailable', { available: formatRupees(limit - used), limit: formatRupees(limit) })} />
                             );
-                        })}
-                    </ul>
-                </section>
-            ) : null}
+                        }) : []),
+                    ]}
+                </AccountList>
+            </section>
 
             {showBreakdown ? (
                 <section className="card breakdown">
-                    <h4><List size={18} aria-hidden="true" /> Calculation Breakdown</h4>
+                    <h4><List size={18} aria-hidden="true" /> {t('summary.breakdown')}</h4>
                     <div>
-                        Net savings = income ({formatRupees(data.monthlyIncome || 0)}) -{' '}
-                        expenses ({formatRupees(data.totalExpenses || 0)}) ={' '}
+                        {t('summary.breakdownLine', { income: formatRupees(data.monthlyIncome || 0), expenses: formatRupees(data.totalExpenses || 0) })}
                         <strong>{formatRupees(data.netSavings)}</strong>
                     </div>
                     {parseFloat(String(data.oneOffSpending ?? 0)) > 0 ? (
                         <p className="breakdown-note" id="regular-spending">
-                            Regular spending {formatRupees(data.regularSpending ?? 0)}, leaving out {formatRupees(data.oneOffSpending ?? 0)} on one-off events.
+                            {t('summary.regular', { regular: formatRupees(data.regularSpending ?? 0), oneOff: formatRupees(data.oneOffSpending ?? 0) })}
                         </p>
                     ) : null}
                     {parseFloat(String(data.owedToYou ?? 0)) > 0 ? (
-                        <p className="breakdown-note" id="owed-to-you">
-                            {formatRupees(data.owedToYou ?? 0)} you paid is still to be paid back to you; it is not counted as spending.
-                        </p>
+                        <p className="breakdown-note" id="owed-to-you">{t('summary.owed', { amount: formatRupees(data.owedToYou ?? 0) })}</p>
                     ) : null}
-                    <p className="breakdown-note">Transfers between your own accounts, such as an ATM withdrawal or a card bill payment, are neither income nor spending.</p>
+                    <p className="breakdown-note">{t('summary.transfers')}</p>
                 </section>
             ) : null}
         </div>
@@ -235,7 +229,7 @@ export function SummaryScreen() {
         if (redirectIfUnauthorized(result)) return;
         setShown(result.ok
             ? { kind: 'summary', data: result.data, month: forMonth, year: forYear }
-            : { kind: 'error', text: `Error loading summary: ${httpError(result)}` });
+            : { kind: 'error', text: t('summary.loadError', { error: httpError(result) }) });
     }
 
     useEffect(() => {
@@ -253,24 +247,24 @@ export function SummaryScreen() {
         <div id="summary-section">
             <div className="page-header">
                 <div>
-                    <h2>Monthly summary</h2>
-                    <p>What came in, what went out, and where every account ended the month.</p>
+                    <h2>{t('summary.title')}</h2>
+                    <p>{t('summary.subtitle')}</p>
                 </div>
                 <div className="period-picker summary-controls">
                     <div className="field">
-                        <label htmlFor="summary-month">Month</label>
+                        <label htmlFor="summary-month">{t('summary.month')}</label>
                         <select id="summary-month" value={month} onChange={event => setMonth(Number(event.target.value))}>
                             {MONTH_NAMES.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}
                         </select>
                     </div>
                     <div className="field">
-                        <label htmlFor="summary-year">Year</label>
+                        <label htmlFor="summary-year">{t('summary.year')}</label>
                         <select id="summary-year" value={year} onChange={event => setYear(Number(event.target.value))}>
                             {filterYears().map(option => <option key={option} value={option}>{option}</option>)}
                         </select>
                     </div>
                     <button type="button" className="btn btn-secondary" data-action="loadMonthlySummary" onClick={() => loadSummary(month, year)}>
-                        <ChartColumn aria-hidden="true" /> Show
+                        <ChartColumn aria-hidden="true" /> {t('summary.show')}
                     </button>
                 </div>
             </div>
