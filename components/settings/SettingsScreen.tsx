@@ -8,6 +8,7 @@ import { apiDelete, apiError, apiGet, apiPost, redirectIfUnauthorized } from '@/
 import { PRIVACY_CONTACT } from '@/lib/privacy-notice';
 import { CategoriesCard } from './CategoriesCard';
 import { ModulesCard } from './ModulesCard';
+import { ThemeCard } from './ThemeCard';
 import { ProfileCard } from './ProfileCard';
 
 /**
@@ -123,6 +124,8 @@ export function SettingsScreen() {
 
             <div className="stack">
                 <ModulesCard />
+
+                <ThemeCard />
 
                 <ProfileCard />
 

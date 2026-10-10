@@ -27,7 +27,8 @@ export function NextStepCard() {
         window.location.assign('/setup');
     }
 
-    if (step === null) return null;
+    // With sample data loaded, the banner at the top already says what to do
+    if (step === null || step.kind === 'sample') return null;
 
     return (
         <section id="next-step" className="next-step" data-step={step.kind} aria-label="Next step">

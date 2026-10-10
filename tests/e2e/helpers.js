@@ -136,7 +136,7 @@ async function addBank(page, name, balance) {
     await page.locator('#bank-name').fill(name);
     await page.locator('#bank-balance').fill(String(balance));
     await page.locator('[data-action="addBank"]').click();
-    await expect(page.locator('#banks-list tr', { hasText: name.toUpperCase() })).toBeVisible();
+    await expect(page.locator('#banks-list li', { hasText: name.toUpperCase() })).toBeVisible();
 }
 
 /**
@@ -154,11 +154,11 @@ async function selectAccount(page, selectId, label) {
 
 /** Row in the Setup banks table for this bank */
 function bankRow(page, name) {
-    return page.locator('#banks-list tr', { hasText: name.toUpperCase() });
+    return page.locator('#banks-list li', { hasText: name.toUpperCase() });
 }
 
 function cardRow(page, name) {
-    return page.locator('#credit-cards-list tr', { hasText: name.toUpperCase() });
+    return page.locator('#credit-cards-list li', { hasText: name.toUpperCase() });
 }
 
 module.exports = {

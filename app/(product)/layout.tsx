@@ -1,8 +1,9 @@
 import type { ReactNode } from 'react';
 import type { Viewport } from 'next';
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { Poppins, Source_Sans_3 } from 'next/font/google';
 import { ToastProvider } from '@/components/Toast';
+import { parseTheme, THEME_COOKIE } from '@/lib/theme';
 import './app.css';
 
 // Self-hosted at build time (no request to Google at runtime, so CSP font-src 'self' is enough)
@@ -31,8 +32,10 @@ export const viewport: Viewport = {
  */
 export default async function RootLayout({ children }: { children: ReactNode }) {
     await headers();
+    // Light or dark when the user chose one in Settings; otherwise the device's setting decides (app.css)
+    const theme = parseTheme((await cookies()).get(THEME_COOKIE)?.value);
     return (
-        <html lang="en-IN" className={`${head.variable} ${body.variable}`}>
+        <html lang="en-IN" className={`${head.variable} ${body.variable}`} data-theme={theme === 'system' ? undefined : theme}>
             <body>
                 <ToastProvider>{children}</ToastProvider>
             </body>
