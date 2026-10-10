@@ -39,6 +39,9 @@
     --c-card: #8b5cf6;
     --c-cash: #f97316;
     --c-wealth: #d99a06;
+    /* Chart marks: checked for colour blindness and contrast (dataviz validator), light and dark */
+    --chart-in: #0b7a54;
+    --chart-out: #7c3aed;
 
     --logo-tile: #0f8a5f;
     --logo-glyph: #ffffff;
@@ -84,6 +87,10 @@
         --sidebar-muted: #86ad9c;
         --c-income: #2fbf85;
         --c-expense: #f87171;
+    --chart-in: #22a877;
+    --chart-out: #9a7bf0;
+        --chart-in: #22a877;
+        --chart-out: #9a7bf0;
         --logo-tile: #2fbf85;
         --logo-glyph: #07130e;
         --logo-word: #e9f5ef;
@@ -577,13 +584,12 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 @media (max-width: 720px) { .event-columns { grid-template-columns: 1fr; } }
 #event-detail h4 { font-size: 0.98rem; margin-top: 4px; }
 #event-detail-title { gap: 6px; }
-.category-bars { list-style: none; margin: 0; padding: 8px clamp(16px, 2.5vw, 24px) 16px; display: grid; gap: 10px; }
-.category-bars li { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 2fr) auto; align-items: center; gap: 12px; }
+.category-bars { list-style: none; margin: 0; border-top: 1px solid var(--line); padding: 14px clamp(16px, 2.5vw, 24px) 16px; display: grid; gap: 10px; }
+.category-bars li { display: grid; grid-template-columns: minmax(0, 1fr) auto 7.5rem; align-items: center; gap: 12px; }
 .category-bars .category-name { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-weight: 600; }
-.category-bars .category-amount { font-variant-numeric: tabular-nums; font-weight: 600; }
+.category-bars .category-amount { font-variant-numeric: tabular-nums; font-weight: 600; text-align: right; }
 @media (max-width: 560px) { .category-bars li { grid-template-columns: 1fr auto; } .category-bars .meter { grid-column: 1 / -1; } }
 .other-add-row { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
-.account-card.wallet { border-top-color: var(--c-cash, var(--primary)); }
 .entry-form h3 { display: flex; align-items: center; gap: 10px; font-size: 1.12rem; }
 .entry-form .btn { justify-self: start; }
 #transactions-message:not(:empty) { margin-bottom: 20px; }
@@ -602,10 +608,6 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .flow-bar .in { background: var(--c-income); }
 .flow-bar .out { background: var(--c-expense); }
 @media (max-width: 480px) { .flow-row { grid-template-columns: 80px minmax(0, 1fr); } .flow-row .amount { grid-column: 2; } }
-.accounts-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: 12px; padding: clamp(16px, 2.5vw, 24px); }
-.account-card { display: grid; gap: 8px; padding: 16px; border-radius: 14px; border: 1px solid var(--line); background: var(--surface-2); min-width: 0; }
-.account-card h4 { display: flex; align-items: center; gap: 10px; font-family: var(--font-body), sans-serif; font-size: 0.98rem; font-weight: 700; overflow-wrap: anywhere; }
-.account-card .icon-tile { width: 32px; height: 32px; border-radius: 10px; }
 .account-balance { font-family: var(--font-num); font-size: 1.3rem; font-weight: 700; font-variant-numeric: tabular-nums; }
 .account-card.dim { opacity: 0.6; }
 .account-note { color: var(--muted); font-size: 0.86rem; }
@@ -767,3 +769,70 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
     .account-list + .add-row, .empty { padding-top: 18px; padding-bottom: 18px; }
 }
 .empty svg { width: 28px; height: 28px; }
+
+/* ---------- Transactions (design system) ---------- */
+
+/* The month's figures: one row of equal tiles, two columns on phones */
+.figures { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 20px; }
+.stat-value.in { color: var(--c-income); }
+.stat-value.out { color: var(--danger); }
+@media (max-width: 560px) { .figures { grid-template-columns: 1fr 1fr; } .figures .stat:last-child:nth-child(odd) { grid-column: 1 / -1; } }
+
+/* Phones add one kind of entry at a time; wider screens show every form */
+.entry-tabs { display: none; }
+@media (max-width: 860px) {
+    .entry-tabs {
+        display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 4px; margin-bottom: 12px;
+        padding: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface);
+    }
+    .entry-tabs button {
+        padding: 9px 6px; border: 0; border-radius: 9px; background: none; color: var(--muted);
+        font: inherit; font-weight: 700; font-size: 0.92rem; cursor: pointer;
+    }
+    .entry-tabs button[aria-selected="true"] { background: var(--tint); color: var(--tint-fg); }
+    .entry-forms .entry-form:not(.is-active) { display: none; }
+}
+
+/* An entry as a row: date, what (with account and labels), amount, actions */
+.entry-list { list-style: none; margin: 0; padding: 0; }
+.entry-row {
+    display: grid; grid-template-columns: 92px minmax(0, 1fr) auto auto; align-items: center; gap: 4px 14px;
+    padding: 12px clamp(16px, 2.5vw, 24px); border-bottom: 1px solid var(--line);
+}
+.entry-row:last-child { border-bottom: 0; }
+.entry-date { color: var(--muted); font-size: 0.86rem; white-space: nowrap; }
+.entry-main { display: grid; gap: 2px; min-width: 0; }
+.entry-what { font-weight: 700; overflow-wrap: anywhere; }
+.entry-account { color: var(--muted); font-size: 0.86rem; display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.entry-amount { font-family: var(--font-num); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.entry-amount.in { color: var(--c-income); }
+.entry-empty { padding: 26px 16px; text-align: center; color: var(--muted); }
+.entry-row .select-entry { display: inline-flex; align-items: center; gap: 8px; }
+@media (max-width: 560px) {
+    /* Phone: what and amount on the first line, date and actions under them */
+    .entry-row { grid-template-columns: minmax(0, 1fr) auto; }
+    .entry-date { grid-column: 1; grid-row: 2; }
+    .entry-main { grid-column: 1; grid-row: 1; }
+    .entry-amount { grid-column: 2; grid-row: 1; }
+    .entry-row .row-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+.histories { display: grid; gap: 20px; margin-bottom: 20px; }
+
+/* ---------- Charts (components/ui/Charts.tsx) ---------- */
+.chart { color: var(--muted); }
+.chart .chart-bar.in { fill: var(--chart-in); }
+.chart .chart-bar.out { fill: var(--chart-out); }
+.chart .chart-value { fill: var(--fg); font-family: var(--font-num); font-weight: 700; font-size: 13px; font-variant-numeric: tabular-nums; }
+.chart .chart-cursor { fill: var(--surface-2); }
+.chart-tooltip { display: grid; gap: 2px; padding: 8px 12px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--fg); font-size: 0.88rem; }
+.chart-tooltip b { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.category-bars .category-share { color: var(--muted); font-size: 0.86rem; font-variant-numeric: tabular-nums; }
+.summary-message-icon { color: var(--line-strong); }
+
+/* Phone: long notes under an amount wrap under the row instead of squeezing the name */
+@media (max-width: 560px) {
+    .account-figure { max-width: 46vw; }
+    .account-figure .account-sub { font-size: 0.8rem; }
+    .category-bars li { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
+}
+

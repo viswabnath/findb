@@ -8,6 +8,7 @@ import { useFormMessage } from '@/components/useFormMessage';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { filterYears, MONTH_NAMES, todayUtcIso } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
+import { t } from '@/lib/i18n';
 import { ReimbursementsCard } from './ReimbursementsCard';
 import { RepeatingCard } from './RepeatingCard';
 
@@ -45,9 +46,9 @@ interface Draft {
 function EventOptions({ events }: { events: EventChoice[] }) {
     return (
         <>
-            <option value="">No event</option>
+            <option value="">{t('transactions.noEvent')}</option>
             {events.map(event => <option key={event.id} value={event.id}>{event.name}</option>)}
-            <option value={NEW_EVENT}>New event...</option>
+            <option value={NEW_EVENT}>{t('transactions.newEventOption')}</option>
         </>
     );
 }
@@ -70,10 +71,7 @@ function EntryMeta({ entry }: { entry: Entry }) {
     );
 }
 
-const GROUPS: { type: AccountType; label: string }[] = [
-    { type: 'bank', label: 'Banks' }, { type: 'cash', label: 'Cash' }, { type: 'credit_card', label: 'Credit cards' },
-    { type: 'wallet', label: 'Wallets' }, { type: 'meal_card', label: 'Meal cards' },
-];
+const GROUPS: AccountType[] = ['bank', 'cash', 'credit_card', 'wallet', 'meal_card'];
 
 /** The accounts an entry of this type can use: income cannot go onto a credit card */
 const usable = (accounts: Account[], type: EntryType) => accounts.filter(account => type !== 'income' || account.type !== 'credit_card');
@@ -82,10 +80,10 @@ function AccountOptions({ accounts }: { accounts: Account[] }) {
     return (
         <>
             {GROUPS.map(group => {
-                const inGroup = accounts.filter(account => account.type === group.type);
+                const inGroup = accounts.filter(account => account.type === group);
                 if (inGroup.length === 0) return null;
                 return (
-                    <optgroup key={group.type} label={group.label}>
+                    <optgroup key={group} label={t(`transactions.accountGroups.${group}`)}>
                         {inGroup.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
                     </optgroup>
                 );
@@ -94,26 +92,18 @@ function AccountOptions({ accounts }: { accounts: Account[] }) {
     );
 }
 
-function EmptyRow({ text }: { text: string }) {
-    return (
-        <tr className="empty-row">
-            <td colSpan={5}>{text}</td>
-        </tr>
-    );
-}
 
 /** Toast when an edited entry's new date falls outside the month on screen */
 function movedMessage(date: string, month: number, year: number): string | null {
     const [y, m] = date.split('-').map(Number);
     if (m === month && y === year) return null;
     const name = new Date(Date.UTC(y!, m! - 1, 1)).toLocaleDateString('en-US', { month: 'long', year: 'numeric', timeZone: 'UTC' });
-    return `Transaction moved to ${name}. Change filter to view it.`;
+    return t('transactions.moved', { period: name });
 }
 
 /** An entry's date (YYYY-MM-DD) as "3 Oct 2026" */
 const shortDate = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 const sum = (rows: { amount: string }[]) => rows.reduce((total, row) => total + (parseFloat(row.amount) || 0), 0);
-const ENTRY_NAMES: Record<EntryType, string> = { income: 'Income', expense: 'Expense', transfer: 'Transfer' };
 
 export function TransactionsScreen() {
     const toast = useToast();
@@ -140,6 +130,8 @@ export function TransactionsScreen() {
     const [expenseForm, setExpenseForm] = useState({ title: '', amount: '', accountId: '', date: todayUtcIso(), categoryId: '', categoryChosen: false, tags: '', eventId: '' });
     const [transferForm, setTransferForm] = useState({ note: '', amount: '', fromId: '', toId: '', date: todayUtcIso(), eventId: '' });
     const formMessage = useFormMessage(5000);
+    // Phones show one form at a time (tabs); wider screens show all three
+    const [activeForm, setActiveForm] = useState<EntryType>('expense');
 
     const [edit, setEdit] = useState<Draft | null>(null);
     const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
@@ -151,7 +143,7 @@ export function TransactionsScreen() {
         const result = await apiGet<Entry[]>(`/api/entries?${new URLSearchParams({ month: String(month), year: String(year) })}`);
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) {
-            toast('error', 'Failed to load transactions. Please try again.');
+            toast('error', t('transactions.loadFailed'));
             return;
         }
         setEntries(result.data);
@@ -187,7 +179,7 @@ export function TransactionsScreen() {
 
     async function createEvent() {
         if (!newEvent) return;
-        if (!newEvent.name.trim()) return toast('error', 'Please enter a name');
+        if (!newEvent.name.trim()) return toast('error', t('transactions.newEvent.needName'));
         const result = await apiPost<{ id: number; name: string }>('/api/events', { name: newEvent.name, oneOff: newEvent.oneOff });
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
@@ -234,7 +226,7 @@ export function TransactionsScreen() {
 
     async function filterTransactions() {
         setPeriod({ month: filterMonth, year: filterYear });
-        toast('info', `Loading transactions for ${MONTH_NAMES[filterMonth - 1]} ${filterYear}...`);
+        toast('info', t('transactions.loading', { period: `${MONTH_NAMES[filterMonth - 1]} ${filterYear}` }));
         await loadEntries(filterMonth, filterYear);
     }
 
@@ -262,43 +254,43 @@ export function TransactionsScreen() {
         const result = await apiPost('/api/modules/suggestion', { module: suggestion.key, accept });
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
-        if (accept) toast('success', `${suggestion.name} turned on. Change it any time in Settings.`);
+        if (accept) toast('success', t('transactions.module.turnedOn', { name: suggestion.name }));
         setSuggestion(null);
     }
 
     async function addIncome() {
         const { source, amount, accountId, date, categoryId, tags, eventId } = incomeForm;
-        if (!source || !amount || !date || !accountId) return formMessage.show('error', 'Please fill all fields');
+        if (!source || !amount || !date || !accountId) return formMessage.show('error', t('transactions.fillAll'));
         const body = {
             type: 'income', description: source, amount, accountId: Number(accountId), date,
             categoryId: categoryId ? Number(categoryId) : undefined, tags: tagList(tags), eventId: eventValue(eventId),
         };
-        if (await add(body, 'Income added successfully!')) {
+        if (await add(body, t('transactions.income.added'))) {
             setIncomeForm(form => ({ ...form, source: '', amount: '', tags: '', categoryChosen: false, categoryId: fallbackCategory('income') }));
         }
     }
 
     async function addExpense() {
         const { title, amount, accountId, date, categoryId, tags, eventId } = expenseForm;
-        if (!title || !amount || !date || !accountId) return formMessage.show('error', 'Please fill all fields');
+        if (!title || !amount || !date || !accountId) return formMessage.show('error', t('transactions.fillAll'));
         const body = {
             type: 'expense', description: title, amount, accountId: Number(accountId), date,
             categoryId: categoryId ? Number(categoryId) : undefined, tags: tagList(tags), eventId: eventValue(eventId),
         };
-        if (await add(body, 'Expense added successfully!')) {
+        if (await add(body, t('transactions.expense.added'))) {
             setExpenseForm(form => ({ ...form, title: '', amount: '', tags: '', categoryChosen: false, categoryId: fallbackCategory('expense') }));
         }
     }
 
     async function addTransfer() {
         const { note, amount, fromId, toId, date } = transferForm;
-        if (!amount || !date || !fromId || !toId) return formMessage.show('error', 'Please fill all fields');
-        if (fromId === toId) return formMessage.show('error', 'Choose two different accounts for a transfer');
+        if (!amount || !date || !fromId || !toId) return formMessage.show('error', t('transactions.fillAll'));
+        if (fromId === toId) return formMessage.show('error', t('transactions.transfer.sameAccount'));
         const from = accounts.find(account => String(account.id) === fromId);
         const to = accounts.find(account => String(account.id) === toId);
-        const description = note.trim() || `${from?.name ?? 'Account'} to ${to?.name ?? 'account'}`;
+        const description = note.trim() || t('transactions.transfer.defaultNote', { from: from?.name ?? t('transactions.transfer.account'), to: to?.name ?? t('transactions.transfer.toAccount') });
         const transfer = { type: 'transfer', description, amount, accountId: Number(fromId), toAccountId: Number(toId), date, eventId: eventValue(transferForm.eventId) };
-        if (await add(transfer, 'Transfer added successfully!')) {
+        if (await add(transfer, t('transactions.transfer.added'))) {
             setTransferForm(form => ({ ...form, note: '', amount: '' }));
         }
     }
@@ -314,7 +306,7 @@ export function TransactionsScreen() {
     async function saveEdit() {
         if (!edit) return;
         const { id, type, description, amount, accountId, toAccountId, date, categoryId, tags, eventId, confirmReconciled } = edit;
-        if (!description || !amount || !date || !accountId || (type === 'transfer' && !toAccountId)) return toast('error', 'Please fill all fields');
+        if (!description || !amount || !date || !accountId || (type === 'transfer' && !toAccountId)) return toast('error', t('transactions.fillAll'));
         const result = await apiPut(`/api/entries/${id}`, {
             type, description, amount, accountId: Number(accountId), date, tags: tagList(tags), eventId: eventValue(eventId), confirmReconciled,
             ...(type === 'transfer' ? { toAccountId: Number(toAccountId) } : { categoryId: categoryId ? Number(categoryId) : undefined }),
@@ -326,7 +318,7 @@ export function TransactionsScreen() {
         }
         if (!result.ok) return toast('error', httpError(result));
         setEdit(null);
-        toast('success', `${ENTRY_NAMES[type]} transaction updated successfully!`);
+        toast('success', t('transactions.updated', { type: t(`transactions.types.${type}`) }));
         const moved = movedMessage(date, period.month, period.year);
         if (moved) toast('info', moved);
         await loadEntries(period.month, period.year);
@@ -341,12 +333,12 @@ export function TransactionsScreen() {
     }
 
     async function categoriseSelected() {
-        if (selected.size === 0 || !bulkCategory) return toast('error', 'Tick some entries and choose a category');
+        if (selected.size === 0 || !bulkCategory) return toast('error', t('transactions.bulk.needBoth'));
         const result = await apiPost<{ changed?: number }>('/api/entries/categorise', { entryIds: [...selected], categoryId: Number(bulkCategory) });
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
         const changed = result.data.changed ?? 0;
-        toast('success', `${changed} ${changed === 1 ? 'entry' : 'entries'} put in ${categories.find(category => String(category.id) === bulkCategory)?.name ?? 'the category'}`);
+        toast('success', t('transactions.bulk.done', { count: changed, category: categories.find(category => String(category.id) === bulkCategory)?.name ?? t('transactions.bulk.theCategory') }));
         await loadEntries(period.month, period.year);
     }
 
@@ -360,8 +352,8 @@ export function TransactionsScreen() {
             return;
         }
         setDeleteWarning(null);
-        if (!result.ok) return toast('error', 'Failed to delete transaction');
-        toast('success', `${ENTRY_NAMES[pendingDelete.type]} transaction deleted successfully!`);
+        if (!result.ok) return toast('error', t('transactions.delete.failed'));
+        toast('success', t('transactions.delete.done', { type: t(`transactions.types.${pendingDelete.type}`) }));
         setPendingDelete(null);
         await loadEntries(period.month, period.year);
     }
@@ -379,333 +371,303 @@ export function TransactionsScreen() {
     const incomeTotal = sum(incomes);
     const expenseTotal = sum(expenses);
     const periodName = `${MONTH_NAMES[period.month - 1]} ${period.year}`;
+    const tabs = ([showExpenses ? 'expense' : null, showIncome ? 'income' : null, 'transfer'] as (EntryType | null)[]).filter((tab): tab is EntryType => tab !== null);
+    const formClass = (type: EntryType) => (activeForm === type || !tabs.includes(activeForm) && type === tabs[0] ? ' is-active' : '');
     const rowActions = (entry: Entry) => entry.reimbursement ? (
-        <span className="row-actions sub">From a reimbursement</span>
+        <span className="row-actions sub">{t('transactions.fromReimbursement')}</span>
     ) : (
         <span className="row-actions">
             <button type="button" className="icon-btn" data-action={`edit-${entry.type}`} data-id={entry.id} onClick={() => startEdit(entry)}>
-                <Pencil aria-hidden="true" /> Edit
+                <Pencil aria-hidden="true" /> {t('common.edit')}
             </button>
             <button type="button" className="icon-btn danger" data-action={`delete-${entry.type}`} data-id={entry.id} onClick={() => setPendingDelete(entry)}>
-                <Trash2 aria-hidden="true" /> Delete
+                <Trash2 aria-hidden="true" /> {t('common.delete')}
             </button>
         </span>
     );
-    const descriptionLabel = (type: EntryType) => (type === 'income' ? 'Source' : type === 'expense' ? 'What for' : 'Note');
-    const accountLabel = (type: EntryType) => (type === 'income' ? 'Received in' : type === 'expense' ? 'Paid from' : 'From');
+    const descriptionLabel = (type: EntryType) => t(`transactions.descriptionLabel.${type}`);
+    const accountLabel = (type: EntryType) => t(`transactions.accountLabel.${type}`);
+    /** One entry as a row: date, what, its labels and account, the amount, then the actions */
+    const entryRow = (entry: Entry, selectable: boolean) => (
+        <li key={entry.id} className="entry-row" data-entry={entry.id}>
+            <span className="entry-date">{shortDate(entry.date)}</span>
+            <span className="entry-main">
+                {selectable ? (
+                    <label className="select-entry">
+                        <input type="checkbox" data-action="select-entry" data-id={entry.id} checked={selected.has(entry.id)} disabled={entry.reimbursement}
+                            onChange={() => toggleSelected(entry.id)} aria-label={t('transactions.select', { name: entry.description })} />
+                        <span className="entry-what">{entry.description}</span>
+                    </label>
+                ) : <span className="entry-what">{entry.description}</span>}
+                <span className="entry-account">
+                    {entry.type === 'transfer'
+                        ? <>{entry.account.name} <ArrowRight size={13} aria-label={t('transactions.transfer.toWord')} /> {entry.toAccount?.name ?? ''}</>
+                        : entry.account.name}
+                </span>
+                <EntryMeta entry={entry} />
+            </span>
+            <span className={`entry-amount ${entry.type === 'income' ? 'in' : entry.type === 'expense' ? 'out' : ''}`}>{formatRupees(entry.amount)}</span>
+            {rowActions(entry)}
+        </li>
+    );
+    const entryList = (id: string, rows: Entry[], empty: string, selectable: boolean) => (
+        <ul id={id} className="entry-list">
+            {rows.length === 0 ? <li className="entry-empty">{empty}</li> : rows.map(entry => entryRow(entry, selectable))}
+        </ul>
+    );
 
     return (
         <div id="transactions-section">
             <div className="page-header">
                 <div>
-                    <h2>Transactions</h2>
-                    <p>Add what comes in, goes out, and moves between your accounts. Showing {periodName}.</p>
+                    <h2>{t('transactions.title')}</h2>
+                    <p>{t('transactions.subtitle', { period: periodName })}</p>
                 </div>
                 <div className="period-picker transaction-filters">
                     <div className="field">
-                        <label htmlFor="transaction-month">Month</label>
+                        <label htmlFor="transaction-month">{t('transactions.month')}</label>
                         <select id="transaction-month" value={filterMonth} onChange={event => setFilterMonth(Number(event.target.value))}>
                             {MONTH_NAMES.map((name, index) => <option key={name} value={index + 1}>{name}</option>)}
                         </select>
                     </div>
                     <div className="field">
-                        <label htmlFor="transaction-year">Year</label>
+                        <label htmlFor="transaction-year">{t('transactions.year')}</label>
                         <select id="transaction-year" value={filterYear} onChange={event => setFilterYear(Number(event.target.value))}>
                             {filterYears().map(year => <option key={year} value={year}>{year}</option>)}
                         </select>
                     </div>
                     <button type="button" id="filter-transactions" className="btn btn-secondary" data-action="filterTransactions" onClick={filterTransactions}>
-                        <Search aria-hidden="true" /> Show
+                        <Search aria-hidden="true" /> {t('transactions.show')}
                     </button>
                 </div>
             </div>
 
             {suggestion ? (
                 <div id="module-suggestion" className="notice module-suggestion" role="status">
-                    <span>Track this with <b>{suggestion.name}</b>? {suggestion.line}</span>
+                    <span>{t('transactions.module.question')} <b>{suggestion.name}</b>? {suggestion.line}</span>
                     <span className="module-actions">
-                        <button type="button" className="btn btn-secondary" data-action="declineModule" onClick={() => answerSuggestion(false)}>No thanks</button>
-                        <button type="button" className="btn btn-primary" data-action="acceptModule" onClick={() => answerSuggestion(true)}>Turn on</button>
+                        <button type="button" className="btn btn-secondary" data-action="declineModule" onClick={() => answerSuggestion(false)}>{t('transactions.module.noThanks')}</button>
+                        <button type="button" className="btn btn-primary" data-action="acceptModule" onClick={() => answerSuggestion(true)}>{t('transactions.module.turnOn')}</button>
                     </span>
                 </div>
             ) : null}
 
-            <div className={`stats ${showIncome && showExpenses ? 'three' : 'two'}`}>
+            <section className="figures" aria-label={periodName}>
                 {showIncome ? (
                     <div className="stat">
-                        <span className="stat-top"><span className="icon-tile t-income" aria-hidden="true"><TrendingUp /></span> Money in</span>
-                        <span className="stat-value">{formatRupees(incomeTotal)}</span>
-                        <span className="stat-note">{incomes.length} {incomes.length === 1 ? 'entry' : 'entries'} in {periodName}</span>
+                        <span className="stat-top"><span className="icon-tile t-income" aria-hidden="true"><TrendingUp /></span> {t('transactions.moneyIn')}</span>
+                        <span className="stat-value in">{formatRupees(incomeTotal)}</span>
+                        <span className="stat-note">{t('transactions.entriesIn', { count: incomes.length, period: periodName })}</span>
                     </div>
                 ) : null}
                 {showExpenses ? (
                     <div className="stat">
-                        <span className="stat-top"><span className="icon-tile t-expense" aria-hidden="true"><TrendingDown /></span> Money out</span>
+                        <span className="stat-top"><span className="icon-tile t-expense" aria-hidden="true"><TrendingDown /></span> {t('transactions.moneyOut')}</span>
                         <span className="stat-value">{formatRupees(expenseTotal)}</span>
-                        <span className="stat-note">{expenses.length} {expenses.length === 1 ? 'entry' : 'entries'} in {periodName}</span>
+                        <span className="stat-note">{t('transactions.entriesIn', { count: expenses.length, period: periodName })}</span>
                     </div>
                 ) : null}
                 {showIncome && showExpenses ? (
-                    <div className="stat hero">
-                        <span className="stat-top"><ArrowLeftRight size={18} aria-hidden="true" /> Difference</span>
-                        <span className="stat-value">{formatRupees(incomeTotal - expenseTotal)}</span>
-                        <span className="stat-note">{incomeTotal >= expenseTotal ? 'More came in than went out' : 'More went out than came in'}</span>
+                    <div className="stat">
+                        <span className="stat-top"><span className="icon-tile t-bank" aria-hidden="true"><ArrowLeftRight /></span> {t('transactions.difference')}</span>
+                        <span className={`stat-value ${incomeTotal >= expenseTotal ? 'in' : 'out'}`}>{formatRupees(incomeTotal - expenseTotal)}</span>
+                        <span className="stat-note">{incomeTotal >= expenseTotal ? t('transactions.moreIn') : t('transactions.moreOut')}</span>
                     </div>
                 ) : null}
-            </div>
+            </section>
 
+            <div className="entry-tabs" role="tablist" aria-label={t('transactions.tabs.label')}>
+                {tabs.map(tab => (
+                    <button key={tab} type="button" role="tab" data-entry-tab={tab} aria-selected={formClass(tab) !== ''} onClick={() => setActiveForm(tab)}>
+                        {t(`transactions.tabs.${tab}`)}
+                    </button>
+                ))}
+            </div>
             <div id="forms-wrapper" className={`entry-forms${showIncome && showExpenses ? '' : ' one'}`}>
-                <form id="income-form" className={`card entry-form${showIncome ? '' : ' hidden'}`} onSubmit={event => { event.preventDefault(); addIncome(); }}>
-                    <h3><span className="icon-tile t-income" aria-hidden="true"><TrendingUp /></span>Add income</h3>
+                <form id="income-form" className={`card entry-form${showIncome ? '' : ' hidden'}${formClass('income')}`} onSubmit={event => { event.preventDefault(); addIncome(); }}>
+                    <h3><span className="icon-tile t-income" aria-hidden="true"><TrendingUp /></span>{t('transactions.income.add')}</h3>
                     <div className="form-grid two">
                         <div className="field">
-                            <label htmlFor="income-source">Source</label>
-                            <input type="text" id="income-source" placeholder="Salary, freelance..." value={incomeForm.source}
+                            <label htmlFor="income-source">{t('transactions.income.source')}</label>
+                            <input type="text" id="income-source" placeholder={t('transactions.income.sourcePlaceholder')} value={incomeForm.source}
                                 onChange={event => setIncomeForm(form => ({ ...form, source: event.target.value }))}
                                 onBlur={event => suggest('income', event.target.value)} />
                         </div>
                         <div className="field">
-                            <label htmlFor="income-amount">Amount (₹)</label>
+                            <label htmlFor="income-amount">{t('transactions.amount')}</label>
                             <input type="number" id="income-amount" inputMode="decimal" placeholder="0.00" step="0.01" value={incomeForm.amount}
                                 onChange={event => setIncomeForm(form => ({ ...form, amount: event.target.value }))} />
                         </div>
                         <div className="field">
-                            <label htmlFor="income-credited-to">Received in</label>
+                            <label htmlFor="income-credited-to">{t('transactions.income.receivedIn')}</label>
                             <select id="income-credited-to" value={incomeForm.accountId}
                                 onChange={event => setIncomeForm(form => ({ ...form, accountId: event.target.value }))}>
                                 <AccountOptions accounts={usable(accounts, 'income')} />
                             </select>
                         </div>
                         <div className="field">
-                            <label htmlFor="income-date">Date</label>
+                            <label htmlFor="income-date">{t('transactions.date')}</label>
                             <input type="date" id="income-date" value={incomeForm.date}
                                 onChange={event => setIncomeForm(form => ({ ...form, date: event.target.value }))} />
                         </div>
                         <div className="field">
-                            <label htmlFor="income-category">Category</label>
+                            <label htmlFor="income-category">{t('transactions.category')}</label>
                             <select id="income-category" value={incomeForm.categoryId}
                                 onChange={event => setIncomeForm(form => ({ ...form, categoryId: event.target.value, categoryChosen: true }))}>
                                 <CategoryOptions categories={categories} kind="income" />
                             </select>
                         </div>
                         <div className="field">
-                            <label htmlFor="income-tags">Tags (optional)</label>
-                            <input type="text" id="income-tags" placeholder="bonus, 2026" value={incomeForm.tags}
+                            <label htmlFor="income-tags">{t('transactions.tags')}</label>
+                            <input type="text" id="income-tags" placeholder={t('transactions.income.tagsPlaceholder')} value={incomeForm.tags}
                                 onChange={event => setIncomeForm(form => ({ ...form, tags: event.target.value }))} />
                         </div>
                         <div className="field">
-                            <label htmlFor="income-event">Event (optional)</label>
+                            <label htmlFor="income-event">{t('transactions.event')}</label>
                             <select id="income-event" value={incomeForm.eventId} onChange={event => chooseEvent('income', event.target.value)}>
                                 <EventOptions events={events} />
                             </select>
                         </div>
                     </div>
-                    <button type="submit" className="btn btn-primary" data-action="addIncome"><Plus aria-hidden="true" /> Add income</button>
+                    <button type="submit" className="btn btn-primary" data-action="addIncome"><Plus aria-hidden="true" /> {t('transactions.income.add')}</button>
                 </form>
-                <form id="expense-form" className={`card entry-form expense${showExpenses ? '' : ' hidden'}`} onSubmit={event => { event.preventDefault(); addExpense(); }}>
-                    <h3><span className="icon-tile t-expense" aria-hidden="true"><TrendingDown /></span>Add expense</h3>
+                <form id="expense-form" className={`card entry-form expense${showExpenses ? '' : ' hidden'}${formClass('expense')}`} onSubmit={event => { event.preventDefault(); addExpense(); }}>
+                    <h3><span className="icon-tile t-expense" aria-hidden="true"><TrendingDown /></span>{t('transactions.expense.add')}</h3>
                     <div className="form-grid two">
                         <div className="field">
-                            <label htmlFor="expense-title">What for</label>
-                            <input type="text" id="expense-title" placeholder="Groceries, rent..." value={expenseForm.title}
+                            <label htmlFor="expense-title">{t('transactions.expense.title')}</label>
+                            <input type="text" id="expense-title" placeholder={t('transactions.expense.titlePlaceholder')} value={expenseForm.title}
                                 onChange={event => setExpenseForm(form => ({ ...form, title: event.target.value }))}
                                 onBlur={event => suggest('expense', event.target.value)} />
                         </div>
                         <div className="field">
-                            <label htmlFor="expense-amount">Amount (₹)</label>
+                            <label htmlFor="expense-amount">{t('transactions.amount')}</label>
                             <input type="number" id="expense-amount" inputMode="decimal" placeholder="0.00" step="0.01" value={expenseForm.amount}
                                 onChange={event => setExpenseForm(form => ({ ...form, amount: event.target.value }))} />
                         </div>
                         <div className="field">
-                            <label htmlFor="expense-payment-method">Paid from</label>
+                            <label htmlFor="expense-payment-method">{t('transactions.expense.paidFrom')}</label>
                             <select id="expense-payment-method" value={expenseForm.accountId}
                                 onChange={event => setExpenseForm(form => ({ ...form, accountId: event.target.value }))}>
                                 <AccountOptions accounts={accounts} />
                             </select>
                         </div>
                         <div className="field">
-                            <label htmlFor="expense-date">Date</label>
+                            <label htmlFor="expense-date">{t('transactions.date')}</label>
                             <input type="date" id="expense-date" value={expenseForm.date}
                                 onChange={event => setExpenseForm(form => ({ ...form, date: event.target.value }))} />
                         </div>
                         <div className="field">
-                            <label htmlFor="expense-category">Category</label>
+                            <label htmlFor="expense-category">{t('transactions.category')}</label>
                             <select id="expense-category" value={expenseForm.categoryId}
                                 onChange={event => setExpenseForm(form => ({ ...form, categoryId: event.target.value, categoryChosen: true }))}>
                                 <CategoryOptions categories={categories} kind="expense" />
                             </select>
                         </div>
                         <div className="field">
-                            <label htmlFor="expense-tags">Tags (optional)</label>
-                            <input type="text" id="expense-tags" placeholder="goa trip, work" value={expenseForm.tags}
+                            <label htmlFor="expense-tags">{t('transactions.tags')}</label>
+                            <input type="text" id="expense-tags" placeholder={t('transactions.expense.tagsPlaceholder')} value={expenseForm.tags}
                                 onChange={event => setExpenseForm(form => ({ ...form, tags: event.target.value }))} />
                         </div>
                         <div className="field">
-                            <label htmlFor="expense-event">Event (optional)</label>
+                            <label htmlFor="expense-event">{t('transactions.event')}</label>
                             <select id="expense-event" value={expenseForm.eventId} onChange={event => chooseEvent('expense', event.target.value)}>
                                 <EventOptions events={events} />
                             </select>
                         </div>
                     </div>
-                    <button type="submit" className="btn btn-primary" data-action="addExpense"><Plus aria-hidden="true" /> Add expense</button>
+                    <button type="submit" className="btn btn-primary" data-action="addExpense"><Plus aria-hidden="true" /> {t('transactions.expense.add')}</button>
                 </form>
-                <form id="transfer-form" className="card entry-form transfer" onSubmit={event => { event.preventDefault(); addTransfer(); }}>
-                    <h3><span className="icon-tile t-bank" aria-hidden="true"><ArrowLeftRight /></span>Move money</h3>
-                    <p className="form-note">Between your own accounts: an ATM withdrawal, a card bill payment, topping up a wallet. Not income or spending.</p>
+                <form id="transfer-form" className={`card entry-form transfer${formClass('transfer')}`} onSubmit={event => { event.preventDefault(); addTransfer(); }}>
+                    <h3><span className="icon-tile t-bank" aria-hidden="true"><ArrowLeftRight /></span>{t('transactions.transfer.add')}</h3>
+                    <p className="form-note">{t('transactions.transfer.note')}</p>
                     <div className="form-grid two">
                         <div className="field">
-                            <label htmlFor="transfer-from">From</label>
+                            <label htmlFor="transfer-from">{t('transactions.transfer.from')}</label>
                             <select id="transfer-from" value={transferForm.fromId}
                                 onChange={event => setTransferForm(form => ({ ...form, fromId: event.target.value }))}>
                                 <AccountOptions accounts={accounts} />
                             </select>
                         </div>
                         <div className="field">
-                            <label htmlFor="transfer-to">To</label>
+                            <label htmlFor="transfer-to">{t('transactions.transfer.to')}</label>
                             <select id="transfer-to" value={transferForm.toId}
                                 onChange={event => setTransferForm(form => ({ ...form, toId: event.target.value }))}>
                                 <AccountOptions accounts={accounts} />
                             </select>
                         </div>
                         <div className="field">
-                            <label htmlFor="transfer-amount">Amount (₹)</label>
+                            <label htmlFor="transfer-amount">{t('transactions.amount')}</label>
                             <input type="number" id="transfer-amount" inputMode="decimal" placeholder="0.00" step="0.01" value={transferForm.amount}
                                 onChange={event => setTransferForm(form => ({ ...form, amount: event.target.value }))} />
                         </div>
                         <div className="field">
-                            <label htmlFor="transfer-date">Date</label>
+                            <label htmlFor="transfer-date">{t('transactions.date')}</label>
                             <input type="date" id="transfer-date" value={transferForm.date}
                                 onChange={event => setTransferForm(form => ({ ...form, date: event.target.value }))} />
                         </div>
                         <div className="field span-2">
-                            <label htmlFor="transfer-note">Note (optional)</label>
-                            <input type="text" id="transfer-note" placeholder="ATM withdrawal, card bill..." value={transferForm.note}
+                            <label htmlFor="transfer-note">{t('transactions.transfer.noteLabel')}</label>
+                            <input type="text" id="transfer-note" placeholder={t('transactions.transfer.notePlaceholder')} value={transferForm.note}
                                 onChange={event => setTransferForm(form => ({ ...form, note: event.target.value }))} />
                         </div>
                         <div className="field span-2">
-                            <label htmlFor="transfer-event">Event (optional)</label>
+                            <label htmlFor="transfer-event">{t('transactions.event')}</label>
                             <select id="transfer-event" value={transferForm.eventId} onChange={event => chooseEvent('transfer', event.target.value)}>
                                 <EventOptions events={events} />
                             </select>
                         </div>
                     </div>
-                    <button type="submit" className="btn btn-primary" data-action="addTransfer"><ArrowLeftRight aria-hidden="true" /> Move money</button>
+                    <button type="submit" className="btn btn-primary" data-action="addTransfer"><ArrowLeftRight aria-hidden="true" /> {t('transactions.transfer.add')}</button>
                 </form>
             </div>
             <div id="transactions-message" className={formMessage.message?.kind ?? 'error'} role="status">{formMessage.message?.text ?? ''}</div>
 
             <div id="bulk-categorise" className="bulk-bar" hidden={selected.size === 0}>
-                <span>{selected.size} selected</span>
-                <label htmlFor="bulk-category" className="sr-only">Category</label>
+                <span>{t('transactions.bulk.selected', { count: selected.size })}</span>
+                <label htmlFor="bulk-category" className="sr-only">{t('transactions.category')}</label>
                 <select id="bulk-category" value={bulkCategory} onChange={event => setBulkCategory(event.target.value)}>
-                    <option value="">Choose a category</option>
-                    <optgroup label="Spending"><CategoryOptions categories={categories} kind="expense" /></optgroup>
-                    <optgroup label="Income"><CategoryOptions categories={categories} kind="income" /></optgroup>
+                    <option value="">{t('transactions.bulk.choose')}</option>
+                    <optgroup label={t('transactions.bulk.spending')}><CategoryOptions categories={categories} kind="expense" /></optgroup>
+                    <optgroup label={t('transactions.bulk.income')}><CategoryOptions categories={categories} kind="income" /></optgroup>
                 </select>
-                <button type="button" className="btn btn-primary btn-sm" data-action="bulkCategorise" onClick={categoriseSelected}>Put in category</button>
-                <button type="button" className="btn btn-secondary btn-sm" data-action="clearSelection" onClick={() => setSelected(new Set())}>Clear</button>
+                <button type="button" className="btn btn-primary btn-sm" data-action="bulkCategorise" onClick={categoriseSelected}>{t('transactions.bulk.apply')}</button>
+                <button type="button" className="btn btn-secondary btn-sm" data-action="clearSelection" onClick={() => setSelected(new Set())}>{t('transactions.bulk.clear')}</button>
+            </div>
+
+            <div id="transactions-history" className="histories">
+                <section id="expense-history" className="card" hidden={!showExpenses} aria-labelledby="expense-history-title">
+                    <div className="card-head">
+                        <h3 id="expense-history-title">{t('transactions.expense.list')}</h3>
+                        <span className="meta">{periodName}</span>
+                    </div>
+                    {entryList('expense-table-body', expenses, t('transactions.expense.empty'), true)}
+                </section>
+                <section id="income-history" className="card" hidden={!showIncome} aria-labelledby="income-history-title">
+                    <div className="card-head">
+                        <h3 id="income-history-title">{t('transactions.income.list')}</h3>
+                        <span className="meta">{periodName}</span>
+                    </div>
+                    {entryList('income-table-body', incomes, t('transactions.income.empty'), true)}
+                </section>
+                <section id="transfer-history" className="card" aria-labelledby="transfer-history-title">
+                    <div className="card-head">
+                        <h3 id="transfer-history-title">{t('transactions.transfer.list')}</h3>
+                        <span className="meta">{periodName}</span>
+                    </div>
+                    {entryList('transfer-table-body', transfers, t('transactions.transfer.empty'), false)}
+                </section>
             </div>
 
             <RepeatingCard accounts={accounts} categories={categories} onRecorded={() => loadEntries(period.month, period.year)} />
             <ReimbursementsCard accounts={accounts} categories={categories} onChange={() => loadEntries(period.month, period.year)} />
 
-            <div id="transactions-history" className="histories">
-                <section id="income-history" className="card" style={{ display: showIncome ? undefined : 'none' }} aria-labelledby="income-history-title">
-                    <div className="card-head">
-                        <h3 id="income-history-title">Income</h3>
-                        <span className="meta">{periodName}</span>
-                    </div>
-                    <div className="table-wrap scrollable-table">
-                        <table className="data-table stackable">
-                            <thead>
-                                <tr><th scope="col">Date</th><th scope="col">Source</th><th scope="col" className="amount">Amount</th><th scope="col">Received in</th><th scope="col" className="actions"><span className="sr-only">Actions</span></th></tr>
-                            </thead>
-                            <tbody id="income-table-body">
-                                {incomes.length === 0 ? <EmptyRow text="No income transactions found for this period" /> : incomes.map(entry => (
-                                    <tr key={entry.id}>
-                                        <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
-                                        <td className="name">
-                                            <label className="select-entry">
-                                                <input type="checkbox" data-action="select-entry" data-id={entry.id} checked={selected.has(entry.id)} disabled={entry.reimbursement}
-                                                    onChange={() => toggleSelected(entry.id)} aria-label={`Select ${entry.description}`} />
-                                                {entry.description}
-                                            </label>
-                                            <EntryMeta entry={entry} />
-                                        </td>
-                                        <td className="amount in" data-label="Amount">{formatRupees(entry.amount)}</td>
-                                        <td className="sub" data-label="Received in">{entry.account.name}</td>
-                                        <td className="actions">{rowActions(entry)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-                <section id="expense-history" className="card" style={{ display: showExpenses ? undefined : 'none' }} aria-labelledby="expense-history-title">
-                    <div className="card-head">
-                        <h3 id="expense-history-title">Expenses</h3>
-                        <span className="meta">{periodName}</span>
-                    </div>
-                    <div className="table-wrap scrollable-table">
-                        <table className="data-table stackable">
-                            <thead>
-                                <tr><th scope="col">Date</th><th scope="col">What for</th><th scope="col" className="amount">Amount</th><th scope="col">Paid from</th><th scope="col" className="actions"><span className="sr-only">Actions</span></th></tr>
-                            </thead>
-                            <tbody id="expense-table-body">
-                                {expenses.length === 0 ? <EmptyRow text="No expense transactions found for this period" /> : expenses.map(entry => (
-                                    <tr key={entry.id}>
-                                        <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
-                                        <td className="name">
-                                            <label className="select-entry">
-                                                <input type="checkbox" data-action="select-entry" data-id={entry.id} checked={selected.has(entry.id)} disabled={entry.reimbursement}
-                                                    onChange={() => toggleSelected(entry.id)} aria-label={`Select ${entry.description}`} />
-                                                {entry.description}
-                                            </label>
-                                            <EntryMeta entry={entry} />
-                                        </td>
-                                        <td className="amount out" data-label="Amount">{formatRupees(entry.amount)}</td>
-                                        <td className="sub" data-label="Paid from">{entry.account.name}</td>
-                                        <td className="actions">{rowActions(entry)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-                <section id="transfer-history" className="card" aria-labelledby="transfer-history-title">
-                    <div className="card-head">
-                        <h3 id="transfer-history-title">Money moved</h3>
-                        <span className="meta">{periodName}</span>
-                    </div>
-                    <div className="table-wrap scrollable-table">
-                        <table className="data-table stackable">
-                            <thead>
-                                <tr><th scope="col">Date</th><th scope="col">Note</th><th scope="col" className="amount">Amount</th><th scope="col">From and to</th><th scope="col" className="actions"><span className="sr-only">Actions</span></th></tr>
-                            </thead>
-                            <tbody id="transfer-table-body">
-                                {transfers.length === 0 ? <EmptyRow text="No money moved between your accounts in this period" /> : transfers.map(entry => (
-                                    <tr key={entry.id}>
-                                        <td className="sub" data-label="Date">{shortDate(entry.date)}</td>
-                                        <td className="name">{entry.description}<EntryMeta entry={entry} /></td>
-                                        <td className="amount" data-label="Amount">{formatRupees(entry.amount)}</td>
-                                        <td className="sub" data-label="From and to">
-                                            {entry.account.name} <ArrowRight size={14} aria-label="to" /> {entry.toAccount?.name ?? ''}
-                                        </td>
-                                        <td className="actions">{rowActions(entry)}</td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </div>
-
-            <Modal id={`edit-${edit?.type ?? 'income'}-modal`} title={`Edit ${(edit?.type ?? 'income') === 'transfer' ? 'transfer' : edit?.type ?? 'income'}`}
+            <Modal id={`edit-${edit?.type ?? 'income'}-modal`} title={t(`transactions.edit.${edit?.type ?? 'income'}`)}
                 open={edit !== null} closeAction={`close-edit-${edit?.type ?? 'income'}`} onClose={() => setEdit(null)}
                 footer={(
                     <>
-                        <button type="button" data-action={`close-edit-${edit?.type ?? 'income'}`} className="btn btn-secondary" onClick={() => setEdit(null)}>Cancel</button>
-                        <button type="button" data-action={`save-${edit?.type ?? 'income'}-edit`} className="btn btn-primary" onClick={saveEdit}>Save changes</button>
+                        <button type="button" data-action={`close-edit-${edit?.type ?? 'income'}`} className="btn btn-secondary" onClick={() => setEdit(null)}>{t('common.cancel')}</button>
+                        <button type="button" data-action={`save-${edit?.type ?? 'income'}-edit`} className="btn btn-primary" onClick={saveEdit}>{t('common.saveChanges')}</button>
                     </>
                 )}>
                 {edit ? (
@@ -716,7 +678,7 @@ export function TransactionsScreen() {
                                 onChange={event => setEdit(draft => draft && { ...draft, description: event.target.value })} />
                         </div>
                         <div className="field">
-                            <label htmlFor={`edit-${edit.type}-amount`}>Amount (₹)</label>
+                            <label htmlFor={`edit-${edit.type}-amount`}>{t('transactions.amount')}</label>
                             <input type="number" id={`edit-${edit.type}-amount`} inputMode="decimal" step="0.01" min="0" required value={edit.amount}
                                 onChange={event => setEdit(draft => draft && { ...draft, amount: event.target.value })} />
                         </div>
@@ -729,7 +691,7 @@ export function TransactionsScreen() {
                         </div>
                         {edit.type === 'transfer' ? (
                             <div className="field">
-                                <label htmlFor="edit-transfer-to">To</label>
+                                <label htmlFor="edit-transfer-to">{t('transactions.transfer.to')}</label>
                                 <select id="edit-transfer-to" required value={edit.toAccountId}
                                     onChange={event => setEdit(draft => draft && { ...draft, toAccountId: event.target.value })}>
                                     <AccountOptions accounts={accounts} />
@@ -738,7 +700,7 @@ export function TransactionsScreen() {
                         ) : null}
                         {edit.type !== 'transfer' ? (
                             <div className="field">
-                                <label htmlFor={`edit-${edit.type}-category`}>Category</label>
+                                <label htmlFor={`edit-${edit.type}-category`}>{t('transactions.category')}</label>
                                 <select id={`edit-${edit.type}-category`} value={edit.categoryId}
                                     onChange={event => setEdit(draft => draft && { ...draft, categoryId: event.target.value })}>
                                     <CategoryOptions categories={categories} kind={edit.type} />
@@ -746,18 +708,18 @@ export function TransactionsScreen() {
                             </div>
                         ) : null}
                         <div className="field">
-                            <label htmlFor={`edit-${edit.type}-event`}>Event</label>
+                            <label htmlFor={`edit-${edit.type}-event`}>{t('transactions.eventShort')}</label>
                             <select id={`edit-${edit.type}-event`} value={edit.eventId} onChange={event => chooseEvent('edit', event.target.value)}>
                                 <EventOptions events={events} />
                             </select>
                         </div>
                         <div className="field">
-                            <label htmlFor={`edit-${edit.type}-tags`}>Tags</label>
+                            <label htmlFor={`edit-${edit.type}-tags`}>{t('transactions.tagsShort')}</label>
                             <input type="text" id={`edit-${edit.type}-tags`} value={edit.tags}
                                 onChange={event => setEdit(draft => draft && { ...draft, tags: event.target.value })} />
                         </div>
                         <div className="field">
-                            <label htmlFor={`edit-${edit.type}-date`}>Date</label>
+                            <label htmlFor={`edit-${edit.type}-date`}>{t('transactions.date')}</label>
                             <input type="date" id={`edit-${edit.type}-date`} required value={edit.date}
                                 onChange={event => setEdit(draft => draft && { ...draft, date: event.target.value })} />
                         </div>
@@ -767,7 +729,7 @@ export function TransactionsScreen() {
                                 <label className="check-line">
                                     <input type="checkbox" id="edit-confirm-reconciled" checked={edit.confirmReconciled === true}
                                         onChange={event => setEdit(draft => draft && { ...draft, confirmReconciled: event.target.checked })} />
-                                    Change it anyway
+                                    {t('transactions.changeAnyway')}
                                 </label>
                             </div>
                         ) : null}
@@ -775,57 +737,57 @@ export function TransactionsScreen() {
                 ) : null}
             </Modal>
 
-            <Modal id="new-event-modal" title="New event" small open={newEvent !== null} closeAction="close-new-event" onClose={() => setNewEvent(null)}
+            <Modal id="new-event-modal" title={t('transactions.newEvent.title')} small open={newEvent !== null} closeAction="close-new-event" onClose={() => setNewEvent(null)}
                 footer={(
                     <>
-                        <button type="button" data-action="close-new-event" className="btn btn-secondary" onClick={() => setNewEvent(null)}>Cancel</button>
-                        <button type="button" data-action="save-new-event" className="btn btn-primary" onClick={createEvent}>Add event</button>
+                        <button type="button" data-action="close-new-event" className="btn btn-secondary" onClick={() => setNewEvent(null)}>{t('common.cancel')}</button>
+                        <button type="button" data-action="save-new-event" className="btn btn-primary" onClick={createEvent}>{t('transactions.newEvent.add')}</button>
                     </>
                 )}>
                 <div className="form-grid">
                     <div className="field">
-                        <label htmlFor="new-event-name">Name</label>
-                        <input type="text" id="new-event-name" maxLength={80} placeholder="Goa trip, Diwali 2026..." value={newEvent?.name ?? ''}
+                        <label htmlFor="new-event-name">{t('transactions.newEvent.name')}</label>
+                        <input type="text" id="new-event-name" maxLength={80} placeholder={t('transactions.newEvent.namePlaceholder')} value={newEvent?.name ?? ''}
                             onChange={event => setNewEvent(current => current && { ...current, name: event.target.value })} />
                     </div>
                     <label className="check-line">
                         <input type="checkbox" id="new-event-one-off" checked={newEvent?.oneOff ?? true}
                             onChange={event => setNewEvent(current => current && { ...current, oneOff: event.target.checked })} />
-                        A one-off: leave it out of regular spending
+                        {t('transactions.newEvent.oneOff')}
                     </label>
-                    <p className="form-note">Dates and a budget can be added on the Events screen.</p>
+                    <p className="form-note">{t('transactions.newEvent.note')}</p>
                 </div>
             </Modal>
 
-            <Modal id="delete-confirmation-modal" title="Delete this entry?" small open={pendingDelete !== null} closeAction="close-delete"
+            <Modal id="delete-confirmation-modal" title={t('transactions.delete.title')} small open={pendingDelete !== null} closeAction="close-delete"
                 onClose={() => { setPendingDelete(null); setDeleteWarning(null); }}
                 footer={(
                     <>
-                        <button type="button" data-action="close-delete" className="btn btn-secondary" onClick={() => setPendingDelete(null)}>Cancel</button>
+                        <button type="button" data-action="close-delete" className="btn btn-secondary" onClick={() => setPendingDelete(null)}>{t('common.cancel')}</button>
                         <button type="button" data-action="confirm-delete" className="btn btn-danger" onClick={confirmDelete}>
-                            <Trash2 aria-hidden="true" /> Delete
+                            <Trash2 aria-hidden="true" /> {t('common.delete')}
                         </button>
                     </>
                 )}>
                 <p id="delete-confirmation-message" className="lead">
                     {pendingDelete ? (
                         <>
-                            Are you sure you want to delete this {pendingDelete.type} transaction?<br />
+                            {t('transactions.delete.question', { type: t(`transactions.typesLower.${pendingDelete.type}`) })}<br />
                             <span className="sub">
-                                {descriptionLabel(pendingDelete.type) === 'What for' ? 'Title' : descriptionLabel(pendingDelete.type)}: {pendingDelete.description}
-                                <br />Amount: {formatRupees(pendingDelete.amount)}
+                                {pendingDelete.type === 'expense' ? t('transactions.delete.titleLabel') : descriptionLabel(pendingDelete.type)}: {pendingDelete.description}
+                                <br />{t('transactions.delete.amount', { amount: formatRupees(pendingDelete.amount) })}
                             </span>
                         </>
-                    ) : 'Are you sure you want to delete this transaction?'}
+                    ) : t('transactions.delete.questionPlain')}
                 </p>
-                <p>This cannot be undone. The account balance is adjusted back.</p>
+                <p>{t('transactions.delete.note')}</p>
                 {deleteWarning ? (
                     <div className="notice warn" id="delete-reconciled-warning">
                         {deleteWarning.text}
                         <label className="check-line">
                             <input type="checkbox" id="delete-confirm-reconciled" checked={deleteWarning.confirmed}
                                 onChange={event => setDeleteWarning(current => current && { ...current, confirmed: event.target.checked })} />
-                            Delete it anyway
+                            {t('transactions.delete.anyway')}
                         </label>
                     </div>
                 ) : null}

@@ -7,6 +7,7 @@ import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { todayUtcIso } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
+import { t } from '@/lib/i18n';
 
 /**
  * Reimbursements (/api/reimbursements): expenses paid now that an employer, insurer or someone else
@@ -51,7 +52,7 @@ export function ReimbursementsCard({ accounts, categories, onChange }: { account
         });
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
-        toast('success', 'Added: owed back to you, not counted as spending');
+        toast('success', t('reimbursements.added'));
         setDraft(null);
         await load();
         onChange();
@@ -64,7 +65,7 @@ export function ReimbursementsCard({ accounts, categories, onChange }: { account
         });
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
-        toast('success', repay.close ? `${repay.item.description} closed` : 'Repayment recorded');
+        toast('success', repay.close ? t('reimbursements.closedToast', { name: repay.item.description }) : t('reimbursements.repaymentRecorded'));
         setRepay(null);
         await load();
         onChange();
@@ -74,7 +75,7 @@ export function ReimbursementsCard({ accounts, categories, onChange }: { account
         const result = await apiDelete(`/api/reimbursements/${item.id}`);
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
-        toast('success', `${item.description} deleted`);
+        toast('success', t('reimbursements.deleted', { name: item.description }));
         await load();
         onChange();
     }
@@ -85,39 +86,39 @@ export function ReimbursementsCard({ accounts, categories, onChange }: { account
     return (
         <section id="reimbursements-section" className="card" aria-labelledby="reimbursements-title">
             <div className="card-head">
-                <h3 id="reimbursements-title"><span className="icon-tile t-income" aria-hidden="true"><HandCoins /></span>Owed back to you</h3>
+                <h3 id="reimbursements-title"><span className="icon-tile t-income" aria-hidden="true"><HandCoins /></span>{t('reimbursements.title')}</h3>
                 <span className="row-actions">
-                    <span className="meta" id="reimbursements-owed">{formatRupees(owed)} to come back</span>
+                    <span className="meta" id="reimbursements-owed">{t('reimbursements.toCome', { amount: formatRupees(owed) })}</span>
                     <button type="button" className="btn btn-secondary btn-sm" data-action="newReimbursement"
                         onClick={() => setDraft({ description: '', amount: '', accountId: firstBank, date: todayUtcIso(), fromWhom: '', categoryId: '' })}>
-                        <Plus aria-hidden="true" /> Add
+                        <Plus aria-hidden="true" /> {t('common.add')}
                     </button>
                 </span>
             </div>
-            <p className="card-pad form-note">
-                A hotel on a work trip, a medical bill the insurer will refund: paid by you, but not your spending while it is owed back.
-            </p>
+            <p className="card-pad form-note">{t('reimbursements.note')}</p>
             <ul id="reimbursements-list" className="settings-list">
-                {items.length === 0 ? <li>Nothing owed back to you.</li> : items.map(item => (
+                {items.length === 0 ? <li>{t('reimbursements.empty')}</li> : items.map(item => (
                     <li key={item.id} data-reimbursement={item.id}>
                         <div>
-                            <span className="what">{item.description}{item.fromWhom ? <span className="sub"> from {item.fromWhom}</span> : null}</span>
+                            <span className="what">{item.description}{item.fromWhom ? <span className="sub"> {t('reimbursements.from', { name: item.fromWhom })}</span> : null}</span>
                             <div className="when">
-                                {formatRupees(item.amount)} paid{item.paidOn ? ` ${day(item.paidOn)}` : ''}{item.paidFrom ? ` from ${item.paidFrom.name}` : ''};{' '}
-                                {item.status === 'pending' ? 'nothing back yet'
-                                    : item.status === 'partly repaid' ? `${formatRupees(item.received)} back, ${formatRupees(item.outstanding)} to come`
-                                        : item.status === 'repaid' ? 'repaid in full'
-                                            : `closed: ${formatRupees(item.received)} back, ${formatRupees(item.keptAsSpending)} counted as your spending`}
+                                {t('reimbursements.paid', { amount: formatRupees(item.amount) })}
+                                {item.paidOn ? t('reimbursements.paidOn', { date: day(item.paidOn) }) : ''}
+                                {item.paidFrom ? t('reimbursements.paidFrom', { account: item.paidFrom.name }) : ''};{' '}
+                                {item.status === 'pending' ? t('reimbursements.pending')
+                                    : item.status === 'partly repaid' ? t('reimbursements.partly', { received: formatRupees(item.received), outstanding: formatRupees(item.outstanding) })
+                                        : item.status === 'repaid' ? t('reimbursements.repaid')
+                                            : t('reimbursements.closed', { received: formatRupees(item.received), kept: formatRupees(item.keptAsSpending) })}
                             </div>
                         </div>
                         {item.status === 'pending' || item.status === 'partly repaid' ? (
                             <span className="row-actions">
                                 <button type="button" className="btn btn-primary btn-sm" data-action="repay"
                                     onClick={() => setRepay({ item, amount: item.outstanding, accountId: String(item.paidFrom?.id ?? firstBank), date: todayUtcIso(), close: false })}>
-                                    Money came back
+                                    {t('reimbursements.moneyBack')}
                                 </button>
                                 {item.status === 'pending' ? (
-                                    <button type="button" className="icon-btn danger" data-action="deleteReimbursement" onClick={() => remove(item)}><Trash2 aria-hidden="true" /> Delete</button>
+                                    <button type="button" className="icon-btn danger" data-action="deleteReimbursement" onClick={() => remove(item)}><Trash2 aria-hidden="true" /> {t('common.delete')}</button>
                                 ) : null}
                             </span>
                         ) : null}
@@ -125,44 +126,44 @@ export function ReimbursementsCard({ accounts, categories, onChange }: { account
                 ))}
             </ul>
 
-            <Modal id="reimbursement-modal" title="Paid now, to be paid back" open={draft !== null} closeAction="close-reimbursement" onClose={() => setDraft(null)}
+            <Modal id="reimbursement-modal" title={t('reimbursements.modal.title')} open={draft !== null} closeAction="close-reimbursement" onClose={() => setDraft(null)}
                 footer={(
                     <>
-                        <button type="button" data-action="close-reimbursement" className="btn btn-secondary" onClick={() => setDraft(null)}>Cancel</button>
-                        <button type="button" data-action="save-reimbursement" className="btn btn-primary" onClick={add}>Save</button>
+                        <button type="button" data-action="close-reimbursement" className="btn btn-secondary" onClick={() => setDraft(null)}>{t('common.cancel')}</button>
+                        <button type="button" data-action="save-reimbursement" className="btn btn-primary" onClick={add}>{t('reimbursements.save')}</button>
                     </>
                 )}>
                 {draft ? (
                     <form className="form-grid two" onSubmit={event => { event.preventDefault(); add(); }}>
                         <div className="field span-2">
-                            <label htmlFor="reimbursement-description">What you paid for</label>
-                            <input type="text" id="reimbursement-description" maxLength={200} placeholder="Hotel, Pune work trip" value={draft.description}
+                            <label htmlFor="reimbursement-description">{t('reimbursements.modal.what')}</label>
+                            <input type="text" id="reimbursement-description" maxLength={200} placeholder={t('reimbursements.modal.whatPlaceholder')} value={draft.description}
                                 onChange={event => setDraft(current => current && { ...current, description: event.target.value })} />
                         </div>
                         <div className="field">
-                            <label htmlFor="reimbursement-amount">Amount (₹)</label>
+                            <label htmlFor="reimbursement-amount">{t('transactions.amount')}</label>
                             <input type="number" id="reimbursement-amount" inputMode="decimal" min="0" step="0.01" value={draft.amount}
                                 onChange={event => setDraft(current => current && { ...current, amount: event.target.value })} />
                         </div>
                         <div className="field">
-                            <label htmlFor="reimbursement-from">Who pays it back</label>
-                            <input type="text" id="reimbursement-from" maxLength={100} placeholder="Employer, insurer..." value={draft.fromWhom}
+                            <label htmlFor="reimbursement-from">{t('reimbursements.modal.who')}</label>
+                            <input type="text" id="reimbursement-from" maxLength={100} placeholder={t('reimbursements.modal.whoPlaceholder')} value={draft.fromWhom}
                                 onChange={event => setDraft(current => current && { ...current, fromWhom: event.target.value })} />
                         </div>
                         <div className="field">
-                            <label htmlFor="reimbursement-account">Paid from</label>
+                            <label htmlFor="reimbursement-account">{t('reimbursements.modal.paidFrom')}</label>
                             <select id="reimbursement-account" value={draft.accountId} onChange={event => setDraft(current => current && { ...current, accountId: event.target.value })}>
                                 {accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
                             </select>
                         </div>
                         <div className="field">
-                            <label htmlFor="reimbursement-date">Paid on</label>
+                            <label htmlFor="reimbursement-date">{t('reimbursements.modal.paidOn')}</label>
                             <input type="date" id="reimbursement-date" value={draft.date} onChange={event => setDraft(current => current && { ...current, date: event.target.value })} />
                         </div>
                         <div className="field span-2">
-                            <label htmlFor="reimbursement-category">If not paid back, count it as</label>
+                            <label htmlFor="reimbursement-category">{t('reimbursements.modal.countAs')}</label>
                             <select id="reimbursement-category" value={draft.categoryId} onChange={event => setDraft(current => current && { ...current, categoryId: event.target.value })}>
-                                <option value="">Uncategorised</option>
+                                <option value="">{t('reimbursements.modal.uncategorised')}</option>
                                 {categories.filter(category => category.kind === 'expense').map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
                             </select>
                         </div>
@@ -170,34 +171,34 @@ export function ReimbursementsCard({ accounts, categories, onChange }: { account
                 ) : null}
             </Modal>
 
-            <Modal id="repay-modal" title="Money paid back" small open={repay !== null} closeAction="close-repay" onClose={() => setRepay(null)}
+            <Modal id="repay-modal" title={t('reimbursements.repay.title')} small open={repay !== null} closeAction="close-repay" onClose={() => setRepay(null)}
                 footer={(
                     <>
-                        <button type="button" data-action="close-repay" className="btn btn-secondary" onClick={() => setRepay(null)}>Cancel</button>
-                        <button type="button" data-action="save-repay" className="btn btn-primary" onClick={saveRepayment}>Save</button>
+                        <button type="button" data-action="close-repay" className="btn btn-secondary" onClick={() => setRepay(null)}>{t('common.cancel')}</button>
+                        <button type="button" data-action="save-repay" className="btn btn-primary" onClick={saveRepayment}>{t('reimbursements.save')}</button>
                     </>
                 )}>
                 {repay ? (
                     <form className="form-grid" onSubmit={event => { event.preventDefault(); saveRepayment(); }}>
-                        <p className="lead">{repay.item.description}: {formatRupees(repay.item.outstanding)} still to come.</p>
+                        <p className="lead">{t('reimbursements.repay.stillToCome', { name: repay.item.description, amount: formatRupees(repay.item.outstanding) })}</p>
                         <div className="field">
-                            <label htmlFor="repay-amount">Amount paid back (₹)</label>
+                            <label htmlFor="repay-amount">{t('reimbursements.repay.amount')}</label>
                             <input type="number" id="repay-amount" inputMode="decimal" min="0" step="0.01" value={repay.amount}
                                 onChange={event => setRepay(current => current && { ...current, amount: event.target.value })} />
                         </div>
                         <div className="field">
-                            <label htmlFor="repay-account">Received in</label>
+                            <label htmlFor="repay-account">{t('reimbursements.repay.receivedIn')}</label>
                             <select id="repay-account" value={repay.accountId} onChange={event => setRepay(current => current && { ...current, accountId: event.target.value })}>
                                 {accounts.filter(account => account.type !== 'credit_card').map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
                             </select>
                         </div>
                         <div className="field">
-                            <label htmlFor="repay-date">Date</label>
+                            <label htmlFor="repay-date">{t('reimbursements.repay.date')}</label>
                             <input type="date" id="repay-date" value={repay.date} onChange={event => setRepay(current => current && { ...current, date: event.target.value })} />
                         </div>
                         <label className="check-line">
                             <input type="checkbox" id="repay-close" checked={repay.close} onChange={event => setRepay(current => current && { ...current, close: event.target.checked })} />
-                            Nothing more will come back: count the rest as my spending
+                            {t('reimbursements.repay.close')}
                         </label>
                     </form>
                 ) : null}

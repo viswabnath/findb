@@ -45,7 +45,7 @@ test('income and expenses update balances on add, edit and delete', async ({ pag
     await selectAccount(page, 'income-credited-to', 'AXIS SALARY');
     await page.locator('#income-date').fill(today());
     await page.locator('[data-action="addIncome"]').click();
-    const incomeRow = page.locator('#income-table-body tr', { hasText: 'Salary' });
+    const incomeRow = page.locator('#income-table-body li', { hasText: 'Salary' });
     await expect(incomeRow).toContainText(rupees(2500));
 
     await showSection(page, 'setup');
@@ -68,7 +68,7 @@ test('income and expenses update balances on add, edit and delete', async ({ pag
     await selectAccount(page, 'expense-payment-method', 'SHOPPING CARD');
     await page.locator('#expense-date').fill(today());
     await page.locator('[data-action="addExpense"]').click();
-    const expenseRow = page.locator('#expense-table-body tr', { hasText: 'Headphones' });
+    const expenseRow = page.locator('#expense-table-body li', { hasText: 'Headphones' });
     await expect(expenseRow).toContainText(rupees(1200));
 
     await showSection(page, 'setup');
@@ -99,7 +99,7 @@ test('monthly summary, activity feed and CSV export reflect entries', async ({ p
     await selectAccount(page, 'income-credited-to', 'ICICI MAIN');
     await page.locator('#income-date').fill(today());
     await page.locator('[data-action="addIncome"]').click();
-    await expect(page.locator('#income-table-body tr', { hasText: 'Freelance' })).toBeVisible();
+    await expect(page.locator('#income-table-body li', { hasText: 'Freelance' })).toBeVisible();
 
     await showSection(page, 'summary');
     await page.locator('[data-action="loadMonthlySummary"]').click();

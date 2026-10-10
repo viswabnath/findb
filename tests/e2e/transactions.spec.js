@@ -27,7 +27,7 @@ async function addIncome(page, source, amount, date = today()) {
     await expect(page.locator('#transactions-message')).toHaveText('Income added successfully!');
 }
 
-const incomeRow = (page, source) => page.locator('#income-table-body tr', { hasText: source });
+const incomeRow = (page, source) => page.locator('#income-table-body li', { hasText: source });
 const toast = (page, text) => page.locator('.toast-message', { hasText: text });
 
 test('/transactions without a session goes to /login', async ({ page }) => {
@@ -121,7 +121,7 @@ test('the delete dialog names the entry, and cancel keeps it', async ({ page }) 
     await page.locator('#expense-amount').fill('1234.5');
     await selectAccount(page, 'expense-payment-method', 'YES BANK');
     await page.locator('[data-action="addExpense"]').click();
-    const row = page.locator('#expense-table-body tr', { hasText: 'Groceries' });
+    const row = page.locator('#expense-table-body li', { hasText: 'Groceries' });
     await expect(row).toContainText('YES BANK');
 
     await row.locator('[data-action="delete-expense"]').click();
@@ -177,7 +177,7 @@ test('a wallet is added on Accounts, money moves into it, and the move is neithe
     await page.locator('#transfer-note').fill('Wallet top-up');
     await page.locator('[data-action="addTransfer"]').click();
     await expect(page.locator('#transactions-message')).toHaveText('Transfer added successfully!');
-    const row = page.locator('#transfer-table-body tr', { hasText: 'Wallet top-up' });
+    const row = page.locator('#transfer-table-body li', { hasText: 'Wallet top-up' });
     await expect(row).toContainText(rupees(750));
     await expect(row).toContainText('CANARA MAIN');
     await expect(row).toContainText('Paytm Wallet');
@@ -205,7 +205,7 @@ test('a title suggests the category, tags show on the entry, and entries can be 
     await selectAccount(page, 'expense-payment-method', 'CATEGORY BANK');
     await page.locator('[data-action="addExpense"]').click();
     await expect(page.locator('#transactions-message')).toHaveText('Expense added successfully!');
-    const swiggy = page.locator('#expense-table-body tr', { hasText: 'Swiggy dinner' });
+    const swiggy = page.locator('#expense-table-body li', { hasText: 'Swiggy dinner' });
     await expect(swiggy).toContainText('Restaurants and food delivery');
     await expect(swiggy.locator('.tag')).toHaveText(['friday', 'team']);
 
@@ -215,15 +215,15 @@ test('a title suggests the category, tags show on the entry, and entries can be 
         await page.locator('#expense-amount').fill('100');
         await selectAccount(page, 'expense-payment-method', 'CATEGORY BANK');
         await page.locator('[data-action="addExpense"]').click();
-        await expect(page.locator('#expense-table-body tr', { hasText: title })).toContainText('Uncategorised');
+        await expect(page.locator('#expense-table-body li', { hasText: title })).toContainText('Uncategorised');
     }
-    await page.locator('#expense-table-body tr', { hasText: 'Odd thing' }).locator('[data-action="select-entry"]').check();
-    await page.locator('#expense-table-body tr', { hasText: 'Stray item' }).locator('[data-action="select-entry"]').check();
+    await page.locator('#expense-table-body li', { hasText: 'Odd thing' }).locator('[data-action="select-entry"]').check();
+    await page.locator('#expense-table-body li', { hasText: 'Stray item' }).locator('[data-action="select-entry"]').check();
     await expect(page.locator('#bulk-categorise')).toContainText('2 selected');
     await page.locator('#bulk-category').selectOption({ label: 'Shopping' });
     await page.locator('[data-action="bulkCategorise"]').click();
     await expect(toast(page, '2 entries put in Shopping')).toBeVisible();
-    await expect(page.locator('#expense-table-body tr', { hasText: 'Stray item' })).toContainText('Shopping');
+    await expect(page.locator('#expense-table-body li', { hasText: 'Stray item' })).toContainText('Shopping');
 
     await showSection(page, 'summary');
     const byCategory = page.locator('#spending-by-category');
@@ -247,7 +247,7 @@ test('an event is made from the entry form, and the Events screen shows what it 
     await selectAccount(page, 'expense-payment-method', 'EVENT BANK');
     await page.locator('[data-action="addExpense"]').click();
     await expect(page.locator('#transactions-message')).toHaveText('Expense added successfully!');
-    await expect(page.locator('#expense-table-body tr', { hasText: 'Caterer' }).locator('.event-tag')).toHaveText('Housewarming');
+    await expect(page.locator('#expense-table-body li', { hasText: 'Caterer' }).locator('.event-tag')).toHaveText('Housewarming');
 
     await page.goto('/events');
     await expect(page.locator('#events-list li', { hasText: 'Housewarming' })).toContainText(rupees(12000));
@@ -277,7 +277,7 @@ test('a repeating bill waits to be confirmed, and is recorded with the amount it
     await expect(due).toBeVisible();
     await due.locator('input.due-amount').fill('1723.40');
     await due.locator('[data-action="confirmDue"]').click();
-    const row = page.locator('#expense-table-body tr', { hasText: 'Electricity' });
+    const row = page.locator('#expense-table-body li', { hasText: 'Electricity' });
     await expect(row).toContainText(rupees(1723.4));
     await expect(row).toContainText('Bills and utilities');
     await expect(page.locator('#repeating-due li', { hasText: 'Electricity' })).toHaveCount(0);

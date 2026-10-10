@@ -8,7 +8,7 @@ import { formatRupees } from '@/lib/format';
  * name and amount share one line and the actions wrap below.
  */
 
-export function AccountList({ id, empty, emptyIcon: EmptyIcon, children }: { id: string; empty?: string; emptyIcon?: LucideIcon; children: ReactNode[] }) {
+export function AccountList({ id, empty, emptyIcon: EmptyIcon, children }: { id?: string; empty?: string; emptyIcon?: LucideIcon; children: ReactNode[] }) {
     return (
         <div id={id}>
             {children.length === 0 ? (
@@ -34,12 +34,14 @@ interface RowProps {
     meter?: { share: number; label: string };
     actions?: ReactNode;
     data?: Record<`data-${string}`, string | number>;
+    /** Extra classes on the row */
+    className?: string;
 }
 
-export function AccountRow({ icon: Icon, tile, name, sub, amount, amountNote, meter, actions, data }: RowProps) {
+export function AccountRow({ icon: Icon, tile, name, sub, amount, amountNote, meter, actions, data, className }: RowProps) {
     const level = meter ? (meter.share > 0.7 ? 'high' : meter.share > 0.3 ? 'warn' : undefined) : undefined;
     return (
-        <li className="account-row" {...data}>
+        <li className={`account-row${className ? ` ${className}` : ''}`} {...data}>
             <span className={`icon-tile ${tile}`} aria-hidden="true"><Icon /></span>
             <span className="account-main">
                 <span className="account-name">{name}</span>
