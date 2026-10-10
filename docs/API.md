@@ -175,7 +175,7 @@ A PAN must be five letters, four digits and a letter. A full twelve-digit Aadhaa
 | PUT | `/api/banks/:id` | `{ "name", "initialBalance" }` | updated bank row |
 | DELETE | `/api/banks/:id` | – | `{ "success": true, "message": "Bank deleted successfully" }` |
 
-Bank row: `id, user_id, name, initial_balance, current_balance, created_at`. Names are stored upper-case and are unique per user. A bank with transactions cannot be deleted.
+Bank row: `id, user_id, name, initial_balance, current_balance, created_at` (`current_balance` is the ledger's). Names are stored upper-case and are unique per user. A bank with transactions cannot be deleted.
 
 ## Credit cards
 
@@ -186,7 +186,7 @@ Bank row: `id, user_id, name, initial_balance, current_balance, created_at`. Nam
 | PUT | `/api/credit-cards/:id` | `{ "name", "creditLimit" }` | updated card row |
 | DELETE | `/api/credit-cards/:id` | – | `{ "success": true, "message": "Credit card deleted successfully" }` |
 
-Card row: `id, user_id, name, credit_limit, used_limit, created_at`.
+Card row: `id, user_id, name, credit_limit, used_limit, created_at` (`used_limit` is the ledger's).
 
 ## Cash balance
 

@@ -77,20 +77,20 @@ describe('as findb_user, the database shows one user only', () => {
 
     test('another user\'s rows cannot be changed or deleted', async () => {
         await asUser(alice.id, async (client) => {
-            const updated = await client.query('UPDATE banks SET current_balance = 0 WHERE id = $1', [bobBank.id]);
+            const updated = await client.query('UPDATE banks SET initial_balance = 0 WHERE id = $1', [bobBank.id]);
             expect(updated.rowCount).toBe(0);
             const deleted = await client.query('DELETE FROM cash_balance WHERE user_id = $1', [bob.id]);
             expect(deleted.rowCount).toBe(0);
             const password = await client.query('UPDATE users SET name = \'x\' WHERE id = $1', [bob.id]);
             expect(password.rowCount).toBe(0);
         });
-        const bank = await query('SELECT current_balance FROM banks WHERE id = $1', [bobBank.id]);
-        expect(bank.rows[0].current_balance).toBe('900.00');
+        const bank = await query('SELECT initial_balance FROM banks WHERE id = $1', [bobBank.id]);
+        expect(bank.rows[0].initial_balance).toBe('900.00');
     });
 
     test('a row for another user cannot be written', async () => {
         const error = await asUser(alice.id, client =>
-            client.query('INSERT INTO banks (user_id, name, initial_balance, current_balance) VALUES ($1, \'PLANTED\', 1, 1)', [bob.id])
+            client.query('INSERT INTO banks (user_id, name, initial_balance) VALUES ($1, \'PLANTED\', 1)', [bob.id])
                 .then(() => null, caught => caught));
         expect(error && error.code).toBe('42501');
         expect(error.message).toMatch(/row-level security/);

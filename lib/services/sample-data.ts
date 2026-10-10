@@ -90,7 +90,7 @@ export async function loadSampleData(pool: Pool, userId: number, today = todayIn
         // Banks and the card, in the former tables too (the Accounts screen lists those), dated the start
         for (const bank of SAMPLE_BANKS) {
             const row = await client.query(
-                'INSERT INTO banks (user_id, name, initial_balance, current_balance, sample, created_at) VALUES ($1, $2, $3, $3, true, $4::date) RETURNING id',
+                'INSERT INTO banks (user_id, name, initial_balance, sample, created_at) VALUES ($1, $2, $3, true, $4::date) RETURNING id',
                 [userId, bank.name, bank.opening, start]);
             const account = await client.query(
                 `INSERT INTO ledger_accounts (user_id, kind, subtype, name, source_table, source_id, sample)

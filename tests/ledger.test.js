@@ -205,27 +205,18 @@ describe('balances and the summary are read from the ledger', () => {
         await agent.post('/api/expenses').send({ title: 'Card spend', amount: 120, paymentMethod: 'credit_card', paymentSourceId: card.id, date: thisMonth });
     });
 
-    test('the lists show the ledger\'s balance, not the former column', async () => {
-        // The former columns are no longer kept (0009): whatever they hold, the API must not notice
-        await query('UPDATE banks SET current_balance = 1 WHERE id = $1', [bank.id]);
-        await query('UPDATE credit_cards SET used_limit = 1 WHERE id = $1', [card.id]);
+    test('the former balance columns are gone, and every balance is the ledger\'s', async () => {
+        // Dropped in 0019: only starting balances and card limits stay in the former tables
+        const columns = await query(
+            `SELECT table_name, column_name FROM information_schema.columns
+             WHERE table_schema = current_schema() AND (table_name, column_name) IN (('banks', 'current_balance'), ('credit_cards', 'used_limit'), ('cash_balance', 'balance'))`);
+        expect(columns.rows).toEqual([]);
         const banks = (await agent.get('/api/banks')).body;
         expect(banks.find(row => row.id === bank.id).current_balance).toBe('1350.00');
         const cards = (await agent.get('/api/credit-cards')).body;
         expect(cards.find(row => row.id === card.id).used_limit).toBe('120.00');
-        await expectLedgerAgrees();
-    });
 
-    test('the former balance columns are no longer written, and the card limit check uses the ledger', async () => {
-        const income = await agent.post('/api/income')
-            .send({ source: 'Column probe', amount: 10, creditedToType: 'bank', creditedToId: bank.id, date: thisMonth });
-        expect(income.status).toBe(200);
-        // Still the value the previous test left there
-        const column = await query('SELECT current_balance FROM banks WHERE id = $1', [bank.id]);
-        expect(column.rows[0].current_balance).toBe('1.00');
-        expect((await agent.delete(`/api/income/${income.body.id}`)).status).toBe(200);
-
-        // The column says 1 used; the ledger says 120, so a limit of 100 is refused
+        // The ledger says 120 used, so a limit of 100 is refused
         const lowered = await agent.put(`/api/credit-cards/${card.id}`).send({ name: 'Reads Card', creditLimit: 100 });
         expect(lowered.status).toBe(400);
         expect(lowered.body.error).toContain('₹120.00');
@@ -266,16 +257,11 @@ describe('balances and the summary are read from the ledger', () => {
     });
 
     test('the overspend check uses the ledger\'s balance', async () => {
-        // The former column says plenty; the ledger (1450.00 now) decides
-        await query('UPDATE banks SET current_balance = 999999 WHERE id = $1', [bank.id]);
-        try {
-            const response = await agent.post('/api/expenses')
-                .send({ title: 'Too much', amount: '1450.01', paymentMethod: 'bank', paymentSourceId: bank.id, date: thisMonth });
-            expect(response.status).toBe(400);
-            expect(response.body.error).toBe('Insufficient bank balance');
-        } finally {
-            await query('UPDATE banks SET current_balance = 1450 WHERE id = $1', [bank.id]);
-        }
+        // The ledger (1450.00 now) decides
+        const response = await agent.post('/api/expenses')
+            .send({ title: 'Too much', amount: '1450.01', paymentMethod: 'bank', paymentSourceId: bank.id, date: thisMonth });
+        expect(response.status).toBe(400);
+        expect(response.body.error).toBe('Insufficient bank balance');
         const exact = await agent.post('/api/expenses')
             .send({ title: 'Exactly enough', amount: '1450.00', paymentMethod: 'bank', paymentSourceId: bank.id, date: thisMonth });
         expect(exact.status).toBe(200);
