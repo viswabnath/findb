@@ -78,13 +78,24 @@ Needs the pending login at `setup`.
 - **POST** `/api/privacy/consent` with `{ "noticeVersion": "2026-10-04" }` → `{ "success": true }`. Any other version: `400` (the notice changed; reload).
 - **POST** `/api/privacy/withdraw` → `{ "success": true }`: consent withdrawn, every session signed out, cookies cleared. Data is not deleted.
 
-### Set tracking option
+### Set tracking option (former)
 **POST** `/api/set-tracking-option`
 
 ```json
 { "trackingOption": "income | expenses | both" }
 ```
-Response: `{ "success": true }`
+Response: `{ "success": true }`. Kept for older clients: it also sets the modules the choice means (income: `["income"]`; expenses: `["spending", "credit_cards"]`; both: all three). New screens use `/api/modules`.
+
+### Modules (what the user tracks)
+The modules are listed in `lib/modules.ts`: `income`, `spending`, `credit_cards`, `debts`, `investments`, `property`, `savings`, `insurance`, `goals`, `tax`, `household`. Accounts, transactions and net worth are always on. Turning a module off keeps its data. Every change also sets the former `tracking_option` (income only: `income`; spending only: `expenses`; otherwise `both`). A user who never chose has the modules their former choice means. `GET /api/user` includes `modules`.
+
+**GET** `/api/modules`: `{ "modules": ["income", "spending"], "declined": ["debts"] }`
+
+**PUT** `/api/modules` with `{ "modules": [...] }`: unknown keys are refused, and income or spending must be on (`400`). Stored in the listed order; one activity log entry. Returns the same shape as GET.
+
+**GET** `/api/modules/suggestion?title=...`: `{ "suggestion": { "key", "name", "line", "available" } | null }`, the first switched-off module the title's words point to (such as "Home loan EMI" to `debts`), unless the user declined it before.
+
+**POST** `/api/modules/suggestion` with `{ "module": "debts", "accept": true | false }`: accepting turns it on; declining records it so it is not offered again. Returns the same shape as GET `/api/modules`.
 
 ### Account recovery
 

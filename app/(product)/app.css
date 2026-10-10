@@ -331,6 +331,16 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .choice .chev { color: var(--muted); }
 .choice.recommended { border-color: var(--primary); }
 .choice .tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--tint); color: var(--tint-fg); font-size: 0.72rem; font-weight: 700; vertical-align: 2px; }
+.module-choices { display: grid; gap: 8px; }
+.module-choice { display: flex; align-items: flex-start; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; cursor: pointer; }
+.module-choice:has(input:checked) { border-color: var(--primary); background: var(--tint); }
+.module-choice input { margin-top: 4px; width: 18px; height: 18px; flex: none; accent-color: var(--primary); }
+.module-choice b { display: block; font-size: 0.98rem; }
+.module-choice small { display: block; color: var(--muted); font-size: 0.86rem; }
+.module-choice .tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2, var(--tint)); color: var(--muted); font-size: 0.7rem; font-weight: 700; vertical-align: 2px; }
+.module-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.module-suggestion { flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: 16px; color: var(--fg); }
+.module-suggestion .module-actions { margin-top: 0; }
 
 /* ---------- App shell ---------- */
 

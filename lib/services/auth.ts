@@ -4,6 +4,7 @@ import type { Pool, QueryResultRow } from 'pg';
 import { logActivity } from '../activity-log';
 import { isValidEmail, isValidUsername, passwordProblem } from '../auth-validation';
 import { BREACHED_PASSWORD_MESSAGE, isBreachedPassword } from '../breached-password';
+import { modulesFromTracking } from '../modules';
 import { recordLoginEvent } from './security';
 import { consentStatus, recordConsent } from './privacy';
 import { RequestError, withTransaction } from '../transaction';
@@ -87,10 +88,11 @@ export async function login(pool: Pool, body: Body, userAgent: string | null = n
 
 /** The logged-in user's name and tracking option, and whether they still need to agree to the privacy notice */
 export async function getUser(pool: Pool, userId: number): Promise<QueryResultRow> {
-    const result = await pool.query('SELECT name, tracking_option FROM users WHERE id = $1', [userId]);
+    const result = await pool.query('SELECT name, tracking_option, modules FROM users WHERE id = $1', [userId]);
     if (result.rows.length === 0) return {};
     const consent = await consentStatus(pool, userId);
-    return { ...result.rows[0], consentNeeded: consent.needed, noticeVersion: consent.noticeVersion };
+    const row = result.rows[0];
+    return { ...row, modules: row.modules ?? modulesFromTracking(row.tracking_option), consentNeeded: consent.needed, noticeVersion: consent.noticeVersion };
 }
 
 export async function setTrackingOption(pool: Pool, userId: number, body: Body): Promise<void> {
@@ -98,7 +100,8 @@ export async function setTrackingOption(pool: Pool, userId: number, body: Body):
     if (trackingOption !== 'income' && trackingOption !== 'expenses' && trackingOption !== 'both') {
         throw new RequestError(400, 'Invalid tracking option');
     }
-    await pool.query('UPDATE users SET tracking_option = $1 WHERE id = $2', [trackingOption, userId]);
+    // The former choice, kept for older screens: the modules it means (lib/modules.ts)
+    await pool.query('UPDATE users SET tracking_option = $1, modules = $2 WHERE id = $3', [trackingOption, modulesFromTracking(trackingOption), userId]);
 }
 
 // ----- Account recovery -----

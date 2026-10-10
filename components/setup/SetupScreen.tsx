@@ -47,7 +47,7 @@ function FormMessage({ id, message }: { id: string; message: FormMessageState | 
 export function SetupScreen() {
     const toast = useToast();
     const [loaded, setLoaded] = useState(false);
-    const [trackingOption, setTrackingOption] = useState('both');
+    const [modules, setModules] = useState<string[]>([]);
     const [banks, setBanks] = useState<Bank[]>([]);
     const [cards, setCards] = useState<Card[]>([]);
     const [cash, setCash] = useState<Cash>({});
@@ -91,9 +91,9 @@ export function SetupScreen() {
 
     useEffect(() => {
         (async () => {
-            const user = await apiGet<{ tracking_option?: string }>('/api/user');
+            const user = await apiGet<{ modules?: string[] }>('/api/user');
             if (redirectIfUnauthorized(user)) return;
-            setTrackingOption(user.data.tracking_option || 'both');
+            setModules(user.data.modules ?? []);
             await Promise.all([loadBanks(), loadCards(), loadCash()]);
             setLoaded(true);
         })();
@@ -206,7 +206,8 @@ export function SetupScreen() {
     const initialCash = parseFloat(String(cash.initial_balance ?? 0)) || 0;
     const inBanks = banks.reduce((sum, bank) => sum + (parseFloat(bank.current_balance) || 0), 0);
     const cardDues = cards.reduce((sum, card) => sum + (parseFloat(card.used_limit) || 0), 0);
-    const showCards = trackingOption !== 'income';
+    // Cards show while the module is on, and always while there are cards, so switching it off hides nothing saved
+    const showCards = modules.includes('credit_cards') || cards.length > 0;
     const modalButtons = (saveAction: string, closeAction: string, onSave: () => void, onClose: () => void) => (
         <>
             <button type="button" data-action={closeAction} className="btn btn-secondary" onClick={onClose}>Cancel</button>

@@ -72,13 +72,14 @@ test('every entry is reachable: the feed pages through the server, not just the 
     }
 
     await showSection(page, 'activity');
-    await expect(page.locator('#activity-section .card-head .meta')).toHaveText('23 changes');
+    // Plus the welcome step's choice of what to track
+    await expect(page.locator('#activity-section .card-head .meta')).toHaveText('24 changes');
     await expect(page.locator('.activity-item')).toHaveCount(10);
     await expect(page.locator('.pagination-btn.active')).toHaveText('1');
 
     await page.locator('.pagination-btn', { hasText: '3' }).click();
     await expect(page.locator('.pagination-btn.active')).toHaveText('3');
-    await expect(page.locator('.activity-item')).toHaveCount(3);
+    await expect(page.locator('.activity-item')).toHaveCount(4);
     // The oldest entries, which the legacy feed could never show
     await expect(feed(page)).toContainText('Added income: Gig 1');
     await expect(page.locator('.pagination-btn', { hasText: 'Next' })).toHaveCount(0);

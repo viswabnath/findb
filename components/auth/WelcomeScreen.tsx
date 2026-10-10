@@ -1,22 +1,28 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ArrowLeftRight, ChevronRight, TrendingDown, TrendingUp, type LucideIcon } from 'lucide-react';
+import { ChevronRight, Layers, PiggyBank, SlidersHorizontal, TrendingDown, type LucideIcon } from 'lucide-react';
 import { AuthButton } from './AuthShell';
 import { HydrationGate } from '@/components/HydrationGate';
 import { useToast } from '@/components/Toast';
-import { apiError, apiGet, apiPost } from '@/lib/api-client';
+import { apiError, apiGet, apiPut } from '@/lib/api-client';
+import { MODULES, PRESETS } from '@/lib/modules';
 
-const OPTIONS: { value: string; label: string; text: string; icon: LucideIcon; tile: string; recommended?: boolean }[] = [
-    { value: 'both', label: 'Income and spending', text: 'See what comes in, what goes out, and what you save.', icon: ArrowLeftRight, tile: 't-income', recommended: true },
-    { value: 'expenses', label: 'Just my spending', text: 'Track where the money goes, with cards and cash.', icon: TrendingDown, tile: 't-expense' },
-    { value: 'income', label: 'Just my income', text: 'Keep a record of what you earn and where it lands.', icon: TrendingUp, tile: 't-bank' },
-];
+const PRESET_LOOK: Record<string, { icon: LucideIcon; tile: string; recommended?: boolean }> = {
+    spending: { icon: TrendingDown, tile: 't-expense' },
+    savings: { icon: PiggyBank, tile: 't-income', recommended: true },
+    everything: { icon: Layers, tile: 't-bank' },
+};
 
-/** Shown right after registration: the user picks what to track, then continues to the app */
+/**
+ * Shown right after registration: the user picks what to track (a preset or their own mix of
+ * modules, lib/modules.ts), then continues to the app. Settings can change it later.
+ */
 export function WelcomeScreen() {
     const toast = useToast();
     const [name, setName] = useState('');
+    const [custom, setCustom] = useState(false);
+    const [chosen, setChosen] = useState<string[]>(['income', 'spending']);
 
     useEffect(() => {
         apiGet<{ name?: string }>('/api/user').then(result => {
@@ -29,13 +35,17 @@ export function WelcomeScreen() {
         });
     }, []);
 
-    async function choose(option: string) {
-        const result = await apiPost('/api/set-tracking-option', { trackingOption: option });
+    async function save(modules: string[]) {
+        const result = await apiPut('/api/modules', { modules });
         if (result.ok) {
             window.location.assign('/setup');
         } else {
-            toast('error', apiError(result.data, 'Could not save your tracking option. Please try again.'));
+            toast('error', apiError(result.data, 'Could not save what you want to track. Please try again.'));
         }
+    }
+
+    function toggle(key: string, on: boolean) {
+        setChosen(value => on ? [...value, key] : value.filter(item => item !== key));
     }
 
     return (
@@ -43,30 +53,58 @@ export function WelcomeScreen() {
             <div className="auth-head">
                 <span className="auth-step">Account created</span>
                 <h1>Welcome{name ? <>, <span id="user-name">{name}</span></> : null}</h1>
-                <p>What would you like to track? You can change this later.</p>
+                <p>What would you like to track? Accounts and transactions are always there; you can change the rest any time in Settings.</p>
             </div>
             <HydrationGate>
-                <div className="choice-list">
-                    {OPTIONS.map(option => {
-                        const Icon = option.icon;
-                        return (
-                            <AuthButton
-                                key={option.value}
-                                action="setTrackingOption"
-                                data-option={option.value}
-                                className={`choice${option.recommended ? ' recommended' : ''}`}
-                                onClick={() => choose(option.value)}
-                            >
-                                <span className={`icon-tile ${option.tile}`} aria-hidden="true"><Icon /></span>
+                {custom ? (
+                    <form id="welcome-custom" className="module-choices" onSubmit={event => { event.preventDefault(); save(chosen); }}>
+                        {MODULES.map(module => (
+                            <label key={module.key} className="module-choice">
+                                <input type="checkbox" data-module={module.key} checked={chosen.includes(module.key)}
+                                    onChange={event => toggle(module.key, event.target.checked)} />
                                 <span>
-                                    <b>{option.label}{option.recommended ? <span className="tag">Recommended</span> : null}</b>
-                                    <small>{option.text}</small>
+                                    <b>{module.name}{module.available ? null : <span className="tag">Coming soon</span>}</b>
+                                    <small>{module.line}</small>
                                 </span>
-                                <ChevronRight className="chev" aria-hidden="true" />
-                            </AuthButton>
-                        );
-                    })}
-                </div>
+                            </label>
+                        ))}
+                        <div className="module-actions">
+                            <button type="button" className="btn btn-secondary" onClick={() => setCustom(false)}>Back</button>
+                            <button type="submit" className="btn btn-primary" data-action="saveModules">Continue</button>
+                        </div>
+                    </form>
+                ) : (
+                    <div className="choice-list">
+                        {PRESETS.map(preset => {
+                            const look = PRESET_LOOK[preset.key] ?? { icon: Layers, tile: 't-bank' };
+                            const Icon = look.icon;
+                            return (
+                                <AuthButton
+                                    key={preset.key}
+                                    action="choosePreset"
+                                    data-preset={preset.key}
+                                    className={`choice${look.recommended ? ' recommended' : ''}`}
+                                    onClick={() => save(preset.modules)}
+                                >
+                                    <span className={`icon-tile ${look.tile}`} aria-hidden="true"><Icon /></span>
+                                    <span>
+                                        <b>{preset.name}{look.recommended ? <span className="tag">Recommended</span> : null}</b>
+                                        <small>{preset.line}</small>
+                                    </span>
+                                    <ChevronRight className="chev" aria-hidden="true" />
+                                </AuthButton>
+                            );
+                        })}
+                        <AuthButton action="chooseOwn" className="choice" onClick={() => setCustom(true)}>
+                            <span className="icon-tile t-wealth" aria-hidden="true"><SlidersHorizontal /></span>
+                            <span>
+                                <b>Choose my own</b>
+                                <small>Pick each part you want, such as just your income.</small>
+                            </span>
+                            <ChevronRight className="chev" aria-hidden="true" />
+                        </AuthButton>
+                    </div>
+                )}
             </HydrationGate>
         </div>
     );

@@ -7,6 +7,7 @@ import { useToast } from '@/components/Toast';
 import { apiDelete, apiError, apiGet, apiPost, redirectIfUnauthorized } from '@/lib/api-client';
 import { PRIVACY_CONTACT } from '@/lib/privacy-notice';
 import { CategoriesCard } from './CategoriesCard';
+import { ModulesCard } from './ModulesCard';
 import { ProfileCard } from './ProfileCard';
 
 /**
@@ -121,6 +122,8 @@ export function SettingsScreen() {
             </div>
 
             <div className="stack">
+                <ModulesCard />
+
                 <ProfileCard />
 
                 <CategoriesCard />
