@@ -5,6 +5,7 @@ import { logActivity } from '../activity-log';
 import { isValidEmail, isValidUsername, passwordProblem } from '../auth-validation';
 import { BREACHED_PASSWORD_MESSAGE, isBreachedPassword } from '../breached-password';
 import { modulesFromTracking } from '../modules';
+import { hasSampleData } from './sample-data';
 import { recordLoginEvent } from './security';
 import { consentStatus, recordConsent } from './privacy';
 import { RequestError, withTransaction } from '../transaction';
@@ -92,7 +93,10 @@ export async function getUser(pool: Pool, userId: number): Promise<QueryResultRo
     if (result.rows.length === 0) return {};
     const consent = await consentStatus(pool, userId);
     const row = result.rows[0];
-    return { ...row, modules: row.modules ?? modulesFromTracking(row.tracking_option), consentNeeded: consent.needed, noticeVersion: consent.noticeVersion };
+    return {
+        ...row, modules: row.modules ?? modulesFromTracking(row.tracking_option), sampleData: await hasSampleData(pool, userId),
+        consentNeeded: consent.needed, noticeVersion: consent.noticeVersion,
+    };
 }
 
 export async function setTrackingOption(pool: Pool, userId: number, body: Body): Promise<void> {

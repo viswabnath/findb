@@ -91,6 +91,16 @@ describe('reimbursements', () => {
             .toBe('This reimbursement is already closed');
     });
 
+    test('the part kept as spending is listed, from Reimbursements due, and changed only from the reimbursement', async () => {
+        const entries = (await agent.get(`/api/entries?month=${MONTH}&year=${YEAR}`)).body;
+        const kept = entries.find(entry => entry.reimbursement && entry.type === 'expense');
+        expect(kept).toMatchObject({ amount: '1500.00', account: { name: 'Reimbursements due' }, category: { name: 'Travel' } });
+        const refused = await agent.put(`/api/entries/${kept.id}`).send({ type: 'expense', description: 'Changed', amount: 1, accountId: bank.id, date: DAY });
+        expect(refused.status).toBe(400);
+        expect(refused.body.error).toMatch(/belongs to a reimbursement/);
+        expect((await agent.delete(`/api/entries/${kept.id}`)).status).toBe(400);
+    });
+
     test('repaid in full closes it, with nothing counted as spending', async () => {
         const medical = (await agent.post('/api/reimbursements').send({ description: 'Hospital bill', amount: 3000, accountId: bank.id, date: DAY, fromWhom: 'Insurer' })).body;
         const repaid = await agent.post(`/api/reimbursements/${medical.id}/repay`).send({ amount: 3000, accountId: bank.id, date: DAY });

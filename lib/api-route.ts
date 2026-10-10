@@ -20,6 +20,9 @@ const BUSY_ERROR = 'FinDB is busy right now. Please try again in a moment.';
 const BUSY_CODES = new Set(['55P03', '57014']);
 const isBusy = (error: unknown) => BUSY_CODES.has(String((error as { code?: unknown } | null)?.code));
 
+/** The database refused to mix sample data with real money (FS001, migration 0018); its message is for the user */
+const isSampleRefusal = (error: unknown): error is Error => (error as { code?: unknown } | null)?.code === 'FS001';
+
 export function jsonError(status: number, error: string): Response {
     return Response.json({ error }, { status });
 }
@@ -96,6 +99,7 @@ export function withUser<C>(handler: AuthedHandler<C>) {
                 scoped => requestScope.run(scoped, () => handler(request, userId, context)));
         } catch (error) {
             if (error instanceof RequestError) return jsonError(error.status, error.message);
+            if (isSampleRefusal(error)) return jsonError(400, error.message);
             console.error(`${request.method} ${request.nextUrl.pathname} failed:`, error);
             return isBusy(error) ? jsonError(503, BUSY_ERROR) : jsonError(500, GENERIC_ERROR);
         }

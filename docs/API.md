@@ -97,6 +97,22 @@ The modules are listed in `lib/modules.ts`: `income`, `spending`, `credit_cards`
 
 **POST** `/api/modules/suggestion` with `{ "module": "debts", "accept": true | false }`: accepting turns it on; declining records it so it is not offered again. Returns the same shape as GET `/api/modules`.
 
+### Sample data and the next step
+Sample data (`lib/services/sample-data.ts`) is three months of a sample family's money: two banks and a credit card whose names end in "(SAMPLE)", salary and freelance income, everyday spending in categories with tags, a "Goa trip (sample)" event, and card bills paid as transfers. Nothing is dated after today. While it is loaded, the database refuses every real entry (`400`, "You are looking at sample data. Clear it first..."), so sample and real money never mix in a total. `GET /api/user` includes `sampleData: true | false`.
+
+**POST** `/api/sample-data`: loads it, `{ "entries": 44 }`. Only for a fresh start: `400` when it is already loaded or the user has entries of their own. One activity log entry.
+
+**DELETE** `/api/sample-data`: deletes every sample row (entries with their lines and tags, accounts, banks, the card, the event, and any repeating entry or reconciliation set up on a sample account): `{ "cleared": true }`, or `{ "cleared": false }` when there was none. One activity log entry.
+
+**GET** `/api/next-step`: the one clear next step for the Accounts screen, `{ "kind", "text", "label", "href"? }`. In order of priority, `kind` is:
+- `sample`: sample data is loaded (no `href`; the screen offers to clear it);
+- `start`: no accounts and no entries yet (`/setup#bank-name`; the screen also offers sample data);
+- `confirm`: repeating entries wait to be confirmed;
+- `categorise`: expenses this month have no category;
+- `reimbursement`: money paid over 30 days ago is still to come back;
+- `reconcile`: a bank or card with entries, older than 30 days, not checked against a statement in the last 30 days;
+- `everyday`: nothing else; add today's spending.
+
 ### Account recovery
 
 None of these endpoints reveal whether an account exists:

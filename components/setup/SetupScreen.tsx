@@ -6,6 +6,7 @@ import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { formatRupees } from '@/lib/format';
+import { NextStepCard } from './NextStepCard';
 import { OtherAccounts } from './OtherAccounts';
 import { useFormMessage, type FormMessageState } from '@/components/useFormMessage';
 
@@ -224,6 +225,8 @@ export function SetupScreen() {
                 </div>
                 <a href="/reconcile" className="btn btn-secondary" data-action="goReconcile">Check against a statement</a>
             </div>
+
+            <NextStepCard />
 
             <div className={`stats ${showCards ? 'three' : 'two'}`}>
                 <div className="stat hero">

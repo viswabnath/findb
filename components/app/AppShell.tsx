@@ -6,7 +6,7 @@ import { ArrowLeftRight, CalendarHeart, ChartColumn, History, LogOut, Settings, 
 import { Modal } from '@/components/Modal';
 import { ConsentScreen } from '@/components/privacy/ConsentScreen';
 import { Logo } from '@/components/site/Logo';
-import { apiGet, apiPost, onActiveRequestsChange } from '@/lib/api-client';
+import { apiDelete, apiGet, apiPost, onActiveRequestsChange } from '@/lib/api-client';
 
 interface NavItem {
     section: string;
@@ -41,11 +41,14 @@ export function AppShell({ children }: { children: ReactNode }) {
     // Set when the account has not agreed to the current privacy notice: the app waits for consent
     const [consentVersion, setConsentVersion] = useState<string | null>(null);
     const [dueNotice, setDueNotice] = useState<{ posted: number; pending: number } | null>(null);
+    // Sample data is loaded (lib/services/sample-data.ts): marked on every screen until cleared
+    const [sample, setSample] = useState(false);
 
     useEffect(() => {
-        apiGet<{ name?: string; consentNeeded?: boolean; noticeVersion?: string }>('/api/user').then(result => {
+        apiGet<{ name?: string; consentNeeded?: boolean; noticeVersion?: string; sampleData?: boolean }>('/api/user').then(result => {
             if (!result.ok) return;
             setName(result.data.name ?? '');
+            setSample(result.data.sampleData === true);
             if (result.data.consentNeeded && result.data.noticeVersion) {
                 setConsentVersion(result.data.noticeVersion);
                 return;
@@ -78,6 +81,11 @@ export function AppShell({ children }: { children: ReactNode }) {
         event.preventDefault();
         setLogoutOpen(true);
     };
+
+    async function clearSample() {
+        const result = await apiDelete('/api/sample-data');
+        if (result.ok) window.location.assign('/setup');
+    }
 
     const firstName = name.trim().split(/\s+/)[0] ?? '';
 
@@ -114,6 +122,12 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </header>
 
                     <main className="app-content">
+                        {!consentVersion && sample ? (
+                            <div id="sample-banner" className="notice warn sample-banner" role="status">
+                                <span><b>Sample data.</b> You are looking at a sample family&apos;s money, not your own. Nothing here is real.</span>
+                                <button type="button" className="btn btn-secondary btn-sm" data-action="clearSample" onClick={clearSample}>Clear sample data</button>
+                            </div>
+                        ) : null}
                         {!consentVersion && dueNotice && (dueNotice.posted > 0 || dueNotice.pending > 0) && pathname !== '/transactions' ? (
                             <div id="repeating-notice" className="notice" role="status">
                                 {dueNotice.posted > 0 ? `${dueNotice.posted} repeating ${dueNotice.posted === 1 ? 'entry was' : 'entries were'} recorded. ` : ''}

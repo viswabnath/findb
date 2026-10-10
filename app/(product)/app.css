@@ -339,6 +339,12 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .module-choice small { display: block; color: var(--muted); font-size: 0.86rem; }
 .module-choice .tag { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 999px; background: var(--surface-2, var(--tint)); color: var(--muted); font-size: 0.7rem; font-weight: 700; vertical-align: 2px; }
 .module-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 8px; }
+.sample-banner { flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+.next-step { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 14px; margin-bottom: 20px; padding: 14px 16px;
+    border: 1px solid var(--line); border-radius: 16px; background: var(--surface); }
+.next-step p { flex: 1 1 260px; margin: 0; font-weight: 600; }
+.next-step-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.next-step-actions .btn svg { width: 16px; height: 16px; }
 .module-suggestion { flex-wrap: wrap; align-items: center; justify-content: space-between; margin-bottom: 16px; color: var(--fg); }
 .module-suggestion .module-actions { margin-top: 0; }
 

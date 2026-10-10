@@ -271,7 +271,7 @@ async function advance(client: Client, userId: number, item: Repeating, after: s
 }
 
 /** What is due now and soon, for the user to see: confirm-mode entries due, and any due within their reminder days */
-async function dueItems(client: Client, userId: number, today: string): Promise<{ pending: DueItem[]; upcoming: DueItem[] }> {
+export async function dueItems(client: Client, userId: number, today: string): Promise<{ pending: DueItem[]; upcoming: DueItem[] }> {
     const active = (await client.query(`${SELECT} AND r.next_due IS NOT NULL AND r.paused_at IS NULL ORDER BY r.next_due, r.id`, [userId])).rows.map(toRepeating);
     const pending: DueItem[] = [];
     const upcoming: DueItem[] = [];
@@ -314,8 +314,9 @@ export async function runDue(pool: Pool, userId: number, today = todayInIndia())
                 await advance(client, userId, item, dates.at(-1)!);
             });
         } catch (error) {
-            if (!(error instanceof RequestError)) throw error;
-            problems.push({ recurringId: Number(id), description: '', error: error.message });
+            // FS001: the database refused a real entry while sample data is loaded (migration 0018)
+            if (!(error instanceof RequestError) && (error as { code?: unknown }).code !== 'FS001') throw error;
+            problems.push({ recurringId: Number(id), description: '', error: (error as Error).message });
         }
     }
     for (const problem of problems) {

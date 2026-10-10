@@ -25,6 +25,8 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] Wallets and meal cards, and bank details (bank, account type, savings interest rate)
 - [x] Categories (defaults, your own, essential or discretionary), suggested from the title and learning from your choices; tags; categorising many entries at once; spending by category in the summary
 - [x] Module switches: choose what to track at sign-up (presets or your own mix), change it in Settings, existing users mapped from the former income / expenses / both choice; a one-time offer to turn a module on when an entry's title points to it
+- [x] Sample data: a fresh account can explore three months of a sample family's money, marked on every screen, and clear it with one click; the database refuses real entries while it is loaded
+- [x] Next step on the Accounts screen: the most useful thing to do now (confirm a repeating entry, categorise spending, follow up a reimbursement, check an account against a statement)
 - [x] Profile: date of birth, city, tax residency, dependants; PAN and demat account IDs encrypted and shown masked; Aadhaar at most the last four digits
 - [x] Reconciliation: check an account against a statement, tick entries off, find the difference; reconciled entries warn before they change
 - [x] Reimbursements: money paid and owed back is not spending; repayments come back into an account; what is never repaid becomes spending in its category

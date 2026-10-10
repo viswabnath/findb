@@ -90,6 +90,7 @@
           "<rootDir>/tests/recurring.test.js",
           "<rootDir>/tests/reimbursements.test.js",
           "<rootDir>/tests/modules.test.js",
+          "<rootDir>/tests/sample-data.test.js",
           "<rootDir>/tests/reconciliation.test.js",
           "<rootDir>/tests/profile.test.js"
         ],
