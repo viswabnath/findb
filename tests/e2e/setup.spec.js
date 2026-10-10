@@ -107,7 +107,7 @@ test('edit and delete a credit card', async ({ page }) => {
     await expect(cardRow(page, 'Travel Card')).toContainText(rupees(20000));
 
     await cardRow(page, 'Travel Card').locator('[data-action="edit-credit-card"]').click();
-    await expect(page.locator('#credit-card-used-info')).toContainText(`Current Used Limit: ${rupees(0)}`);
+    await expect(page.locator('#credit-card-used-info')).toContainText(`Used now: ${rupees(0)}`);
     await page.locator('#edit-credit-card-limit').fill('25000');
     await page.locator('[data-action="save-credit-card"]').click();
     await expect(cardRow(page, 'Travel Card')).toContainText(rupees(25000));

@@ -58,6 +58,8 @@ Tests use a separate free Supabase project, `findb-test` (Mumbai, project ref `k
 
 - **No emoji anywhere**: not in the UI, docs, README, or console/log messages. Use plain text labels such as `Warning:` instead. `tests/no-emoji.test.js` enforces this.
 - When you add or change an API route, update `docs/API.md` to match.
+- **Text in message files** (`messages/en.ts`, read with `t()` from `lib/i18n.ts`): every word a screen shows, so translations need no code changes. Screens are moving over one by one (v2 Phase 1); new text goes there from the start.
+- **Design system:** colour tokens in `app/(product)/app.css` with light and dark values (the device's setting, or the user's choice in Settings: the `findb_theme` cookie, set on `<html data-theme>` by the app layout); borders, no shadows or gradients; amounts in Source Sans 3 with tabular figures (`--font-num`); shared pieces in `components/ui/`; phone first (360 px).
 
 ## Architecture
 

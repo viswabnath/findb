@@ -15,7 +15,8 @@ test('try sample data, see it marked on every screen, then clear it', async ({ p
 
     await page.locator('[data-action="loadSample"]').click();
     await expect(page.locator('#sample-banner')).toBeVisible({ timeout: 60000 });
-    await expect(page.locator('#next-step')).toHaveAttribute('data-step', 'sample');
+    // The banner says what to do, so the next-step card steps aside
+    await expect(page.locator('#next-step')).toHaveCount(0);
     await expect(page.locator('#banks-list')).toContainText('HDFC SAVINGS (SAMPLE)');
 
     await showSection(page, 'transactions');

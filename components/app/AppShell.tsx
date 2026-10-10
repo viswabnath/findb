@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { ArrowLeftRight, CalendarHeart, ChartColumn, History, LogOut, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Modal } from '@/components/Modal';
+import { t } from '@/lib/i18n';
 import { ConsentScreen } from '@/components/privacy/ConsentScreen';
 import { Logo } from '@/components/site/Logo';
 import { apiDelete, apiGet, apiPost, onActiveRequestsChange } from '@/lib/api-client';
@@ -20,13 +21,15 @@ interface NavItem {
  * The section names and data-action hooks are the former app's (the end-to-end tests use them).
  */
 const NAV_ITEMS: NavItem[] = [
-    { section: 'setup', label: 'Accounts', icon: Wallet, href: '/setup' },
-    { section: 'transactions', label: 'Transactions', icon: ArrowLeftRight, href: '/transactions' },
-    { section: 'summary', label: 'Summary', icon: ChartColumn, href: '/summary' },
-    { section: 'events', label: 'Events', icon: CalendarHeart, href: '/events' },
-    { section: 'activity', label: 'Activity', icon: History, href: '/activity' },
-    { section: 'settings', label: 'Settings', icon: Settings, href: '/settings' },
+    { section: 'setup', label: t('nav.accounts'), icon: Wallet, href: '/setup' },
+    { section: 'transactions', label: t('nav.transactions'), icon: ArrowLeftRight, href: '/transactions' },
+    { section: 'summary', label: t('nav.summary'), icon: ChartColumn, href: '/summary' },
+    { section: 'events', label: t('nav.events'), icon: CalendarHeart, href: '/events' },
+    { section: 'activity', label: t('nav.activity'), icon: History, href: '/activity' },
+    { section: 'settings', label: t('nav.settings'), icon: Settings, href: '/settings' },
 ];
+// Phones: five tabs fit at 360 px with whole labels; Settings is in the top bar instead
+const TAB_ITEMS = NAV_ITEMS.filter(item => item.section !== 'settings');
 
 /**
  * The logged-in frame: a sidebar on larger screens, a top bar and a bottom tab bar on phones,
@@ -116,9 +119,15 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div className="app-main">
                     <header className="app-topbar">
                         <a href="/setup" aria-label="FinDB, accounts"><Logo /></a>
-                        <button type="button" className="btn btn-secondary btn-sm logout-link" data-action="logout" onClick={openLogout}>
-                            <LogOut aria-hidden="true" /> Log out
-                        </button>
+                        <span className="topbar-actions">
+                            <a href="/settings" className="btn btn-secondary btn-sm" data-section="settings" aria-current={pathname === '/settings' ? 'page' : undefined}
+                                aria-label={t('nav.settings')}>
+                                <Settings aria-hidden="true" />
+                            </a>
+                            <button type="button" className="btn btn-secondary btn-sm logout-link" data-action="logout" onClick={openLogout}>
+                                <LogOut aria-hidden="true" /> Log out
+                            </button>
+                        </span>
                     </header>
 
                     <main className="app-content">
@@ -152,7 +161,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 </div>
 
                 <nav className="tabbar" aria-label="Main, mobile">
-                    {NAV_ITEMS.map(({ section, label, icon: Icon, href }) => (
+                    {TAB_ITEMS.map(({ section, label, icon: Icon, href }) => (
                         <a key={section} href={href} data-section={section} aria-current={pathname === href ? 'page' : undefined}>
                             <Icon aria-hidden="true" />{label}
                         </a>

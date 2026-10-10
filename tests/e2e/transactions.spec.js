@@ -168,7 +168,7 @@ test('a wallet is added on Accounts, money moves into it, and the move is neithe
     await page.locator('#other-balance').fill('0');
     await page.locator('[data-action="addOtherAccount"]').click();
     await expect(page.locator('#other-account-message')).toHaveText('Wallet added successfully!');
-    await expect(page.locator('#other-accounts-list tr', { hasText: 'Paytm Wallet' })).toContainText(rupees(0));
+    await expect(page.locator('#other-accounts-list li', { hasText: 'Paytm Wallet' })).toContainText(rupees(0));
 
     await showSection(page, 'transactions');
     await selectAccount(page, 'transfer-from', 'CANARA MAIN');
@@ -186,8 +186,8 @@ test('a wallet is added on Accounts, money moves into it, and the move is neithe
     await expect(page.locator('.stat', { hasText: 'Money out' }).locator('.stat-value')).toHaveText(rupees(0));
 
     await showSection(page, 'setup');
-    await expect(page.locator('#other-accounts-list tr', { hasText: 'Paytm Wallet' })).toContainText(rupees(750));
-    await expect(page.locator('#banks-list tr', { hasText: 'CANARA MAIN' })).toContainText(rupees(4250));
+    await expect(page.locator('#other-accounts-list li', { hasText: 'Paytm Wallet' })).toContainText(rupees(750));
+    await expect(page.locator('#banks-list li', { hasText: 'CANARA MAIN' })).toContainText(rupees(4250));
 });
 
 test('a title suggests the category, tags show on the entry, and entries can be categorised together', async ({ page }) => {
