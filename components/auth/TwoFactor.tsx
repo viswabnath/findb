@@ -6,6 +6,7 @@ import { AuthButton, AuthForm, AuthHead, Field } from './AuthShell';
 import { QrCode } from '@/components/site/QrCode';
 import { useToast } from '@/components/Toast';
 import { apiError, apiGet, apiPost } from '@/lib/api-client';
+import { t } from '@/lib/i18n';
 
 /**
  * The two-factor steps of a login (docs/security.md): entering a code from the authenticator app,
@@ -28,31 +29,31 @@ export function TwoFactorVerify({ onDone, onExpired }: { onDone: () => void; onE
             onDone();
             return;
         }
-        toast('error', apiError(result.data, 'Login failed'));
+        toast('error', apiError(result.data, t('auth.twoFactor.failed')));
         if (result.status === EXPIRED_STATUS) onExpired();
         setCode('');
     }
 
     return (
         <AuthForm id="two-factor-form" onSubmit={verify}>
-            <AuthHead step="Step 2 of 2" title="Enter your code">
+            <AuthHead step={t('auth.step2')} title={t('auth.twoFactor.title')}>
                 {useRecovery
-                    ? 'Enter one of the recovery codes you saved when you set up two-factor login. Each works once.'
-                    : 'Open your authenticator app and enter the 6-digit code it shows for FinDB.'}
+                    ? t('auth.twoFactor.leadRecovery')
+                    : t('auth.twoFactor.leadApp')}
             </AuthHead>
             <div className="form-grid">
                 {useRecovery ? (
-                    <Field id="recovery-code" label="Recovery code" type="text" autoComplete="off" autoCapitalize="none" required
+                    <Field id="recovery-code" label={t('auth.twoFactor.recoveryCode')} type="text" autoComplete="off" autoCapitalize="none" required
                         placeholder="xxxxx-xxxxx" value={code} onChange={event => setCode(event.target.value)} />
                 ) : (
-                    <Field id="two-factor-code" label="6-digit code" type="text" inputMode="numeric" autoComplete="one-time-code"
+                    <Field id="two-factor-code" label={t('auth.twoFactor.code')} type="text" inputMode="numeric" autoComplete="one-time-code"
                         pattern="[0-9 ]*" maxLength={7} required value={code} onChange={event => setCode(event.target.value)} />
                 )}
             </div>
-            <AuthButton action="verifyTwoFactor" submit className="btn btn-primary btn-block">Log in</AuthButton>
+            <AuthButton action="verifyTwoFactor" submit className="btn btn-primary btn-block">{t('auth.twoFactor.submit')}</AuthButton>
             <p className="auth-alt">
                 <AuthButton action="useRecoveryCode" className="btn-link" onClick={() => { setUseRecovery(value => !value); setCode(''); }}>
-                    {useRecovery ? 'Use a code from my app' : 'Lost your phone? Use a recovery code'}
+                    {useRecovery ? t('auth.twoFactor.useApp') : t('auth.twoFactor.useRecovery')}
                 </AuthButton>
             </p>
         </AuthForm>
@@ -75,7 +76,7 @@ export function TwoFactorSetup({ onDone, onExpired }: { onDone: () => void; onEx
                 setSetup({ secret: result.data.secret, otpauthUri: result.data.otpauthUri });
                 return;
             }
-            toast('error', apiError(result.data, 'Two-factor setup could not start'));
+            toast('error', apiError(result.data, t('auth.twoFactor.setupFailed')));
             if (result.status === EXPIRED_STATUS) onExpired();
         });
         // Once, when the step opens
@@ -87,7 +88,7 @@ export function TwoFactorSetup({ onDone, onExpired }: { onDone: () => void; onEx
             setRecoveryCodes(result.data.recoveryCodes);
             return;
         }
-        toast('error', apiError(result.data, 'That code did not work'));
+        toast('error', apiError(result.data, t('auth.twoFactor.codeFailed')));
         if (result.status === EXPIRED_STATUS) onExpired();
         setCode('');
     }
@@ -97,30 +98,28 @@ export function TwoFactorSetup({ onDone, onExpired }: { onDone: () => void; onEx
 
     return (
         <AuthForm id="two-factor-setup-form" onSubmit={confirm}>
-            <AuthHead step="Protect your account" title="Set up two-factor login">
-                Every login asks for a code from an authenticator app on your phone, so a stolen password is not enough. It is free.
-            </AuthHead>
+            <AuthHead step={t('auth.twoFactor.setupStep')} title={t('auth.twoFactor.setupTitle')}>{t('auth.twoFactor.setupLead')}</AuthHead>
             <ol className="setup-steps">
-                <li>Install an authenticator app if you do not have one: Google Authenticator, Microsoft Authenticator or any other.</li>
-                <li>In the app, add an account and scan this code.
-                    <div className="qr-box"><QrCode text={setup.otpauthUri} label="QR code for your authenticator app" /></div>
-                    <span className="setup-key-label">Cannot scan? Type this key instead:</span>
+                <li>{t('auth.twoFactor.install')}</li>
+                <li>{t('auth.twoFactor.scan')}
+                    <div className="qr-box"><QrCode text={setup.otpauthUri} label={t('auth.twoFactor.qrLabel')} /></div>
+                    <span className="setup-key-label">{t('auth.twoFactor.cannotScan')}</span>
                     <code id="two-factor-secret" className="setup-key" data-secret={setup.secret}>{grouped(setup.secret)}</code>
                 </li>
-                <li>Enter the 6-digit code the app shows.</li>
+                <li>{t('auth.twoFactor.enter')}</li>
             </ol>
             <div className="form-grid">
-                <Field id="two-factor-setup-code" label="6-digit code" type="text" inputMode="numeric" autoComplete="one-time-code"
+                <Field id="two-factor-setup-code" label={t('auth.twoFactor.code')} type="text" inputMode="numeric" autoComplete="one-time-code"
                     pattern="[0-9 ]*" maxLength={7} required value={code} onChange={event => setCode(event.target.value)} />
             </div>
-            <AuthButton action="confirmTwoFactor" submit className="btn btn-primary btn-block">Turn on two-factor login</AuthButton>
+            <AuthButton action="confirmTwoFactor" submit className="btn btn-primary btn-block">{t('auth.twoFactor.turnOn')}</AuthButton>
         </AuthForm>
     );
 }
 
 /** Download the codes as a text file, made in the browser (nothing is sent anywhere) */
 export function downloadRecoveryCodes(codes: string[]) {
-    const text = ['FinDB recovery codes', 'Each code works once, if you lose access to your authenticator app.', '', ...codes, ''].join('\n');
+    const text = [t('auth.twoFactor.fileTitle'), t('auth.twoFactor.fileNote'), '', ...codes, ''].join('\n');
     const link = document.createElement('a');
     link.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' }));
     link.download = 'findb-recovery-codes.txt';
@@ -129,23 +128,20 @@ export function downloadRecoveryCodes(codes: string[]) {
 }
 
 /** The recovery codes, shown once, with a confirmation that they were saved */
-export function RecoveryCodes({ codes, onDone, doneLabel = 'Continue' }: { codes: string[]; onDone: () => void; doneLabel?: string }) {
+export function RecoveryCodes({ codes, onDone, doneLabel = t('auth.twoFactor.continue') }: { codes: string[]; onDone: () => void; doneLabel?: string }) {
     const [saved, setSaved] = useState(false);
     return (
         <div id="recovery-codes-step" className="auth-card">
-            <AuthHead step="Last step" title="Save your recovery codes">
-                If you lose your phone, each of these codes lets you log in once. Keep them somewhere safe, such as a password
-                manager. They are shown only now.
-            </AuthHead>
+            <AuthHead step={t('auth.twoFactor.savedStep')} title={t('auth.twoFactor.savedTitle')}>{t('auth.twoFactor.savedLead')}</AuthHead>
             <ul id="recovery-codes" className="recovery-codes">
                 {codes.map(code => <li key={code}><code>{code}</code></li>)}
             </ul>
             <button type="button" className="btn btn-secondary btn-block" data-action="downloadRecoveryCodes" onClick={() => downloadRecoveryCodes(codes)}>
-                <Download aria-hidden="true" /> Download as a text file
+                <Download aria-hidden="true" /> {t('auth.twoFactor.download')}
             </button>
             <label className="check-line">
                 <input id="recovery-codes-saved" type="checkbox" checked={saved} onChange={event => setSaved(event.target.checked)} />
-                I have saved my recovery codes
+                {t('auth.twoFactor.saved')}
             </label>
             <button type="button" className="btn btn-primary btn-block" data-action="finishTwoFactor" disabled={!saved} onClick={onDone}>{doneLabel}</button>
         </div>

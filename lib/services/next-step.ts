@@ -1,6 +1,7 @@
 import type { Pool } from 'pg';
 import { addDays } from '../../src/core/schedule';
 import { formatRupees } from '../format';
+import { t } from '../i18n';
 import { dueItems, todayInIndia } from './recurring';
 import { listReimbursements } from './reimbursements';
 import { hasSampleData } from './sample-data';
@@ -24,8 +25,7 @@ export interface NextStep {
 export async function nextStep(pool: Pool, userId: number, today = todayInIndia()): Promise<NextStep> {
     if (await hasSampleData(pool, userId)) {
         return {
-            kind: 'sample', label: 'Clear sample data',
-            text: 'You are looking at a sample family\'s money. Explore the screens, then clear it to start with your own.',
+            kind: 'sample', label: t('nextStep.sample.label'), text: t('nextStep.sample.text'),
         };
     }
 
@@ -35,8 +35,7 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
         [userId]);
     if (!started.rows[0].entries && !started.rows[0].accounts) {
         return {
-            kind: 'start', href: '/setup#bank-name', label: 'Add a bank account',
-            text: 'Add your first bank account to begin, or try FinDB with sample data first.',
+            kind: 'start', href: '/setup#bank-name', label: t('nextStep.start.label'), text: t('nextStep.start.text'),
         };
     }
 
@@ -44,10 +43,10 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
     if (pending.length > 0) {
         const first = pending[0]!;
         return {
-            kind: 'confirm', href: '/transactions#repeating-section', label: 'Confirm',
+            kind: 'confirm', href: '/transactions#repeating-section', label: t('nextStep.confirmLabel'),
             text: pending.length === 1
-                ? `${first.description} (${formatRupees(first.amount)}) was due on ${first.date}: confirm it was paid.`
-                : `${pending.length} repeating entries are waiting to be confirmed, starting with ${first.description}.`,
+                ? t('nextStep.confirmOne', { name: first.description, amount: formatRupees(first.amount), date: first.date })
+                : t('nextStep.confirmMany', { count: pending.length, name: first.description }),
         };
     }
 
@@ -63,8 +62,7 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
     const count = uncategorised.rows[0].count as number;
     if (count > 0) {
         return {
-            kind: 'categorise', href: '/transactions', label: 'Categorise',
-            text: `${count} ${count === 1 ? 'expense' : 'expenses'} this month ${count === 1 ? 'has' : 'have'} no category. Put ${count === 1 ? 'it' : 'them'} in one to see where the money goes.`,
+            kind: 'categorise', href: '/transactions', label: t('nextStep.categoriseLabel'), text: t('nextStep.categorise', { count }),
         };
     }
 
@@ -75,8 +73,10 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
         .at(-1);
     if (owed) {
         return {
-            kind: 'reimbursement', href: '/transactions#reimbursements-section', label: 'Follow up',
-            text: `${formatRupees(owed.outstanding)} for ${owed.description} is still to come back${owed.fromWhom ? ` from ${owed.fromWhom}` : ''}, over a month on.`,
+            kind: 'reimbursement', href: '/transactions#reimbursements-section', label: t('nextStep.reimbursementLabel'),
+            text: t('nextStep.reimbursement', {
+                amount: formatRupees(owed.outstanding), name: owed.description, from: owed.fromWhom ? t('nextStep.reimbursementFrom', { name: owed.fromWhom }) : '',
+            }),
         };
     }
 
@@ -94,10 +94,9 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
     if (unchecked.rows.length > 0) {
         const account = unchecked.rows[0];
         return {
-            kind: 'reconcile', href: '/reconcile', label: 'Check it',
-            text: `${account.name} has not been checked against a statement this month. A quick check catches missed entries.`,
+            kind: 'reconcile', href: '/reconcile', label: t('nextStep.reconcileLabel'), text: t('nextStep.reconcile', { account: account.name }),
         };
     }
 
-    return { kind: 'everyday', href: '/transactions', label: 'Add an entry', text: 'You are up to date. Add today\'s spending while you remember it.' };
+    return { kind: 'everyday', href: '/transactions', label: t('nextStep.everydayLabel'), text: t('nextStep.everyday') };
 }

@@ -95,9 +95,9 @@ export function AppShell({ children }: { children: ReactNode }) {
     return (
         <>
             <div id="main-app">
-                <nav id="nav-bar" aria-label="Main">
-                    <a href="/setup" className="sidebar-brand" aria-label="FinDB, accounts"><Logo /></a>
-                    <span className="sidebar-label">Your money</span>
+                <nav id="nav-bar" aria-label={t('shell.main')}>
+                    <a href="/setup" className="sidebar-brand" aria-label={t('shell.brand')}><Logo /></a>
+                    <span className="sidebar-label">{t('shell.yourMoney')}</span>
                     {NAV_ITEMS.map(({ section, label, icon: Icon, href }) => (
                         <a key={section} href={href} className="nav-link" data-action="showSection" data-section={section}
                             aria-current={pathname === href ? 'page' : undefined}>
@@ -108,24 +108,24 @@ export function AppShell({ children }: { children: ReactNode }) {
                     {name ? (
                         <div className="sidebar-user">
                             <span className="avatar" aria-hidden="true">{firstName.charAt(0).toUpperCase()}</span>
-                            <span>{name}<small>Signed in</small></span>
+                            <span>{name}<small>{t('shell.signedIn')}</small></span>
                         </div>
                     ) : null}
                     <a href="#" className="nav-link logout-link" data-action="logout" onClick={openLogout}>
-                        <LogOut aria-hidden="true" />Log out
+                        <LogOut aria-hidden="true" />{t('shell.logOut')}
                     </a>
                 </nav>
 
                 <div className="app-main">
                     <header className="app-topbar">
-                        <a href="/setup" aria-label="FinDB, accounts"><Logo /></a>
+                        <a href="/setup" aria-label={t('shell.brand')}><Logo /></a>
                         <span className="topbar-actions">
                             <a href="/settings" className="btn btn-secondary btn-sm" data-section="settings" aria-current={pathname === '/settings' ? 'page' : undefined}
                                 aria-label={t('nav.settings')}>
                                 <Settings aria-hidden="true" />
                             </a>
                             <button type="button" className="btn btn-secondary btn-sm logout-link" data-action="logout" onClick={openLogout}>
-                                <LogOut aria-hidden="true" /> Log out
+                                <LogOut aria-hidden="true" /> {t('shell.logOut')}
                             </button>
                         </span>
                     </header>
@@ -133,14 +133,14 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <main className="app-content">
                         {!consentVersion && sample ? (
                             <div id="sample-banner" className="notice warn sample-banner" role="status">
-                                <span><b>Sample data.</b> You are looking at a sample family&apos;s money, not your own. Nothing here is real.</span>
-                                <button type="button" className="btn btn-secondary btn-sm" data-action="clearSample" onClick={clearSample}>Clear sample data</button>
+                                <span><b>{t('shell.sample')}</b> {t('shell.sampleText')}</span>
+                                <button type="button" className="btn btn-secondary btn-sm" data-action="clearSample" onClick={clearSample}>{t('shell.clearSample')}</button>
                             </div>
                         ) : null}
                         {!consentVersion && dueNotice && (dueNotice.posted > 0 || dueNotice.pending > 0) && pathname !== '/transactions' ? (
                             <div id="repeating-notice" className="notice" role="status">
-                                {dueNotice.posted > 0 ? `${dueNotice.posted} repeating ${dueNotice.posted === 1 ? 'entry was' : 'entries were'} recorded. ` : ''}
-                                {dueNotice.pending > 0 ? <><a href="/transactions#repeating-section">{dueNotice.pending} to confirm</a> on Transactions.</> : null}
+                                {dueNotice.posted > 0 ? t('shell.recorded', { count: dueNotice.posted }) : ''}
+                                {dueNotice.pending > 0 ? <><a href="/transactions#repeating-section">{t('shell.toConfirm', { count: dueNotice.pending })}</a>{t('shell.onTransactions')}</> : null}
                             </div>
                         ) : null}
                         {consentVersion
@@ -149,18 +149,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </main>
 
                     <footer className="app-footer">
-                        <nav aria-label="FinDB">
-                            <a href="/">FinDB home</a>
-                            <a href="/tools">Free tools</a>
-                            <a href="/security">Security</a>
-                            <a href="/privacy">Privacy</a>
-                            <a href="/terms">Terms</a>
+                        <nav aria-label={t('shell.footer.label')}>
+                            <a href="/">{t('shell.footer.home')}</a>
+                            <a href="/tools">{t('shell.footer.tools')}</a>
+                            <a href="/security">{t('shell.footer.security')}</a>
+                            <a href="/privacy">{t('shell.footer.privacy')}</a>
+                            <a href="/terms">{t('shell.footer.terms')}</a>
                         </nav>
-                        <span>Information, not financial advice.</span>
+                        <span>{t('shell.notAdvice')}</span>
                     </footer>
                 </div>
 
-                <nav className="tabbar" aria-label="Main, mobile">
+                <nav className="tabbar" aria-label={t('shell.mainMobile')}>
                     {TAB_ITEMS.map(({ section, label, icon: Icon, href }) => (
                         <a key={section} href={href} data-section={section} aria-current={pathname === href ? 'page' : undefined}>
                             <Icon aria-hidden="true" />{label}
@@ -171,7 +171,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
             <Modal
                 id="logout-confirmation-modal"
-                title="Log out of FinDB?"
+                title={t('shell.logoutTitle')}
                 open={logoutOpen}
                 small
                 closeAction="close-logout-confirmation"
@@ -179,18 +179,18 @@ export function AppShell({ children }: { children: ReactNode }) {
                 footer={(
                     <>
                         <button type="button" data-action="close-logout-confirmation" className="btn btn-secondary" onClick={() => setLogoutOpen(false)}>
-                            Cancel
+                            {t('common.cancel')}
                         </button>
                         <button type="button" data-action="confirm-logout" className="btn btn-primary" onClick={logout}>
-                            <LogOut aria-hidden="true" /> Log out
+                            <LogOut aria-hidden="true" /> {t('shell.logOut')}
                         </button>
                     </>
                 )}
             >
-                <p id="logout-confirmation-message">You will need to log in again to see your accounts.</p>
+                <p id="logout-confirmation-message">{t('shell.logoutText')}</p>
             </Modal>
 
-            <div id="global-loader" className={`loader-overlay${busy ? '' : ' hidden'}`} role="progressbar" aria-label="Loading" aria-hidden={!busy} />
+            <div id="global-loader" className={`loader-overlay${busy ? '' : ' hidden'}`} role="progressbar" aria-label={t('shell.loading')} aria-hidden={!busy} />
         </>
     );
 }

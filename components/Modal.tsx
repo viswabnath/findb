@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
+import { t } from '@/lib/i18n';
 
 interface ModalProps {
     id: string;
@@ -36,7 +37,7 @@ export function Modal({ id, title, open, closeAction, onClose, footer, small, ch
             <div className={`modal-content${small ? ' modal-small' : ''}`} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`}>
                 <div className="modal-header">
                     <h3 id={`${id}-title`}>{title}</h3>
-                    <button type="button" className="modal-close" data-action={closeAction} aria-label="Close" onClick={onClose}>&times;</button>
+                    <button type="button" className="modal-close" data-action={closeAction} aria-label={t('shell.close')} onClick={onClose}>&times;</button>
                 </div>
                 <div className="modal-body">{children}</div>
                 <div className="modal-footer">{footer}</div>
