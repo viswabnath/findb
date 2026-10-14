@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Banknote, CalendarX, ChartColumn, CreditCard, Gem, Landmark, List, PiggyBank, Plus, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
+import { Banknote, CalendarX, ChartColumn, CreditCard, Gem, Landmark, Lightbulb, List, PiggyBank, Plus, TrendingDown, TrendingUp, Wallet } from 'lucide-react';
 import { apiGet, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { filterYears, MONTH_NAMES } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
@@ -248,6 +248,9 @@ export function SummaryScreen() {
                 <div>
                     <h2>{t('summary.title')}</h2>
                     <p>{t('summary.subtitle')}</p>
+                    <span className="page-header-links">
+                        <a className="btn btn-secondary btn-sm" id="insights-link" href="/insights"><Lightbulb aria-hidden="true" /> {t('insights.link')}</a>
+                    </span>
                 </div>
                 <div className="period-picker summary-controls">
                     <div className="field">

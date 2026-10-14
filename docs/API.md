@@ -242,6 +242,14 @@ Income, expenses and transfers on any money account, in the ledger. A transfer m
 
 An entry: `{ "id", "type", "date", "description", "amount", "account": { "id", "name", "type" }, "toAccount", "category": { "id", "name" }, "tags", "event": { "id", "name" }, "legacy" }`. `tags` is a sorted array of names. `legacy` marks income and expenses recorded through the routes below; editing or deleting one here also removes its row there.
 
+## Insights
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/insights` | `?month=1-12&year=YYYY` (this month when left out) | see below |
+
+`{ "month": "YYYY-MM", "firstMonth", "thresholds": { "unusualRatio", "unusualMinimum", "historyMonths" }, "spending": { "regular", "oneOff", "events": [{ "id", "name", "amount" }] }, "categories": [{ "id", "name", "thisMonth", "lastMonth", "average3", "average6", "average12", "change3", "unusual" }], "trend": [{ "month", "regular", "oneOff" }], "subscriptions": { "monthly", "yearly", "items": [{ "description", "cadence", "charges", "first", "last", "lastAmount", "monthly", "yearly", "category", "account", "status": "active \| new \| stopped", "priceRiseFrom" }] } }`. Calculations are in `src/core/insights.ts`: averages over complete months before the month (only months since the first entry; 3 months need 2 of them, 6 and 12 their whole span; `null` otherwise); `change3` compares the last 3 months with the 3 before, in percent; `unusual` is at least `unusualRatio` times the 3-month average and `unusualMinimum` above it. Regular spending leaves out one-off events. Subscriptions are expenses of the last 15 months grouped by their description's first words, at a steady weekly, monthly, quarterly or yearly rhythm and within 1.5 times each other's amount; `monthly` and `yearly` total those not stopped.
+
 ## Search
 
 Entries across every month (`lib/services/search.ts`).

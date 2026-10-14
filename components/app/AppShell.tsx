@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, CalendarHeart, ChartColumn, History, LogOut, Plus, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, CalendarHeart, ChartColumn, History, Lightbulb, LogOut, Plus, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { t } from '@/lib/i18n';
 import { ConsentScreen } from '@/components/privacy/ConsentScreen';
@@ -26,13 +26,15 @@ const NAV_ITEMS: NavItem[] = [
     { section: 'setup', label: t('nav.accounts'), icon: Wallet, href: '/setup' },
     { section: 'transactions', label: t('nav.transactions'), icon: ArrowLeftRight, href: '/transactions' },
     { section: 'summary', label: t('nav.summary'), icon: ChartColumn, href: '/summary' },
+    { section: 'insights', label: t('nav.insights'), icon: Lightbulb, href: '/insights' },
     { section: 'events', label: t('nav.events'), icon: CalendarHeart, href: '/events' },
     { section: 'activity', label: t('nav.activity'), icon: History, href: '/activity' },
     { section: 'search', label: t('nav.search'), icon: Search, href: '/search' },
     { section: 'settings', label: t('nav.settings'), icon: Settings, href: '/settings' },
 ];
-// Phones: five tabs fit at 360 px with whole labels; Search and Settings are in the top bar instead
-const TAB_ITEMS = NAV_ITEMS.filter(item => item.section !== 'settings' && item.section !== 'search');
+// Phones: five tabs fit at 360 px with whole labels; Search and Settings are in the top bar instead.
+// Insights opens from Summary
+const TAB_ITEMS = NAV_ITEMS.filter(item => !['settings', 'search', 'insights'].includes(item.section));
 
 /**
  * The logged-in frame: a sidebar on larger screens, a top bar and a bottom tab bar on phones,
