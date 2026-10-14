@@ -164,16 +164,19 @@ export const FEATURES: Feature[] = [
         group: 'track',
         name: 'Insights and budgets',
         icon: 'chart',
-        status: 'building',
+        status: 'available',
         short: 'See where the money really goes, and set limits that warn you in time.',
         summary:
             'FinDB looks at your spending over months and tells you, in plain sentences, what is normal for you, what is growing and what is unusual.',
         points: [
-            'Averages per category: "Restaurants: ₹6,800 a month over 6 months, up 22%"',
-            'A subscription finder: every repeating charge, its yearly cost, and price increases',
+            'Averages per category over 3, 6 or 12 months: "Restaurants: ₹6,800 a month, up 22%"',
+            'A subscription finder: every repeating charge, its monthly and yearly cost, new ones, price increases and ones that stopped',
+            'Unusual spending flags: "Fuel: ₹5,000 this month, 2.5 times its average", with the thresholds shown',
+            'Regular spending and one-off events side by side, so a wedding does not distort your averages',
+            'Charts of your top categories and of the last 12 months, and this month against last month',
+        ],
+        next: [
             'Monthly budgets per category, with alerts at 80% and 100%',
-            'Unusual spending flags: "Fuel this month is twice your average"',
-            'Charts of your top categories and month-on-month changes',
         ],
         example: {
             title: 'Forgotten subscriptions',

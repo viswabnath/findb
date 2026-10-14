@@ -482,6 +482,17 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 /* Statement import (components/import): the review list, phone first */
 .page-header-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
+/* Insights (components/insights/InsightsScreen.tsx) */
+.insights-note { margin-bottom: 16px; }
+.inline-icon { width: 16px; height: 16px; vertical-align: -3px; color: var(--muted); }
+.span-choice { min-width: 220px; }
+.span-choice button { padding: 6px; font-size: 0.85rem; }
+.tag.muted-tag { background: var(--surface-2); color: var(--muted); }
+.tag.warn-tag { background: var(--gold-soft); color: var(--fg); }
+.empty-note { color: var(--muted); }
+#insights-unusual li { justify-content: flex-start; }
+@media (max-width: 640px) { .span-choice { min-width: 0; width: 100%; } }
+
 /* Search (components/search/SearchScreen.tsx) */
 .search-bar { border-bottom: 0; }
 .search-filters { border-top: 1px solid var(--line); }
