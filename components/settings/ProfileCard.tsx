@@ -5,6 +5,7 @@ import { Plus, Trash2, UserRound } from 'lucide-react';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { t } from '@/lib/i18n';
+import { FoldingCard } from '@/components/ui/FoldingCard';
 
 /**
  * The profile (/api/profile) and dependants: all optional. PAN and demat account IDs are stored
@@ -104,11 +105,7 @@ export function ProfileCard() {
     if (profile === null) return null;
 
     return (
-        <section id="profile-section" className="card" aria-labelledby="profile-title">
-            <div className="card-head">
-                <h3 id="profile-title"><span className="icon-tile t-bank" aria-hidden="true"><UserRound /></span>{t('settings.profile.title')}</h3>
-                <span className="meta">{t('settings.profile.optional')}</span>
-            </div>
+        <FoldingCard id="profile-section" titleId="profile-title" icon={UserRound} title={t('settings.profile.title')} meta={t('settings.profile.optional')}>
             <p className="card-pad form-note">{t('settings.profile.note')}</p>
             <form className="card-pad form-grid two" onSubmit={event => { event.preventDefault(); saveDetails(); }}>
                 <div className="field">
@@ -193,6 +190,6 @@ export function ProfileCard() {
                 </div>
                 <button type="submit" className="btn btn-secondary" data-action="addDependant"><Plus aria-hidden="true" /> {t('common.add')}</button>
             </form>
-        </section>
+        </FoldingCard>
     );
 }

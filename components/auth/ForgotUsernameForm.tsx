@@ -23,7 +23,7 @@ export function ForgotUsernameForm() {
 
     async function showQuestion() {
         try {
-            const value = requireValue(email, 'Email');
+            const value = requireValue(email, 'email');
             if (!isValidEmail(value)) {
                 throw new Error(t('auth.forgotUsername.badEmail'));
             }
@@ -41,7 +41,7 @@ export function ForgotUsernameForm() {
 
     async function findUsername() {
         try {
-            const securityAnswer = requireValue(answer, 'Security Answer');
+            const securityAnswer = requireValue(answer, 'securityAnswer');
             const result = await apiPost<{ success?: boolean; username?: string }>('/api/forgot-username', { email, securityAnswer });
             if (result.data.success && result.data.username) {
                 const username = result.data.username;

@@ -118,11 +118,12 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
         [userId, endOfMonth]);
     const otherAccounts = others.rows.map(account => ({ ...account, current_balance: fromPaise(ledger.accounts.get(Number(account.id)) ?? 0) }));
 
+    const cards = await pool.query('SELECT * FROM credit_cards WHERE user_id = $1 AND created_at <= $2', [userId, endOfMonth]);
+    // A card's ledger balance is negative by the amount owed. Dues count against wealth whatever is tracked
+    const cardDues = cards.rows.reduce((sum, card) => sum - (ledger.cards.get(Number(card.id)) ?? 0), 0) / 100;
     let creditCards: QueryResultRow[] = [];
     if (trackingOption === 'expenses' || trackingOption === 'both') {
-        const cards = await pool.query('SELECT * FROM credit_cards WHERE user_id = $1 AND created_at <= $2', [userId, endOfMonth]);
         creditCards = cards.rows.map((card) => {
-            // A card's ledger balance is negative by the amount owed
             const used = fromPaise(-(ledger.cards.get(Number(card.id)) ?? 0));
             return { ...card, current_balance: used, used_limit: used };
         });
@@ -132,7 +133,8 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
     const monthExpenses = monthFlows.expenses / 100;
     const totalBankBalance = bankResult.rows.reduce((sum, bank) => sum + parseFloat(bank.balance_at_month_end || 0), 0);
     const totalOther = otherAccounts.reduce((sum, account) => sum + parseFloat(account.current_balance), 0);
-    const totalCurrentWealth = totalBankBalance + parseFloat(cashRow.cash_balance_at_month_end || 0) + totalOther;
+    // The same as "What you have" on Accounts: banks, cash and wallets, less card dues
+    const totalCurrentWealth = totalBankBalance + parseFloat(cashRow.cash_balance_at_month_end || 0) + totalOther - cardDues;
     const totalInitialBankBalance = bankResult.rows.reduce((sum, bank) => sum + parseFloat(bank.initial_balance || 0), 0);
     const totalInitialBalance = totalInitialBankBalance + parseFloat(cashRow.initial_balance || 0);
     // v2 plan: net savings = income - expenses. Transfers are neither, so they never change it
@@ -150,6 +152,7 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
     return {
         monthlyIncome: monthIncome,
         totalCurrentWealth,
+        cardDues,
         totalExpenses: monthExpenses,
         netSavings,
         totalInitialBalance,

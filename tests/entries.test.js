@@ -135,6 +135,10 @@ describe('entries', () => {
         const bill = await agent.post('/api/entries')
             .send({ type: 'expense', description: 'Flight', amount: 1200, accountId: card.id, date: DAY });
         expect(bill.status).toBe(200);
+        // Owed on the card: counted against wealth until the bill is paid
+        const owing = await summary();
+        expect(owing.cardDues).toBeCloseTo(1200, 2);
+        expect(owing.totalCurrentWealth).toBeCloseTo(before.totalCurrentWealth - 1200, 2);
         const payment = await agent.post('/api/entries')
             .send({ type: 'transfer', description: 'Card bill', amount: 1200, accountId: bank.id, toAccountId: card.id, date: DAY });
         expect(payment.status).toBe(200);
@@ -150,6 +154,7 @@ describe('entries', () => {
         expect(after.netSavings).toBeCloseTo(after.monthlyIncome - after.totalExpenses, 2);
         // Wallets and meal cards count in wealth: bank 6800 + cash 2000 + wallet 100 + meal card 2200
         expect(after.totalCurrentWealth).toBeCloseTo(11100, 2);
+        expect(after.cardDues).toBe(0);
         expect(after.otherAccounts.map(account => account.name).sort()).toEqual(['PhonePe Wallet', 'Pluxee']);
     });
 

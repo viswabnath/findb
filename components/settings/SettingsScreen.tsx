@@ -7,6 +7,7 @@ import { useToast } from '@/components/Toast';
 import { apiDelete, apiError, apiGet, apiPost, redirectIfUnauthorized } from '@/lib/api-client';
 import { PRIVACY_CONTACT } from '@/lib/privacy-notice';
 import { t } from '@/lib/i18n';
+import { FoldingCard } from '@/components/ui/FoldingCard';
 import { CategoriesCard } from './CategoriesCard';
 import { ModulesCard } from './ModulesCard';
 import { ThemeCard } from './ThemeCard';
@@ -124,11 +125,8 @@ export function SettingsScreen() {
 
                 <CategoriesCard />
 
-                <section className="card" aria-labelledby="two-factor-title">
-                    <div className="card-head">
-                        <h3 id="two-factor-title"><span className="icon-tile t-bank" aria-hidden="true"><KeyRound /></span>{t('settings.twoFactor.title')}</h3>
-                        <span className="meta" id="two-factor-status">{status.enabledAt ? t('settings.twoFactor.onSince', { date: when(status.enabledAt) }) : t('settings.twoFactor.notSetUp')}</span>
-                    </div>
+                <FoldingCard id="two-factor-card" titleId="two-factor-title" icon={KeyRound} title={t('settings.twoFactor.title')} metaId="two-factor-status"
+                    meta={status.enabledAt ? t('settings.twoFactor.onSince', { date: when(status.enabledAt) }) : t('settings.twoFactor.notSetUp')}>
                     {newCodes ? (
                         <div className="card-pad">
                             <RecoveryCodes codes={newCodes} doneLabel={t('settings.twoFactor.done')} onDone={() => { setNewCodes(null); load(); }} />
@@ -148,13 +146,9 @@ export function SettingsScreen() {
                             </form>
                         </>
                     )}
-                </section>
+                </FoldingCard>
 
-                <section className="card" aria-labelledby="sessions-title">
-                    <div className="card-head">
-                        <h3 id="sessions-title"><span className="icon-tile t-bank" aria-hidden="true"><MonitorSmartphone /></span>{t('settings.sessions.title')}</h3>
-                        <span className="meta">{t('settings.sessions.count', { count: sessions.length })}</span>
-                    </div>
+                <FoldingCard id="sessions-card" titleId="sessions-title" icon={MonitorSmartphone} title={t('settings.sessions.title')} meta={t('settings.sessions.count', { count: sessions.length })}>
                     <ul id="sessions-list" className="settings-list">
                         {sessions.map(session => (
                             <li key={session.id} data-session={session.id}>
@@ -174,13 +168,9 @@ export function SettingsScreen() {
                             <LogOut aria-hidden="true" /> {t('settings.sessions.everywhere')}
                         </button>
                     </div>
-                </section>
+                </FoldingCard>
 
-                <section className="card" aria-labelledby="history-title">
-                    <div className="card-head">
-                        <h3 id="history-title"><span className="icon-tile t-bank" aria-hidden="true"><History /></span>{t('settings.history.title')}</h3>
-                        <span className="meta">{t('settings.history.last', { count: history.length })}</span>
-                    </div>
+                <FoldingCard id="history-card" titleId="history-title" icon={History} title={t('settings.history.title')} meta={t('settings.history.last', { count: history.length })}>
                     <ul id="login-history" className="settings-list">
                         {history.map((item, index) => (
                             <li key={`${item.at}-${index}`} className={WARNING_EVENTS.has(item.event) ? 'warning' : undefined}>
@@ -192,16 +182,11 @@ export function SettingsScreen() {
                             </li>
                         ))}
                     </ul>
-                </section>
+                </FoldingCard>
 
                 {myData ? (
-                    <section className="card" aria-labelledby="my-data-title">
-                        <div className="card-head">
-                            <h3 id="my-data-title"><span className="icon-tile t-bank" aria-hidden="true"><Database /></span>{t('settings.data.title')}</h3>
-                            <span className="meta" id="consent-status">
-                                {myData.consent.givenAt && !myData.consent.withdrawnAt ? t('settings.data.consentGiven', { date: when(myData.consent.givenAt) }) : t('settings.data.noConsent')}
-                            </span>
-                        </div>
+                    <FoldingCard id="my-data-card" titleId="my-data-title" icon={Database} title={t('settings.data.title')} metaId="consent-status"
+                        meta={myData.consent.givenAt && !myData.consent.withdrawnAt ? t('settings.data.consentGiven', { date: when(myData.consent.givenAt) }) : t('settings.data.noConsent')}>
                         <p className="card-pad">
                             {t('settings.data.intro')} <a href="/privacy">{t('settings.data.noticeLink')}</a>{t('settings.data.introRest', { email: PRIVACY_CONTACT })}
                         </p>
@@ -233,7 +218,7 @@ export function SettingsScreen() {
                                 </button>
                             )}
                         </div>
-                    </section>
+                    </FoldingCard>
                 ) : null}
             </div>
         </div>

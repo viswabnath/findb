@@ -60,8 +60,8 @@ describe('field checks', () => {
     });
 
     test('requireValue trims and names the empty field', () => {
-        expect(requireValue('  x  ', 'Name')).toBe('x');
-        expect(() => requireValue('   ', 'Name')).toThrow('Name is required');
+        expect(requireValue('  x  ', 'name')).toBe('x');
+        expect(() => requireValue('   ', 'name')).toThrow('Name is required');
     });
 
     test('security question keys map to their text, unknown keys pass through', () => {

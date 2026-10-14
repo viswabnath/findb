@@ -30,7 +30,7 @@ export function ForgotPasswordForm() {
 
     async function requestReset() {
         try {
-            const input = requireValue(identifier, 'Username or Email');
+            const input = requireValue(identifier, 'usernameOrEmail');
             const isEmail = isValidEmail(input);
             if (!isEmail && !isValidUsername(input)) {
                 throw new Error(t('auth.forgotPassword.badIdentifier'));
@@ -51,9 +51,9 @@ export function ForgotPasswordForm() {
     async function resetPassword() {
         if (!target) return;
         try {
-            const securityAnswer = requireValue(answer, 'Security Answer');
-            const password = requireValue(newPassword, 'New Password');
-            const confirm = requireValue(confirmPassword, 'Confirm Password');
+            const securityAnswer = requireValue(answer, 'securityAnswer');
+            const password = requireValue(newPassword, 'newPassword');
+            const confirm = requireValue(confirmPassword, 'confirmPassword');
             const problem = passwordProblem(password);
             if (problem) {
                 throw new Error(problem);

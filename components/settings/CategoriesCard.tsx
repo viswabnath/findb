@@ -6,6 +6,7 @@ import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { t } from '@/lib/i18n';
+import { FoldingCard } from '@/components/ui/FoldingCard';
 
 /**
  * Income and spending categories (/api/categories): rename them, mark spending essential or
@@ -103,11 +104,7 @@ export function CategoriesCard() {
     );
 
     return (
-        <section id="categories-section" className="card" aria-labelledby="categories-title">
-            <div className="card-head">
-                <h3 id="categories-title"><span className="icon-tile t-bank" aria-hidden="true"><Tags /></span>{t('settings.categories.title')}</h3>
-                <span className="meta">{t('settings.categories.count', { count: categories.length })}</span>
-            </div>
+        <FoldingCard id="categories-section" titleId="categories-title" icon={Tags} title={t('settings.categories.title')} meta={t('settings.categories.count', { count: categories.length })}>
             <p className="card-pad form-note">{t('settings.categories.note')}</p>
             <form className="add-row other-add-row" onSubmit={event => { event.preventDefault(); add(); }}>
                 <div className="field">
@@ -164,6 +161,6 @@ export function CategoriesCard() {
                 <p className="lead">{t('settings.categories.removeQuestion', { name: pendingRemove?.name ?? '' })}</p>
                 <p>{t('settings.categories.removeNote')}</p>
             </Modal>
-        </section>
+        </FoldingCard>
     );
 }

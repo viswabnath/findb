@@ -30,8 +30,8 @@ export function LoginForm() {
 
     async function login() {
         try {
-            const name = requireValue(username, 'Username');
-            const secret = requireValue(password, 'Password');
+            const name = requireValue(username, 'username');
+            const secret = requireValue(password, 'password');
             if (!isValidUsername(name)) {
                 throw new Error(t('auth.login.badUsername'));
             }
