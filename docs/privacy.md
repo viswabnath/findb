@@ -18,6 +18,8 @@ How FinDB meets India's Digital Personal Data Protection Act, 2023 (DPDP), as fa
 
 Export (everything marked `exported`) and erasure (the account and everything that cascades from it) in Phase 5 build on the same list.
 
+Statement files are read in the browser and never uploaded: only the rows the user keeps are sent and saved, as entries, with the layout's column names (`import_profiles`) and a summary of each import (`import_batches`).
+
 ## Rights today
 
 | Right | How |

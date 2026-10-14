@@ -237,7 +237,7 @@ Income, expenses and transfers on any money account, in the ledger. A transfer m
 }
 ```
 `categoryId` is for income and expenses and must be a category of the same kind; left out, it is the fallback ("Uncategorised", "Other income"), or on an edit, the entry's own. `tags` is an array or a comma-separated text, at most 10 of up to 30 characters, repeats ignored; left out on an edit, the entry keeps its tags. `eventId` is one of the user's events; `null` for none; left out on an edit, the entry keeps its event.
-`accountId` is where income arrives, or where an expense or transfer is paid from; `toAccountId` is a transfer's destination. Income cannot go onto a credit card. For users who also track income, a new expense or transfer must fit the account's balance (`Insufficient bank balance`, `Insufficient cash balance`, `Insufficient balance in <name>`) or a card's limit (`Insufficient credit limit`); edits are not checked, as with the routes below.
+`accountId` is where income arrives, or where an expense or transfer is paid from; `toAccountId` is a transfer's destination. Income goes onto a credit card only in the Refund or Cashback category (money back on the card). For users who also track income, a new expense or transfer must fit the account's balance (`Insufficient bank balance`, `Insufficient cash balance`, `Insufficient balance in <name>`) or a card's limit (`Insufficient credit limit`); edits are not checked, as with the routes below.
 
 An entry: `{ "id", "type", "date", "description", "amount", "account": { "id", "name", "type" }, "toAccount", "category": { "id", "name" }, "tags", "event": { "id", "name" }, "legacy" }`. `tags` is a sorted array of names. `legacy` marks income and expenses recorded through the routes below; editing or deleting one here also removes its row there.
 
@@ -336,6 +336,25 @@ Checking an account against a statement. Amounts follow the statement: money in 
 | DELETE | `/api/reconciliations/:id` | – | `{ "success": true }`: an open one is given up and its ticks removed |
 
 A reconciliation: `{ "id", "account", "statementDate", "statementBalance", "status": "open | done", "previouslyCleared", "clearedBalance", "difference", "lines": [{ "lineId", "entryId", "date", "description", "amount", "ticked" }], "completedAt" }`. The lines are the account's lines up to the statement date not cleared by another reconciliation. `difference` is the statement balance less the cleared balance; `finish` refuses unless it is zero, or with `adjust: true` records it as an adjustment entry. Editing or deleting an entry cleared by a finished reconciliation returns `409` unless `confirmReconciled: true` is sent (a query parameter for `DELETE /api/entries/:id`), except an edit that keeps the account and amount, whose tick moves with it.
+
+## Statement import
+
+Bank and card statements into the ledger (`lib/services/statement-import.ts`, the `/import` screen). The browser reads the CSV or Excel file (`src/core/statement.ts`, `lib/statement-file.ts`) and sends only rows; the file is never uploaded. Row amounts are signed rupees text: positive into the account, negative out of it. At most 1000 rows per request; dates may not be in the future.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| POST | `/api/imports/preview` | `{ "accountId", "rows": [{ "line", "date", "description", "narration"?, "amount" }] }` | the review; saves nothing |
+| POST | `/api/imports` | `{ "accountId", "fileKind": "csv \| excel", "rowsInFile"?, "closingBalance"?: { "date", "amount" }, "layout"?: { "signature", "presetKey", "mapping" }, "rows": [{ "line", "date", "description", "amount", "action" }] }` | `{ "batchId", "imported", "transfers", "replaced", "account": { "id", "name", "balance" }, "closing": { "date", "balance", "findb", "difference" } \| null }` |
+| GET | `/api/imports` | – | the last 50 imports, newest first: `{ "id", "account", "fileKind", "rowsInFile", "imported", "active", "from", "to", "closingBalance", "createdAt", "undoneAt" }` |
+| GET | `/api/imports/profiles` | – | remembered column choices: `{ "signature", "presetKey", "mapping", "accountId" }` |
+| DELETE | `/api/imports/:id` | `?confirmReconciled=true` | `{ "undone", "restored" }`: the import's entries are voided and the entries it replaced count again; `409` when some are on a finished reconciliation and `confirmReconciled` is not sent |
+
+A review: `{ "account": { "id", "name", "type", "balance" }, "balanceAfter", "rows": [{ "line", "date", "description", "amount", "duplicate", "repeated", "action", "reason", "match" }] }`.
+- `duplicate`: `{ "entryId", "date", "description", "sameDescription" }` when an entry on the account has the same amount within three days, else `null`.
+- `repeated`: the same date, amount and description appear earlier in the rows.
+- `action`, the suggestion and what `POST` takes per row: `{ "type": "category", "categoryId" }` (`null` for the fallback), `{ "type": "transfer", "accountId" }` (the other own account), or `{ "type": "replace", "entryId" }` (an income or expense entry on another account becomes one transfer with this row).
+- `reason`: `history`, `keyword`, `atm`, `card_payment`, `match` or `null`. `match`: an entry on another account that could be the other side, shown even when not suggested.
+- A credit card takes income only in the Refund or Cashback category. The overspending check does not apply to imports. Errors name the statement's line: `"Line 4 of the statement: the date is in the future"`.
 
 ## Income
 

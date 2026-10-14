@@ -110,9 +110,7 @@ export const FEATURES: Feature[] = [
             'Reimbursements: money your office or insurer will pay back is not counted as your spending; whatever never comes back is',
             'A monthly summary: income, spending by category, savings and total wealth',
             'An activity log of every change, with the old and new values, and a CSV export',
-        ],
-        next: [
-            'Statement import, so most of this fills itself in (see Import)',
+            'Statement import from your bank or card, so most of this fills itself in (see Import)',
         ],
         example: {
             title: 'A normal month',
@@ -128,15 +126,19 @@ export const FEATURES: Feature[] = [
         group: 'track',
         name: 'Statement import',
         icon: 'upload',
-        status: 'building',
+        status: 'available',
         short: 'Upload a bank or card statement instead of typing every entry.',
         summary:
-            'Typing every entry is the main reason people give up on money apps. Upload the statement your bank already gives you, check the entries on one screen, and save them all at once.',
+            'Typing every entry is the main reason people give up on money apps. Upload the statement your bank already gives you, check the entries on one screen, and save them all at once. The file is read on your device and never uploaded: only the entries you keep are saved.',
         points: [
-            'CSV and Excel statements from HDFC, ICICI, SBI, Axis and Kotak first, then other banks',
+            'CSV and Excel statements: HDFC, ICICI, SBI, Axis and Kotak layouts are recognised, and for any other bank you choose the columns once',
+            'A review screen before anything is saved: duplicates are flagged and categories suggested from your own past choices',
+            'ATM withdrawals, card bill payments and transfers between your own accounts are recognised and paired, so they are not counted as spending',
+            'The statement\'s closing balance is compared with FinDB\'s, ready for reconciliation',
+            'Undo a whole import in one step',
+        ],
+        next: [
             'PDF statements, including password-protected ones (the password is never stored)',
-            'A review screen before anything is saved: duplicates are flagged and categories suggested',
-            'Transfers between your own accounts are recognised and paired',
             'Import from other money apps and spreadsheets, so you keep your history',
             'Photos of receipts and UPI payment screenshots are read and turned into entries for you to confirm',
         ],
@@ -518,7 +520,7 @@ export const FAQ: Question[] = [
     },
     {
         q: 'Do I have to type everything by hand?',
-        a: 'Today, yes. Statement import is being built: you will upload the statement from your bank, check the entries on one screen and save them all at once. Repeating entries such as rent and EMIs will be added for you to confirm with one tap.',
+        a: 'No. Upload the CSV or Excel statement from your bank or card, check the entries on one screen and save them all at once; FinDB reads the file on your device and keeps only the entries. Repeating entries such as rent and EMIs are added for you to confirm with one tap. PDF statements are next.',
     },
     {
         q: 'Can I use FinDB on my phone?',

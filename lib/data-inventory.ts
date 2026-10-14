@@ -97,6 +97,16 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         holds: 'Which tags are on which entry', purpose: 'Grouping your entries your way', retention: 'With the entry or the tag',
     },
     {
+        table: 'import_profiles', category: 'money', exported: true,
+        holds: 'The column names of statement layouts you imported, and which column holds what (never the statements themselves)',
+        purpose: 'Importing the same bank\'s next statement without choosing columns again', retention: 'Until you delete your account',
+    },
+    {
+        table: 'import_batches', category: 'money', exported: true,
+        holds: 'Each statement import: the account, the dates it covered, how many entries it added and the closing balance',
+        purpose: 'Showing and undoing your imports', retention: 'Until you delete your account',
+    },
+    {
         table: 'activity_log', category: 'history', exported: true,
         holds: 'Each change you make, with old and new values; failed recovery attempts', purpose: 'Your own history, and spotting misuse',
         retention: 'Until you delete your account',

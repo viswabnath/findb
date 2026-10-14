@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeftRight, ArrowRight, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, FileUp, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useFormMessage } from '@/components/useFormMessage';
@@ -422,6 +422,9 @@ export function TransactionsScreen() {
                 <div>
                     <h2>{t('transactions.title')}</h2>
                     <p>{t('transactions.subtitle', { period: periodName })}</p>
+                    <a className="btn btn-secondary btn-sm page-header-link" id="import-statement-link" href="/import">
+                        <FileUp aria-hidden="true" /> {t('imports.link')}
+                    </a>
                 </div>
                 <div className="period-picker transaction-filters">
                     <div className="field">

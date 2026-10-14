@@ -479,6 +479,37 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .fold[open] .fold-chevron { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) { .fold-chevron { transition: none; } }
 
+/* Statement import (components/import): the review list, phone first */
+.page-header-link { margin-top: 12px; }
+.import-privacy { margin-top: 0; padding-top: 12px; }
+.import-problem { margin: 0 clamp(16px, 2.5vw, 24px) 16px; }
+.import-columns-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }
+.import-columns .import-sample-title { margin: 20px 0 8px; }
+.import-columns .settings-actions { padding: 16px 0 0; }
+.import-sample { border: 1px solid var(--line); border-radius: 10px; }
+.import-columns-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
+.import-summary { display: grid; gap: 6px; color: var(--muted); }
+.import-rows { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.import-row { display: grid; grid-template-columns: 1fr auto; gap: 8px 12px; align-items: center;
+    padding: 12px clamp(16px, 2.5vw, 24px); border-bottom: 1px solid var(--line); }
+.import-row:last-child { border-bottom: 0; }
+.import-row .import-description, .import-row .import-action, .import-row .import-notes { grid-column: 1 / -1; min-width: 0; }
+.import-row .amount { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 700; text-align: right; }
+.import-row .amount.in, .import-sample .amount.in { color: var(--c-income); }
+.import-row .when { color: var(--muted); font-size: 0.9rem; }
+.import-row.is-left-out .import-description, .import-row.is-left-out .import-action, .import-row.is-left-out .amount { opacity: 0.6; }
+.import-notes:empty { display: none; }
+.import-note { margin: 0; color: var(--muted); font-size: 0.86rem; }
+.import-note.warn { color: var(--fg); font-weight: 600; }
+@media (min-width: 900px) {
+    .import-row { grid-template-columns: 150px minmax(0, 1.3fr) minmax(0, 1fr) 130px; }
+    .import-row .select-entry { grid-column: 1; grid-row: 1; }
+    .import-row .import-description { grid-column: 2; grid-row: 1; }
+    .import-row .import-action { grid-column: 3; grid-row: 1; }
+    .import-row .amount { grid-column: 4; grid-row: 1; }
+    .import-row .import-notes { grid-column: 2 / -1; }
+}
+
 .icon-tile { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; color: #ffffff; flex: none; }
 .icon-tile svg { width: 19px; height: 19px; }
 .t-income { background: var(--c-income); }

@@ -1,7 +1,7 @@
 /**
  * Unit tests for lib/format.ts
  */
-import { formatRupees } from '../../lib/format';
+import { formatRupees, signedRupees } from '../../lib/format';
 
 describe('formatRupees', () => {
     test.each<[string | number | null | undefined, string]>([
@@ -15,5 +15,12 @@ describe('formatRupees', () => {
         ['not a number', '₹0.00'],
     ])('%p -> %s', (value, expected) => {
         expect(formatRupees(value)).toBe(expected);
+    });
+});
+
+describe('signedRupees', () => {
+    test('puts the direction in front of the rupee sign', () => {
+        expect(signedRupees('-120.50')).toBe('-₹120.50');
+        expect(signedRupees('500000')).toBe('+₹5,00,000.00');
     });
 });
