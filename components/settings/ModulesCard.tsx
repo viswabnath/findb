@@ -6,6 +6,7 @@ import { useToast } from '@/components/Toast';
 import { apiGet, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { MODULES } from '@/lib/modules';
 import { t } from '@/lib/i18n';
+import { FoldingCard } from '@/components/ui/FoldingCard';
 
 /** What FinDB tracks (/api/modules): switching a module off hides it and keeps its data */
 export function ModulesCard() {
@@ -33,10 +34,7 @@ export function ModulesCard() {
     if (modules === null) return null;
 
     return (
-        <section id="modules-section" className="card" aria-labelledby="modules-title">
-            <div className="card-head">
-                <h3 id="modules-title"><span className="icon-tile t-wealth" aria-hidden="true"><LayoutGrid /></span>{t('settings.modules.title')}</h3>
-            </div>
+        <FoldingCard id="modules-section" titleId="modules-title" icon={LayoutGrid} tile="t-wealth" title={t('settings.modules.title')}>
             <p className="card-pad form-note">{t('settings.modules.note')}</p>
             <div className="card-pad module-choices">
                 {MODULES.map(module => (
@@ -50,6 +48,6 @@ export function ModulesCard() {
                     </label>
                 ))}
             </div>
-        </section>
+        </FoldingCard>
     );
 }

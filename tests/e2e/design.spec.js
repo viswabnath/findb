@@ -35,4 +35,12 @@ test('on a phone, five tabs show whole labels and Settings is in the top bar', a
     }
     await page.locator('.app-topbar [data-section="settings"]').click();
     await expect(page.locator('#settings-section')).toBeVisible();
+
+    // Settings opens as a short list of headings; each card unfolds when tapped
+    const appearance = page.locator('#appearance-section');
+    await expect(appearance).not.toHaveAttribute('open');
+    await expect(page.locator('[data-theme-option="dark"]')).toBeHidden();
+    await appearance.locator('summary').click();
+    await expect(appearance).toHaveAttribute('open', '');
+    await expect(page.locator('[data-theme-option="dark"]')).toBeVisible();
 });

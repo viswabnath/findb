@@ -469,6 +469,16 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .card-head .meta { color: var(--muted); font-size: 0.9rem; font-weight: 600; }
 .stack { display: grid; gap: 20px; }
 
+/* A card that folds behind its heading (components/ui/FoldingCard.tsx) */
+.fold > summary { cursor: pointer; list-style: none; }
+.fold > summary::-webkit-details-marker { display: none; }
+.fold > summary:focus-visible { outline-offset: -3px; border-radius: var(--radius); }
+.fold:not([open]) > summary { border-bottom: 0; }
+.fold-end { display: inline-flex; align-items: center; gap: 10px; margin-left: auto; }
+.fold-chevron { width: 20px; height: 20px; color: var(--muted); transition: transform 0.15s ease; flex: none; }
+.fold[open] .fold-chevron { transform: rotate(180deg); }
+@media (prefers-reduced-motion: reduce) { .fold-chevron { transition: none; } }
+
 .icon-tile { display: inline-grid; place-items: center; width: 36px; height: 36px; border-radius: 11px; color: #ffffff; flex: none; }
 .icon-tile svg { width: 19px; height: 19px; }
 .t-income { background: var(--c-income); }

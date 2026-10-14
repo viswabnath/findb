@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { SunMoon } from 'lucide-react';
 import { t } from '@/lib/i18n';
+import { FoldingCard } from '@/components/ui/FoldingCard';
 import { parseTheme, themeCookie, THEMES, type Theme } from '@/lib/theme';
 
 /**
@@ -26,10 +27,7 @@ export function ThemeCard() {
     if (theme === null) return null;
 
     return (
-        <section id="appearance-section" className="card" aria-labelledby="appearance-title">
-            <div className="card-head">
-                <h3 id="appearance-title"><span className="icon-tile t-bank" aria-hidden="true"><SunMoon /></span>{t('settings.appearance.title')}</h3>
-            </div>
+        <FoldingCard id="appearance-section" titleId="appearance-title" icon={SunMoon} title={t('settings.appearance.title')}>
             <div className="card-pad">
                 <p className="form-note">{t('settings.appearance.note')}</p>
                 <div className="theme-choice" role="radiogroup" aria-labelledby="appearance-title">
@@ -41,6 +39,6 @@ export function ThemeCard() {
                     ))}
                 </div>
             </div>
-        </section>
+        </FoldingCard>
     );
 }
