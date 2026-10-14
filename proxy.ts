@@ -12,7 +12,7 @@ import { buildContentSecurityPolicy, createNonce } from './lib/csp';
  * tests/unit/routing.test.ts checks that the matcher lists exactly the app's pages.
  */
 /** Logged-in screens served by Next.js; visitors without a session cookie go to /login */
-const APP_PATHS = new Set(['/setup', '/transactions', '/summary', '/events', '/reconcile', '/import', '/add-many', '/activity', '/settings']);
+const APP_PATHS = new Set(['/setup', '/transactions', '/summary', '/events', '/reconcile', '/import', '/add-many', '/search', '/activity', '/settings']);
 /** The session cookie (lib/session.ts) */
 const SESSION_COOKIE = 'sessionId';
 /** Old links into the former single-page app (/?section=...) and where those screens live now */
@@ -66,6 +66,7 @@ export const config = {
         '/reconcile',
         '/import',
         '/add-many',
+        '/search',
         '/activity',
         '/settings',
     ],

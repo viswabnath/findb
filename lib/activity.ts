@@ -16,7 +16,7 @@ export interface ActivityLabel {
 }
 
 type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating'
-    | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant' | 'modules' | 'sample_data' | 'import';
+    | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant' | 'modules' | 'sample_data' | 'import' | 'search';
 type Action = 'created' | 'updated' | 'deleted';
 
 /** Each entry's icon and CSS class; the words are in messages/en.ts (activity.labels) */
@@ -39,6 +39,7 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         modules: { icon: 'pencil', className: 'action-update' },
         sample_data: { icon: 'plus', className: 'action-create' },
         import: { icon: 'plus', className: 'action-create' },
+        search: { icon: 'plus', className: 'action-create' },
     },
     updated: {
         cash_balance: { icon: 'banknote', className: 'action-cash-update' },
@@ -58,6 +59,7 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         modules: { icon: 'pencil', className: 'action-update' },
         sample_data: { icon: 'pencil', className: 'action-update' },
         import: { icon: 'pencil', className: 'action-update' },
+        search: { icon: 'pencil', className: 'action-update' },
     },
     deleted: {
         cash_balance: { icon: 'banknote', className: 'action-cash-delete' },
@@ -77,6 +79,7 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         modules: { icon: 'pencil', className: 'action-update' },
         sample_data: { icon: 'trash-2', className: 'action-delete' },
         import: { icon: 'trash-2', className: 'action-delete' },
+        search: { icon: 'trash-2', className: 'action-delete' },
     },
 };
 const OTHER: Record<Action, Omit<ActivityLabel, 'text'>> = {

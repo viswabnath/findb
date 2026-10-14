@@ -303,6 +303,14 @@ export async function listEntries(pool: Pool, userId: number, month: string | nu
     return result.rows.map(toEntry);
 }
 
+/** Entries by id, in the order given (search results) */
+export async function entriesByIds(pool: Pool, userId: number, ids: number[]): Promise<Entry[]> {
+    if (ids.length === 0) return [];
+    const result = await pool.query(`${ENTRY_QUERY} AND e.id = ANY($2::bigint[]) GROUP BY e.id, ev.id`, [userId, ids]);
+    const byId = new Map(result.rows.map(row => [Number(row.id), toEntry(row)]));
+    return ids.flatMap(id => (byId.has(id) ? [byId.get(id)!] : []));
+}
+
 /** Every entry for an event, newest first (its timeline) */
 export async function listEntriesForEvent(pool: Pool, userId: number, eventId: number): Promise<Entry[]> {
     const result = await pool.query(`${ENTRY_QUERY} AND e.event_id = $2 GROUP BY e.id, ev.id ORDER BY e.entry_date DESC, e.id DESC`, [userId, eventId]);

@@ -482,6 +482,24 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 /* Statement import (components/import): the review list, phone first */
 .page-header-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
 
+/* Search (components/search/SearchScreen.tsx) */
+.search-bar { border-bottom: 0; }
+.search-filters { border-top: 1px solid var(--line); }
+.search-filters summary { display: flex; align-items: center; gap: 8px; cursor: pointer; font-weight: 700; padding-top: 14px; padding-bottom: 14px; list-style: none; }
+.search-filters summary::-webkit-details-marker { display: none; }
+.search-filters summary svg { width: 18px; height: 18px; color: var(--muted); }
+.search-filter-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; padding-top: 0; }
+.saved-searches { display: grid; gap: 8px; border-top: 1px solid var(--line); }
+.chip-with-remove { display: inline-flex; align-items: center; }
+.chip-with-remove .chip { border-radius: 999px 0 0 999px; border-right: 0; }
+.chip-remove { display: inline-flex; align-items: center; padding: 7px 8px; border: 1px solid var(--line); border-radius: 0 999px 999px 0; background: var(--surface); color: var(--muted); cursor: pointer; }
+.chip-remove svg { width: 14px; height: 14px; }
+.search-names { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 0; }
+.search-summary { color: var(--muted); }
+.search-entry { display: grid; gap: 2px; min-width: 0; }
+.search-list .amount { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-weight: 700; }
+.search-list .amount.in { color: var(--c-income); }
+
 /* Quick add (components/app/QuickAdd.tsx) */
 .quick-add-button { margin: 16px 12px 0; justify-content: center; }
 .quick-add { display: grid; gap: 14px; }
