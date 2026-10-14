@@ -86,6 +86,9 @@ export function ImportScreen() {
     const [result, setResult] = useState<ImportResult | null>(null);
     const [saving, setSaving] = useState(false);
     const [undoing, setUndoing] = useState<{ batch: ImportBatch; reconciled: string | null } | null>(null);
+    // A PDF waiting for its password; the password lives only in this field and is cleared once used
+    const [locked, setLocked] = useState<File | null>(null);
+    const [password, setPassword] = useState('');
 
     async function loadHistory() {
         const result = await apiGet<ImportBatch[]>('/api/imports');
@@ -173,19 +176,24 @@ export function ImportScreen() {
         await readAndReview(loaded.table, found.headerRow, mapping, forAccount);
     }
 
-    async function chooseFile(chosen: File | undefined) {
+    async function chooseFile(chosen: File | undefined, withPassword?: string) {
         if (!chosen) return;
         setProblem(null);
         try {
-            const { table, kind } = await readStatementFile(chosen);
+            const { table, kind } = await readStatementFile(chosen, withPassword);
+            setLocked(null);
+            setPassword('');
             const loaded = { name: chosen.name, kind, table };
             setFile(loaded);
             await analyse(loaded, accountId);
         } catch (error) {
+            const problem = error instanceof StatementFileError ? error.problem : 'unreadable';
             setFile(null);
             setLayout(null);
             resetReview();
-            setProblem(t(`imports.problems.${error instanceof StatementFileError ? error.problem : 'unreadable'}`));
+            setPassword('');
+            setLocked(problem === 'pdfPassword' || problem === 'pdfWrongPassword' ? chosen : null);
+            setProblem(t(`imports.problems.${problem}`));
         }
     }
 
@@ -208,6 +216,8 @@ export function ImportScreen() {
         setParsed(null);
         setProblem(null);
         setEditing(false);
+        setLocked(null);
+        setPassword('');
         resetReview();
     }
 
@@ -288,12 +298,22 @@ export function ImportScreen() {
                     </div>
                     <div className="field">
                         <label htmlFor="import-file">{t('imports.choose')}</label>
-                        <input id="import-file" type="file" accept=".csv,.txt,.xls,.xlsx,text/csv"
+                        <input id="import-file" type="file" accept=".csv,.txt,.xls,.xlsx,.pdf,text/csv,application/pdf"
                             onChange={event => { chooseFile(event.target.files?.[0]); event.target.value = ''; }} />
                     </div>
                 </div>
                 <p className="card-pad form-note import-privacy">{t('imports.privacy')} {t('imports.formats', { max: MAX_IMPORT_ROWS })}</p>
                 {problem ? <p className="notice warn import-problem" id="import-problem" role="alert">{problem}</p> : null}
+                {locked ? (
+                    <form className="add-row single import-password" onSubmit={event => { event.preventDefault(); chooseFile(locked, password); }}>
+                        <div className="field">
+                            <label htmlFor="import-password">{t('imports.password')}</label>
+                            <input id="import-password" type="password" autoComplete="off" value={password} onChange={event => setPassword(event.target.value)} />
+                            <span className="field-hint">{t('imports.passwordHelp')}</span>
+                        </div>
+                        <button type="submit" className="btn btn-primary" data-action="openPdf" disabled={password === ''}>{t('imports.open')}</button>
+                    </form>
+                ) : null}
             </section>
 
             {file && layout ? (

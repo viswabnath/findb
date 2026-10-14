@@ -131,14 +131,15 @@ export const FEATURES: Feature[] = [
         summary:
             'Typing every entry is the main reason people give up on money apps. Upload the statement your bank already gives you, check the entries on one screen, and save them all at once. The file is read on your device and never uploaded: only the entries you keep are saved.',
         points: [
-            'CSV and Excel statements: HDFC, ICICI, SBI, Axis and Kotak layouts are recognised, and for any other bank you choose the columns once',
+            'CSV, Excel and PDF statements: HDFC, ICICI, SBI, Axis and Kotak layouts are recognised, and for any other bank you choose the columns once',
+            'Password-protected PDFs: the password opens the file on your device and is never sent or stored',
             'A review screen before anything is saved: duplicates are flagged and categories suggested from your own past choices',
             'ATM withdrawals, card bill payments and transfers between your own accounts are recognised and paired, so they are not counted as spending',
             'The statement\'s closing balance is compared with FinDB\'s, ready for reconciliation',
             'Undo a whole import in one step',
         ],
         next: [
-            'PDF statements, including password-protected ones (the password is never stored)',
+            'Scanned PDF statements, which hold a picture of the page instead of text',
             'Import from other money apps and spreadsheets, so you keep your history',
             'Photos of receipts and UPI payment screenshots are read and turned into entries for you to confirm',
         ],
@@ -520,7 +521,7 @@ export const FAQ: Question[] = [
     },
     {
         q: 'Do I have to type everything by hand?',
-        a: 'No. Upload the CSV or Excel statement from your bank or card, check the entries on one screen and save them all at once; FinDB reads the file on your device and keeps only the entries. Repeating entries such as rent and EMIs are added for you to confirm with one tap. PDF statements are next.',
+        a: 'No. Upload the CSV, Excel or PDF statement from your bank or card, check the entries on one screen and save them all at once; FinDB reads the file on your device and keeps only the entries. Repeating entries such as rent and EMIs are added for you to confirm with one tap.',
     },
     {
         q: 'Can I use FinDB on my phone?',

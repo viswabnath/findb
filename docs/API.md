@@ -339,12 +339,12 @@ A reconciliation: `{ "id", "account", "statementDate", "statementBalance", "stat
 
 ## Statement import
 
-Bank and card statements into the ledger (`lib/services/statement-import.ts`, the `/import` screen). The browser reads the CSV or Excel file (`src/core/statement.ts`, `lib/statement-file.ts`) and sends only rows; the file is never uploaded. Row amounts are signed rupees text: positive into the account, negative out of it. At most 1000 rows per request; dates may not be in the future.
+Bank and card statements into the ledger (`lib/services/statement-import.ts`, the `/import` screen). The browser reads the CSV, Excel or PDF file (`src/core/statement.ts`, `src/core/statement-pdf.ts`, `lib/statement-file.ts`) and sends only rows; the file, and a PDF's password, never reach the server. Row amounts are signed rupees text: positive into the account, negative out of it. At most 1000 rows per request; dates may not be in the future.
 
 | Method | Path | Body | Response |
 |---|---|---|---|
 | POST | `/api/imports/preview` | `{ "accountId", "rows": [{ "line", "date", "description", "narration"?, "amount" }] }` | the review; saves nothing |
-| POST | `/api/imports` | `{ "accountId", "fileKind": "csv \| excel", "rowsInFile"?, "closingBalance"?: { "date", "amount" }, "layout"?: { "signature", "presetKey", "mapping" }, "rows": [{ "line", "date", "description", "amount", "action" }] }` | `{ "batchId", "imported", "transfers", "replaced", "account": { "id", "name", "balance" }, "closing": { "date", "balance", "findb", "difference" } \| null }` |
+| POST | `/api/imports` | `{ "accountId", "fileKind": "csv \| excel \| pdf", "rowsInFile"?, "closingBalance"?: { "date", "amount" }, "layout"?: { "signature", "presetKey", "mapping" }, "rows": [{ "line", "date", "description", "amount", "action" }] }` | `{ "batchId", "imported", "transfers", "replaced", "account": { "id", "name", "balance" }, "closing": { "date", "balance", "findb", "difference" } \| null }` |
 | GET | `/api/imports` | – | the last 50 imports, newest first: `{ "id", "account", "fileKind", "rowsInFile", "imported", "active", "from", "to", "closingBalance", "createdAt", "undoneAt" }` |
 | GET | `/api/imports/profiles` | – | remembered column choices: `{ "signature", "presetKey", "mapping", "accountId" }` |
 | DELETE | `/api/imports/:id` | `?confirmReconciled=true` | `{ "undone", "restored" }`: the import's entries are voided and the entries it replaced count again; `409` when some are on a finished reconciliation and `confirmReconciled` is not sent |
