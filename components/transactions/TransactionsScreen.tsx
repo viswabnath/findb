@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeftRight, ArrowRight, FileUp, Pencil, Plus, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, FileUp, Pencil, Rows3, Plus, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useFormMessage } from '@/components/useFormMessage';
@@ -11,6 +11,7 @@ import { formatRupees } from '@/lib/format';
 import { t } from '@/lib/i18n';
 import { ReimbursementsCard } from './ReimbursementsCard';
 import { RepeatingCard } from './RepeatingCard';
+import { ENTRIES_CHANGED } from '@/components/app/QuickAdd';
 
 /**
  * Income, expenses and transfers, recorded in the ledger (/api/entries) on any money account
@@ -224,6 +225,13 @@ export function TransactionsScreen() {
         // Runs once on page load; later reloads go through loadEntries directly
     }, []);
 
+    // Quick add (from the app shell) saved an entry: show it, and the accounts' new balances
+    useEffect(() => {
+        const reload = () => { loadEntries(period.month, period.year); };
+        window.addEventListener(ENTRIES_CHANGED, reload);
+        return () => window.removeEventListener(ENTRIES_CHANGED, reload);
+    }, [period, loadEntries]);
+
     async function filterTransactions() {
         setPeriod({ month: filterMonth, year: filterYear });
         toast('info', t('transactions.loading', { period: `${MONTH_NAMES[filterMonth - 1]} ${filterYear}` }));
@@ -422,9 +430,14 @@ export function TransactionsScreen() {
                 <div>
                     <h2>{t('transactions.title')}</h2>
                     <p>{t('transactions.subtitle', { period: periodName })}</p>
-                    <a className="btn btn-secondary btn-sm page-header-link" id="import-statement-link" href="/import">
-                        <FileUp aria-hidden="true" /> {t('imports.link')}
-                    </a>
+                    <span className="page-header-links">
+                        <a className="btn btn-secondary btn-sm" id="import-statement-link" href="/import">
+                            <FileUp aria-hidden="true" /> {t('imports.link')}
+                        </a>
+                        <a className="btn btn-secondary btn-sm" id="add-many-link" href="/add-many">
+                            <Rows3 aria-hidden="true" /> {t('addMany.link')}
+                        </a>
+                    </span>
                 </div>
                 <div className="period-picker transaction-filters">
                     <div className="field">

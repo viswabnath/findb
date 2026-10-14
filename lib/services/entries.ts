@@ -503,6 +503,33 @@ export async function createEntry(pool: Pool, userId: number, body: Body): Promi
     return withTransaction(pool, client => recordNewEntry(client, userId, body, { checkSpending: true }));
 }
 
+/** The most entries one "Add many" saves */
+export const MAX_NEW_ENTRIES = 200;
+
+/**
+ * { entries: [...] }: many new entries at once (the "Add many" grid), each as POST /api/entries
+ * takes it. All are saved in one transaction, in order, or none: a refusal names its row.
+ */
+export async function createEntries(pool: Pool, userId: number, body: Body): Promise<{ created: number; entries: Entry[] }> {
+    const list = body.entries;
+    if (!Array.isArray(list) || list.length === 0) throw new RequestError(400, t('errors.bulk.noEntries'));
+    if (list.length > MAX_NEW_ENTRIES) throw new RequestError(400, t('errors.bulk.tooMany', { max: MAX_NEW_ENTRIES }));
+    return withTransaction(pool, async (client) => {
+        const entries: Entry[] = [];
+        for (const [index, item] of list.entries()) {
+            try {
+                entries.push(await recordNewEntry(client, userId, (item && typeof item === 'object' ? item : {}) as Body, { checkSpending: true }));
+            } catch (error) {
+                // The grid sends its own row numbers, which skip its empty rows
+                const row = Number.isInteger((item as Body | null)?.row) ? Number((item as Body).row) : index + 1;
+                if (error instanceof RequestError) throw new RequestError(error.status, t('errors.bulk.row', { row, problem: error.message }));
+                throw error;
+            }
+        }
+        return { created: entries.length, entries };
+    });
+}
+
 /** Remove the former row behind an entry recorded through /api/income or /api/expenses, if any */
 async function removeFormerRow(client: Client, userId: number, entry: { sourceTable: string | null; sourceId: number | null }): Promise<void> {
     if (entry.sourceTable === 'income_entries') await client.query('DELETE FROM income_entries WHERE id = $1 AND user_id = $2', [entry.sourceId, userId]);

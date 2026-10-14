@@ -1,7 +1,7 @@
 /**
  * Unit tests for lib/dates.ts
  */
-import { filterYears, MONTH_NAMES, toDateInputValue, todayUtcIso } from '../../lib/dates';
+import { filterYears, MONTH_NAMES, toDateInputValue, todayInIndiaClient, todayUtcIso } from '../../lib/dates';
 
 describe('todayUtcIso', () => {
     test('is the UTC date, like the legacy default (still the previous day just after midnight IST)', () => {
@@ -33,4 +33,9 @@ test('MONTH_NAMES has the twelve months in order', () => {
     expect(MONTH_NAMES).toHaveLength(12);
     expect(MONTH_NAMES[0]).toBe('January');
     expect(MONTH_NAMES[11]).toBe('December');
+});
+
+test('todayInIndiaClient is India\'s date, also just after midnight there', () => {
+    expect(todayInIndiaClient(new Date('2026-10-14T18:29:00Z'))).toBe('2026-10-14');
+    expect(todayInIndiaClient(new Date('2026-10-14T18:31:00Z'))).toBe('2026-10-15');
 });

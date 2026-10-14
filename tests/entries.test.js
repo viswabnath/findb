@@ -249,6 +249,48 @@ describe('entries', () => {
     });
 });
 
+describe('faster entry', () => {
+    test('many entries are saved together, or none when one row is refused', async () => {
+        const categories = (await agent.get('/api/categories')).body;
+        const groceries = categories.find(category => category.name === 'Groceries');
+        const before = (await accounts()).find(account => account.id === bank.id).balance;
+        const saved = await agent.post('/api/entries/bulk').send({ entries: [
+            { type: 'expense', date: DAY, description: 'Bulk vegetables', amount: '120.50', accountId: bank.id, categoryId: groceries.id, tags: 'home' },
+            { type: 'income', date: DAY, description: 'Bulk interest', amount: '10', accountId: bank.id },
+            { type: 'transfer', date: DAY, description: 'Bulk to cash', amount: '100', accountId: bank.id, toAccountId: cash.id },
+        ] });
+        expect(saved.status).toBe(200);
+        expect(saved.body.created).toBe(3);
+        expect(saved.body.entries.map(entry => entry.type)).toEqual(['expense', 'income', 'transfer']);
+        expect(saved.body.entries[0]).toMatchObject({ category: { id: groceries.id }, tags: ['home'] });
+        const after = (await accounts()).find(account => account.id === bank.id).balance;
+        expect(after).toBe((Number(before) - 120.5 + 10 - 100).toFixed(2));
+
+        // The grid's own row numbers name the refused row, and nothing of the request is kept
+        const refused = await agent.post('/api/entries/bulk').send({ entries: [
+            { row: 2, type: 'expense', date: DAY, description: 'Bulk kept?', amount: '5', accountId: bank.id },
+            { row: 4, type: 'expense', date: DAY, description: '', amount: '5', accountId: bank.id },
+        ] });
+        expect(refused.status).toBe(400);
+        expect(refused.body.error).toBe('Row 4: Description is required');
+        const kept = await query('SELECT count(*)::int AS n FROM journal_entries WHERE user_id = $1 AND description = $2', [user.id, 'Bulk kept?']);
+        expect(kept.rows[0].n).toBe(0);
+
+        expect((await agent.post('/api/entries/bulk').send({ entries: [] })).body.error).toBe('There are no entries to save');
+        const many = Array.from({ length: 201 }, () => ({ type: 'expense', date: DAY, description: 'x', amount: '1', accountId: bank.id }));
+        expect((await agent.post('/api/entries/bulk').send({ entries: many })).body.error).toBe('Save at most 200 entries at once');
+        expect((await request.agent(target()).post('/api/entries/bulk').send({ entries: [] })).status).toBe(401);
+    });
+
+    test('the most used categories come first, then the defaults in order', async () => {
+        const frequent = (await agent.get('/api/categories/frequent?kind=expense&limit=3')).body;
+        expect(frequent).toHaveLength(3);
+        expect(frequent[0].name).toBe('Groceries');
+        expect(frequent.every(category => category.kind === 'expense' && !category.fallback)).toBe(true);
+        expect((await agent.get('/api/categories/frequent?kind=other')).status).toBe(400);
+    });
+});
+
 describe('archiving', () => {
     test('a wallet with money in it cannot be removed; an empty one can', async () => {
         await agent.post('/api/entries').send({ type: 'transfer', description: 'Top-up', amount: 50, accountId: bank.id, toAccountId: wallet.id, date: DAY });
