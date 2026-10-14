@@ -5,6 +5,7 @@ import { RequestError, withTransaction } from '../transaction';
 import { lockedCategory } from './categories';
 import { lockedEvent } from './events';
 import { entryDate } from './transactions';
+import { t } from '../i18n';
 
 /**
  * Money accounts and entries straight in the ledger (docs/ledger.md, v2 Phase 1).
@@ -100,8 +101,8 @@ function publicAccount({ sourceTable, ...account }: MoneyAccount & { sourceTable
 }
 
 /** One of the user's money accounts, locked for the rest of the transaction; 400 if it is not theirs or archived */
-export async function lockedMoneyAccount(client: Client, userId: number, id: unknown, label = 'Account'): Promise<MoneyAccount & { sourceTable: string | null }> {
-    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(400, `${label} is required`);
+export async function lockedMoneyAccount(client: Client, userId: number, id: unknown, label = t('errors.fields.account')): Promise<MoneyAccount & { sourceTable: string | null }> {
+    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(400, t('errors.fieldRequired', { field: label }));
     const result = await client.query(
         `SELECT ${ACCOUNT_COLUMNS}, a.source_table, a.archived_at
          FROM ledger_accounts a LEFT JOIN ledger_account_balances b ON b.account_id = a.id
@@ -110,21 +111,21 @@ export async function lockedMoneyAccount(client: Client, userId: number, id: unk
         [id, userId, MONEY_TYPES],
     );
     const row = result.rows[0];
-    if (!row || row.archived_at !== null) throw new RequestError(400, `${label} not found`);
+    if (!row || row.archived_at !== null) throw new RequestError(400, t('errors.fieldNotFound', { field: label }));
     return { ...toAccount(row), sourceTable: row.source_table };
 }
 
 function optionalText(value: unknown, field: string, max: number): string | null {
     if (value === undefined || value === null || value === '') return null;
-    if (typeof value !== 'string') throw new RequestError(400, `${field} must be text`);
+    if (typeof value !== 'string') throw new RequestError(400, t('errors.fieldMustBeText', { field }));
     const text = value.trim();
-    if (text.length > max) throw new RequestError(400, `${field} is too long (max ${max} characters)`);
+    if (text.length > max) throw new RequestError(400, t('errors.fieldTooLong', { field, max }));
     return text || null;
 }
 
 function requiredName(value: unknown): string {
-    const name = optionalText(value, 'Name', 100);
-    if (!name) throw new RequestError(400, 'Name is required');
+    const name = optionalText(value, t('errors.fields.name'), 100);
+    if (!name) throw new RequestError(400, t('errors.nameRequired'));
     return name;
 }
 
@@ -132,18 +133,18 @@ function requiredName(value: unknown): string {
 export async function createAccount(pool: Pool, userId: number, body: Body): Promise<MoneyAccount> {
     const type = body.type;
     if (typeof type !== 'string' || !LEDGER_ONLY_TYPES.includes(type)) {
-        throw new RequestError(400, 'Add a wallet or a meal card here; banks, cards and cash have their own forms');
+        throw new RequestError(400, t('errors.addWalletMealCardHere'));
     }
     const name = requiredName(body.name);
-    const institution = optionalText(body.institution, 'Provider', 100);
-    const notes = optionalText(body.notes, 'Notes', 500);
+    const institution = optionalText(body.institution, t('errors.fields.provider'), 100);
+    const notes = optionalText(body.notes, t('errors.fields.notes'), 500);
     const opening = body.openingBalance === undefined || body.openingBalance === '' ? 0 : amountPaise(body.openingBalance, true);
 
     return withTransaction(pool, async (client) => {
         const clash = await client.query(
             'SELECT 1 FROM ledger_accounts WHERE user_id = $1 AND archived_at IS NULL AND subtype = ANY($2::text[]) AND lower(name) = lower($3)',
             [userId, LEDGER_ONLY_TYPES, name]);
-        if (clash.rows.length > 0) throw new RequestError(400, `You already have a wallet or meal card called ${name}`);
+        if (clash.rows.length > 0) throw new RequestError(400, t('errors.walletExists', { name }));
         const created = await client.query(
             'INSERT INTO ledger_accounts (user_id, kind, subtype, name, institution, notes) VALUES ($1, \'asset\', $2, $3, $4, $5) RETURNING id',
             [userId, type, name, institution, notes]);
@@ -168,7 +169,7 @@ export async function updateAccount(pool: Pool, userId: number, id: string, body
         const account = await lockedMoneyAccount(client, userId, id);
         const name = body.name === undefined ? account.name : requiredName(body.name);
         if (name !== account.name && !LEDGER_ONLY_TYPES.includes(account.type)) {
-            throw new RequestError(400, 'Rename banks and cards on their own forms');
+            throw new RequestError(400, t('errors.renameBanksCardsTheirOwn'));
         }
         let accountType: string | null = account.accountType;
         let interestRate: string | null = account.interestRate;
@@ -176,21 +177,21 @@ export async function updateAccount(pool: Pool, userId: number, id: string, body
             if (body.accountType !== undefined) {
                 accountType = body.accountType === null || body.accountType === '' ? null : String(body.accountType);
                 if (accountType !== null && !BANK_ACCOUNT_TYPES.includes(accountType)) {
-                    throw new RequestError(400, 'Account type must be savings, current, salary, NRE or NRO');
+                    throw new RequestError(400, t('errors.accountTypeMustSavingsCurrent'));
                 }
             }
             if (body.interestRate !== undefined) {
                 interestRate = body.interestRate === null || body.interestRate === '' ? null : String(body.interestRate);
                 const rate = Number(interestRate);
                 if (interestRate !== null && (!/^\d{1,3}(\.\d{1,3})?$/.test(interestRate) || rate > 100)) {
-                    throw new RequestError(400, 'Interest rate must be a percentage between 0 and 100, up to three decimals');
+                    throw new RequestError(400, t('errors.interestRateFormat'));
                 }
             }
         } else if (body.accountType !== undefined || body.interestRate !== undefined) {
-            throw new RequestError(400, 'Only bank accounts have an account type and interest rate');
+            throw new RequestError(400, t('errors.onlyBanksHaveAccountType'));
         }
-        const institution = body.institution === undefined ? account.institution : optionalText(body.institution, 'Bank or provider', 100);
-        const notes = body.notes === undefined ? account.notes : optionalText(body.notes, 'Notes', 500);
+        const institution = body.institution === undefined ? account.institution : optionalText(body.institution, t('errors.fields.bankOrProvider'), 100);
+        const notes = body.notes === undefined ? account.notes : optionalText(body.notes, t('errors.fields.notes'), 500);
 
         await client.query(
             `UPDATE ledger_accounts SET name = $1, institution = $2, account_type = $3, interest_rate = $4, notes = $5
@@ -207,9 +208,9 @@ export async function updateAccount(pool: Pool, userId: number, id: string, body
 export async function archiveAccount(pool: Pool, userId: number, id: string): Promise<void> {
     await withTransaction(pool, async (client) => {
         const account = await lockedMoneyAccount(client, userId, id);
-        if (!LEDGER_ONLY_TYPES.includes(account.type)) throw new RequestError(400, 'Delete banks and cards on their own forms');
+        if (!LEDGER_ONLY_TYPES.includes(account.type)) throw new RequestError(400, t('errors.deleteBanksCardsTheirOwn'));
         if (toPaise(account.balance) !== 0) {
-            throw new RequestError(400, `${account.name} still holds ₹${account.balance}. Spend it or move it to another account first.`);
+            throw new RequestError(400, t('errors.accountNotEmpty', { name: account.name, balance: account.balance }));
         }
         await client.query('UPDATE ledger_accounts SET archived_at = now() WHERE id = $1 AND user_id = $2', [account.id, userId]);
         await logActivity(client, userId, 'deleted', 'account', account.id, `Removed ${TYPE_NAMES[account.type]}: ${account.name}`, null,
@@ -292,7 +293,7 @@ export async function listEntries(pool: Pool, userId: number, month: string | nu
     const m = Number(month);
     const y = Number(year);
     if (!Number.isInteger(m) || m < 1 || m > 12 || !Number.isInteger(y) || y < 1900 || y > 9999) {
-        throw new RequestError(400, 'Month and year are required');
+        throw new RequestError(400, t('errors.monthYearRequired'));
     }
     const first = `${y}-${String(m).padStart(2, '0')}-01`;
     const result = await pool.query(
@@ -311,7 +312,7 @@ export async function listEntriesForEvent(pool: Pool, userId: number, eventId: n
 /** Entries that belong to a reimbursement are changed there (lib/services/reimbursements.ts) */
 function requireOwnEntry(entry: Entry): void {
     if (entry.reimbursement) {
-        throw new RequestError(400, `${entry.description} belongs to a reimbursement: change it under Owed back to you`);
+        throw new RequestError(400, t('errors.entryIsReimbursement', { description: entry.description }));
     }
 }
 
@@ -322,12 +323,12 @@ function publicEntry({ sourceTable, sourceId, ...entry }: Entry & { sourceTable:
 }
 
 async function lockedEntry(client: Client, userId: number, id: unknown): Promise<Entry & { sourceTable: string | null; sourceId: number | null }> {
-    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(404, 'Entry not found');
+    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(404, t('errors.entryNotFound'));
     await client.query(
         'SELECT id FROM journal_entries WHERE id = $1 AND user_id = $2 AND voided_at IS NULL FOR UPDATE', [id, userId]);
     const result = await client.query(`${ENTRY_QUERY} AND e.id = $2 GROUP BY e.id, ev.id`, [userId, id]);
     const row = result.rows[0];
-    if (!row) throw new RequestError(404, 'Entry not found');
+    if (!row) throw new RequestError(404, t('errors.entryNotFound'));
     return { ...toEntry(row), sourceTable: row.source_table, sourceId: row.source_id === null ? null : Number(row.source_id) };
 }
 
@@ -337,9 +338,9 @@ function amountPaise(value: unknown, allowZero = false): number {
     try {
         paise = toPaise(value);
     } catch {
-        throw new RequestError(400, 'Enter a valid amount');
+        throw new RequestError(400, t('errors.enterValidAmount'));
     }
-    if (paise < 0 || (paise === 0 && !allowZero)) throw new RequestError(400, 'Enter an amount greater than zero');
+    if (paise < 0 || (paise === 0 && !allowZero)) throw new RequestError(400, t('errors.enterAmountGreaterThanZero'));
     return paise;
 }
 
@@ -359,13 +360,13 @@ const MAX_TAGS = 10;
 function readTags(value: unknown): string[] | undefined {
     if (value === undefined || value === null) return undefined;
     const raw = Array.isArray(value) ? value : typeof value === 'string' ? value.split(',') : null;
-    if (!raw || raw.some(tag => typeof tag !== 'string')) throw new RequestError(400, 'Tags must be text');
+    if (!raw || raw.some(tag => typeof tag !== 'string')) throw new RequestError(400, t('errors.tagsMustText'));
     const tags: string[] = [];
     for (const tag of (raw as string[]).map(item => item.trim()).filter(Boolean)) {
-        if (tag.length > 30) throw new RequestError(400, 'A tag can be at most 30 characters');
+        if (tag.length > 30) throw new RequestError(400, t('errors.tagTooLong'));
         if (!tags.some(existing => existing.toLowerCase() === tag.toLowerCase())) tags.push(tag);
     }
-    if (tags.length > MAX_TAGS) throw new RequestError(400, `At most ${MAX_TAGS} tags on an entry`);
+    if (tags.length > MAX_TAGS) throw new RequestError(400, t('errors.tooManyTagsOnEntry', { max: MAX_TAGS }));
     return tags;
 }
 
@@ -387,13 +388,13 @@ async function setEntryTags(client: Client, userId: number, entryId: number, tag
 function readEntry(body: Body): EntryInput {
     const type = body.type;
     if (typeof type !== 'string' || !ENTRY_KINDS.includes(type as EntryKind)) {
-        throw new RequestError(400, 'Type must be income, expense or transfer');
+        throw new RequestError(400, t('errors.typeMustIncomeExpenseTransfer'));
     }
-    if (!body.date) throw new RequestError(400, 'Date is required');
+    if (!body.date) throw new RequestError(400, t('errors.dateRequired'));
     const date = entryDate(body.date);
-    if (!date) throw new RequestError(400, 'Invalid date format');
-    const description = optionalText(body.description, 'Description', 200);
-    if (!description) throw new RequestError(400, 'Description is required');
+    if (!date) throw new RequestError(400, t('errors.invalidDateFormat'));
+    const description = optionalText(body.description, t('errors.fields.description'), 200);
+    if (!description) throw new RequestError(400, t('errors.descriptionRequired'));
     return {
         type: type as EntryKind, date: date.date, description, paise: amountPaise(body.amount),
         accountId: body.accountId, toAccountId: body.toAccountId, categoryId: body.categoryId, tags: readTags(body.tags),
@@ -409,13 +410,13 @@ export async function checkCanSpend(client: Client, userId: number, account: Mon
     const user = await client.query('SELECT tracking_option FROM users WHERE id = $1', [userId]);
     if ((user.rows[0]?.tracking_option || 'both') === 'expenses') return;
     if (account.type === 'credit_card') {
-        if (account.available === null || toPaise(account.available) < paise) throw new RequestError(400, 'Insufficient credit limit');
+        if (account.available === null || toPaise(account.available) < paise) throw new RequestError(400, t('errors.insufficientCreditLimit'));
         return;
     }
     if (toPaise(account.balance) >= paise) return;
-    if (account.type === 'bank') throw new RequestError(400, 'Insufficient bank balance');
-    if (account.type === 'cash') throw new RequestError(400, 'Insufficient cash balance');
-    throw new RequestError(400, `Insufficient balance in ${account.name}`);
+    if (account.type === 'bank') throw new RequestError(400, t('errors.insufficientBankBalance'));
+    if (account.type === 'cash') throw new RequestError(400, t('errors.insufficientCashBalance'));
+    throw new RequestError(400, t('errors.insufficientBalanceIn', { name: account.name }));
 }
 
 /** The category account for income or an expense: the one chosen, or the fallback */
@@ -441,7 +442,7 @@ async function record(client: Client, userId: number, input: EntryInput, checkSp
     let category: { id: number; name: string } | null = null;
     let lines: EntryLine[];
     if (input.type === 'income') {
-        if (account.type === 'credit_card') throw new RequestError(400, 'Income goes into a bank, cash, a wallet or a meal card');
+        if (account.type === 'credit_card') throw new RequestError(400, t('errors.incomeGoesIntoBankCash'));
         category = await categoryAccount(client, userId, 'income', input.categoryId);
         lines = [{ accountId: account.id, paise: input.paise }, { accountId: category.id, paise: -input.paise }];
     } else if (input.type === 'expense') {
@@ -449,8 +450,8 @@ async function record(client: Client, userId: number, input: EntryInput, checkSp
         if (checkSpending) await checkCanSpend(client, userId, account, input.paise);
         lines = [{ accountId: category.id, paise: input.paise }, { accountId: account.id, paise: -input.paise }];
     } else {
-        toAccount = await lockedMoneyAccount(client, userId, input.toAccountId, 'Destination account');
-        if (toAccount.id === account.id) throw new RequestError(400, 'Choose two different accounts for a transfer');
+        toAccount = await lockedMoneyAccount(client, userId, input.toAccountId, t('errors.fields.destinationAccount'));
+        if (toAccount.id === account.id) throw new RequestError(400, t('errors.chooseTwoDifferentAccountsTransfer'));
         if (checkSpending) await checkCanSpend(client, userId, account, input.paise);
         lines = [{ accountId: toAccount.id, paise: input.paise }, { accountId: account.id, paise: -input.paise }];
     }
@@ -526,7 +527,7 @@ async function carryCleared(client: Client, userId: number, oldEntryId: number, 
 /** Refuse to change a reconciled entry unless the user confirmed it ({ confirmReconciled: true }) */
 function requireConfirmation(statement: string | null, body: Body): void {
     if (statement && body.confirmReconciled !== true) {
-        throw new RequestError(409, `This entry is part of ${statement}, which you reconciled. Changing it changes that matched balance.`);
+        throw new RequestError(409, t('errors.entryReconciled', { statement }));
     }
 }
 
@@ -573,9 +574,9 @@ const MAX_BULK = 200;
 export async function categoriseEntries(pool: Pool, userId: number, body: Body): Promise<{ changed: number }> {
     const ids = body.entryIds;
     if (!Array.isArray(ids) || ids.length === 0 || ids.some(id => !/^\d+$/.test(String(id)))) {
-        throw new RequestError(400, 'Choose the entries to categorise');
+        throw new RequestError(400, t('errors.chooseEntriesCategorise'));
     }
-    if (ids.length > MAX_BULK) throw new RequestError(400, `At most ${MAX_BULK} entries at a time`);
+    if (ids.length > MAX_BULK) throw new RequestError(400, t('errors.tooManyEntries', { max: MAX_BULK }));
     return withTransaction(pool, async (client) => {
         const category = await lockedCategory(client, userId, body.categoryId);
         let changed = 0;
@@ -583,7 +584,7 @@ export async function categoriseEntries(pool: Pool, userId: number, body: Body):
             const old = await lockedEntry(client, userId, id);
             requireOwnEntry(old);
             if (old.type !== category.kind) {
-                throw new RequestError(400, `${old.description} is ${old.type === 'transfer' ? 'a transfer' : old.type}; ${category.name} is for ${category.kind === 'income' ? 'income' : 'spending'}`);
+                throw new RequestError(400, t(`errors.wrongCategoryKind.${old.type === 'transfer' ? 'transfer' : old.type === 'income' ? 'income' : 'expense'}To${category.kind === 'income' ? 'Income' : 'Spending'}`, { description: old.description, category: category.name }));
             }
             if (old.category?.id === category.id) continue;
             await removeFormerRow(client, userId, old);

@@ -1,3 +1,4 @@
+import { t } from './i18n';
 import { createHash } from 'crypto';
 
 /**
@@ -35,4 +36,4 @@ export async function isBreachedPassword(password: string, fetcher: typeof fetch
     }
 }
 
-export const BREACHED_PASSWORD_MESSAGE = 'This password has appeared in a data breach, so attackers try it first. Choose another.';
+export const BREACHED_PASSWORD_MESSAGE = t('errors.breachedPassword');

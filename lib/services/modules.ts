@@ -18,7 +18,7 @@ export interface UserModules { modules: string[]; declined: string[] }
 export async function getModules(pool: Pool, userId: number): Promise<UserModules> {
     const result = await pool.query('SELECT modules, declined_modules, tracking_option FROM users WHERE id = $1', [userId]);
     const row = result.rows[0];
-    if (!row) throw new RequestError(404, 'User not found');
+    if (!row) throw new RequestError(404, t('errors.userNotFound'));
     return { modules: row.modules ?? modulesFromTracking(row.tracking_option), declined: row.declined_modules ?? [] };
 }
 

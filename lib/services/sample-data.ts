@@ -4,6 +4,7 @@ import { postEntry, systemAccount, toPaise, type EntryType } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
 import { ensureCategories } from './categories';
 import { todayInIndia } from './recurring';
+import { t } from '../i18n';
 
 /**
  * Sample data (v2 plan, Phase 1): a new user can explore FinDB filled with a sample family's
@@ -71,9 +72,9 @@ async function sampleTag(client: Client, userId: number, name: string): Promise<
 export async function loadSampleData(pool: Pool, userId: number, today = todayInIndia()): Promise<{ entries: number }> {
     return withTransaction(pool, async (client) => {
         await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [userId]);
-        if (await hasSampleData(client, userId)) throw new RequestError(400, 'Sample data is already loaded');
+        if (await hasSampleData(client, userId)) throw new RequestError(400, t('errors.sampleDataAlreadyLoaded'));
         const own = await client.query('SELECT 1 FROM journal_entries WHERE user_id = $1 AND voided_at IS NULL AND NOT sample LIMIT 1', [userId]);
-        if (own.rows.length > 0) throw new RequestError(400, 'Sample data is for a fresh start, and you already have entries of your own');
+        if (own.rows.length > 0) throw new RequestError(400, t('errors.sampleDataNeedsFreshStart'));
 
         await ensureCategories(client, userId);
         const categories = await client.query('SELECT id, category_key FROM ledger_accounts WHERE user_id = $1 AND category_key IS NOT NULL', [userId]);

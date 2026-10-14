@@ -7,6 +7,7 @@ import { lockedCategory } from './categories';
 import { lockedMoneyAccount, recordNewEntry, type Entry } from './entries';
 import { lockedEvent } from './events';
 import { entryDate } from './transactions';
+import { t } from '../i18n';
 
 /**
  * Repeating entries (docs/ledger.md): salary, rent, EMIs, SIPs, subscriptions. Each falls due on a
@@ -113,10 +114,10 @@ export async function listRepeating(pool: Pool, userId: number): Promise<Repeati
 }
 
 async function lockedRepeating(client: Client, userId: number, id: unknown): Promise<Repeating> {
-    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(404, 'Repeating entry not found');
+    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(404, t('errors.repeatingEntryNotFound'));
     await client.query('SELECT id FROM recurring_entries WHERE id = $1 AND user_id = $2 FOR UPDATE', [id, userId]);
     const result = await client.query(`${SELECT} AND r.id = $2`, [userId, id]);
-    if (!result.rows[0]) throw new RequestError(404, 'Repeating entry not found');
+    if (!result.rows[0]) throw new RequestError(404, t('errors.repeatingEntryNotFound'));
     return toRepeating(result.rows[0]);
 }
 
@@ -131,28 +132,28 @@ const optionalInt = (value: unknown) => (value === undefined || value === null |
 async function readRepeating(client: Client, userId: number, body: Body, current?: Repeating): Promise<Input> {
     const has = (key: string) => body[key] !== undefined;
     const type = (has('type') ? body.type : current?.type) as Kind;
-    if (!['income', 'expense', 'transfer'].includes(type)) throw new RequestError(400, 'Type must be income, expense or transfer');
+    if (!['income', 'expense', 'transfer'].includes(type)) throw new RequestError(400, t('errors.typeMustIncomeExpenseTransfer'));
     const descriptionValue = has('description') ? body.description : current?.description;
-    if (typeof descriptionValue !== 'string' || !descriptionValue.trim()) throw new RequestError(400, 'Description is required');
+    if (typeof descriptionValue !== 'string' || !descriptionValue.trim()) throw new RequestError(400, t('errors.descriptionRequired'));
     const description = descriptionValue.trim();
-    if (description.length > 200) throw new RequestError(400, 'Description is too long (max 200 characters)');
+    if (description.length > 200) throw new RequestError(400, t('errors.descriptionTooLongMax200'));
 
     let paise: number;
     try {
         paise = has('amount') ? toPaise(body.amount) : toPaise(current?.amount);
     } catch {
-        throw new RequestError(400, 'Enter a valid amount');
+        throw new RequestError(400, t('errors.enterValidAmount'));
     }
-    if (paise <= 0) throw new RequestError(400, 'Enter an amount greater than zero');
+    if (paise <= 0) throw new RequestError(400, t('errors.enterAmountGreaterThanZero'));
 
     const account = await lockedMoneyAccount(client, userId, has('accountId') ? body.accountId : current?.account.id);
     let toAccountId: number | null = null;
     if (type === 'transfer') {
-        const to = await lockedMoneyAccount(client, userId, has('toAccountId') ? body.toAccountId : current?.toAccount?.id, 'Destination account');
-        if (to.id === account.id) throw new RequestError(400, 'Choose two different accounts for a transfer');
+        const to = await lockedMoneyAccount(client, userId, has('toAccountId') ? body.toAccountId : current?.toAccount?.id, t('errors.fields.destinationAccount'));
+        if (to.id === account.id) throw new RequestError(400, t('errors.chooseTwoDifferentAccountsTransfer'));
         toAccountId = to.id;
     } else if (type === 'income' && account.type === 'credit_card') {
-        throw new RequestError(400, 'Income goes into a bank, cash, a wallet or a meal card');
+        throw new RequestError(400, t('errors.incomeGoesIntoBankCash'));
     }
     const categoryValue = has('categoryId') ? body.categoryId : current?.category?.id;
     const categoryId = type === 'transfer' || categoryValue === undefined || categoryValue === null || categoryValue === ''
@@ -164,10 +165,10 @@ async function readRepeating(client: Client, userId: number, body: Body, current
     const tagsValue = has('tags') ? body.tags : current?.tags ?? [];
     const tags = (Array.isArray(tagsValue) ? tagsValue : typeof tagsValue === 'string' ? tagsValue.split(',') : [])
         .map(tag => String(tag).trim()).filter(Boolean);
-    if (tags.length > 10 || tags.some(tag => tag.length > 30)) throw new RequestError(400, 'At most 10 tags of up to 30 characters');
+    if (tags.length > 10 || tags.some(tag => tag.length > 30)) throw new RequestError(400, t('errors.tooManyTags'));
 
     const frequency = (has('frequency') ? body.frequency : current?.frequency) as Frequency;
-    if (!FREQUENCIES.includes(frequency)) throw new RequestError(400, 'Repeat daily, weekly, monthly or yearly');
+    if (!FREQUENCIES.includes(frequency)) throw new RequestError(400, t('errors.repeatDailyWeeklyMonthlyYearly'));
     const rule: Rule = {
         frequency,
         dayOfWeek: frequency === 'weekly' ? optionalInt(has('dayOfWeek') ? body.dayOfWeek : current?.dayOfWeek) : null,
@@ -175,19 +176,19 @@ async function readRepeating(client: Client, userId: number, body: Body, current
         month: frequency === 'yearly' ? optionalInt(has('month') ? body.month : current?.month) : null,
     };
     const problem = ruleProblem(rule);
-    if (problem) throw new RequestError(400, problem);
+    if (problem) throw new RequestError(400, t(`errors.schedule.${problem}`));
 
     const starts = entryDate(has('startsOn') ? body.startsOn : current?.startsOn);
-    if (!starts) throw new RequestError(400, 'Start date is required');
+    if (!starts) throw new RequestError(400, t('errors.startDateRequired'));
     const endsValue = has('endsOn') ? body.endsOn : current?.endsOn;
     const ends = endsValue === undefined || endsValue === null || endsValue === '' ? null : entryDate(endsValue);
-    if (endsValue && !ends) throw new RequestError(400, 'End date is not a valid date');
-    if (ends && ends.date < starts.date) throw new RequestError(400, 'The end date is before the start date');
+    if (endsValue && !ends) throw new RequestError(400, t('errors.endDateNotValidDate'));
+    if (ends && ends.date < starts.date) throw new RequestError(400, t('errors.endDateBeforeStartDate'));
 
     const mode = (has('mode') ? body.mode : current?.mode ?? 'confirm') as Mode;
-    if (mode !== 'auto' && mode !== 'confirm') throw new RequestError(400, 'Mode must be auto or confirm');
+    if (mode !== 'auto' && mode !== 'confirm') throw new RequestError(400, t('errors.modeMustAutoConfirm'));
     const remindDays = Number(has('remindDays') ? body.remindDays : current?.remindDays ?? 3);
-    if (!Number.isInteger(remindDays) || remindDays < 0 || remindDays > 30) throw new RequestError(400, 'Remind 0 to 30 days before');
+    if (!Number.isInteger(remindDays) || remindDays < 0 || remindDays > 30) throw new RequestError(400, t('errors.remindDays'));
 
     return {
         type, description, paise, accountId: account.id, toAccountId, categoryId, eventId, tags, rule,
@@ -233,7 +234,7 @@ export async function updateRepeating(pool: Pool, userId: number, id: string, bo
              WHERE id = $1 AND user_id = $2`,
             [id, userId, ...values(input, nextDue)]);
         if (body.paused !== undefined) {
-            if (typeof body.paused !== 'boolean') throw new RequestError(400, 'Paused must be true or false');
+            if (typeof body.paused !== 'boolean') throw new RequestError(400, t('errors.pausedMustTrueFalse'));
             await client.query('UPDATE recurring_entries SET paused_at = CASE WHEN $3 THEN now() END WHERE id = $1 AND user_id = $2', [id, userId, body.paused]);
         }
         await logActivity(client, userId, 'updated', 'repeating', Number(id), `Updated repeating ${input.type}: ${input.description}`, fromPaise(input.paise));
@@ -334,8 +335,8 @@ export async function runDue(pool: Pool, userId: number, today = todayInIndia())
 export async function confirmDue(pool: Pool, userId: number, id: string, body: Body): Promise<{ entry: Entry | null; repeating: Repeating }> {
     return withTransaction(pool, async (client) => {
         const item = await lockedRepeating(client, userId, id);
-        if (!item.nextDue || item.paused) throw new RequestError(400, 'Nothing is due for this repeating entry');
-        if (body.date !== undefined && body.date !== item.nextDue) throw new RequestError(400, `The next date due is ${item.nextDue}`);
+        if (!item.nextDue || item.paused) throw new RequestError(400, t('errors.nothingDueRepeatingEntry'));
+        if (body.date !== undefined && body.date !== item.nextDue) throw new RequestError(400, t('errors.nextDue', { date: item.nextDue }));
         const done = await client.query(
             'SELECT 1 FROM journal_entries WHERE recurring_id = $1 AND recurring_on = $2 AND voided_at IS NULL AND user_id = $3', [item.id, item.nextDue, userId]);
         const entry = done.rows.length > 0 ? null
@@ -349,8 +350,8 @@ export async function confirmDue(pool: Pool, userId: number, id: string, body: B
 export async function skipDue(pool: Pool, userId: number, id: string, body: Body): Promise<Repeating> {
     return withTransaction(pool, async (client) => {
         const item = await lockedRepeating(client, userId, id);
-        if (!item.nextDue) throw new RequestError(400, 'Nothing is due for this repeating entry');
-        if (body.date !== undefined && body.date !== item.nextDue) throw new RequestError(400, `The next date due is ${item.nextDue}`);
+        if (!item.nextDue) throw new RequestError(400, t('errors.nothingDueRepeatingEntry'));
+        if (body.date !== undefined && body.date !== item.nextDue) throw new RequestError(400, t('errors.nextDue', { date: item.nextDue }));
         await advance(client, userId, item, item.nextDue);
         await logActivity(client, userId, 'updated', 'repeating', item.id, `Skipped ${item.description} due ${item.nextDue}`, null);
         return lockedRepeating(client, userId, id);

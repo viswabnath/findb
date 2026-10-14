@@ -9,6 +9,7 @@ import { hasSampleData } from './sample-data';
 import { recordLoginEvent } from './security';
 import { consentStatus, recordConsent } from './privacy';
 import { RequestError, withTransaction } from '../transaction';
+import { t } from '../i18n';
 
 /**
  * Registration, login, profile and account recovery: the auth routes moved from
@@ -31,22 +32,22 @@ export async function register(pool: Pool, body: Body, userAgent: string | null 
     const { username, password, name, email, securityQuestion, securityAnswer } = body;
     if (!username || !password || !name || !email || !securityQuestion || !securityAnswer
         || [username, password, name, email, securityQuestion, securityAnswer].some(value => typeof value !== 'string')) {
-        throw new RequestError(400, 'All fields are required');
+        throw new RequestError(400, t('errors.allFieldsRequired'));
     }
     const [u, p, n, e, q, a] = [username, password, name, email, securityQuestion, securityAnswer].map(str) as
         [string, string, string, string, string, string];
-    if (u.length > 50) throw new RequestError(400, 'Username too long (max 50 characters)');
-    if (n.length > 100) throw new RequestError(400, 'Name too long (max 100 characters)');
-    if (e.length > 255) throw new RequestError(400, 'Email too long (max 255 characters)');
-    if (a.length > 200) throw new RequestError(400, 'Security answer too long (max 200 characters)');
-    if (!isValidEmail(e)) throw new RequestError(400, 'Invalid email format');
-    if (body.acceptPrivacyNotice !== true) throw new RequestError(400, 'Please read and accept the privacy notice to create an account');
-    if (!isValidUsername(u)) throw new RequestError(400, 'Username can only contain letters, numbers, and underscores');
+    if (u.length > 50) throw new RequestError(400, t('errors.usernameTooLongMax50'));
+    if (n.length > 100) throw new RequestError(400, t('errors.nameTooLongMax100'));
+    if (e.length > 255) throw new RequestError(400, t('errors.emailTooLongMax255'));
+    if (a.length > 200) throw new RequestError(400, t('errors.securityAnswerTooLongMax'));
+    if (!isValidEmail(e)) throw new RequestError(400, t('errors.invalidEmailFormat'));
+    if (body.acceptPrivacyNotice !== true) throw new RequestError(400, t('errors.acceptPrivacyNotice'));
+    if (!isValidUsername(u)) throw new RequestError(400, t('errors.usernameCanOnlyContainLetters'));
     const problem = passwordProblem(p, u);
     if (problem) throw new RequestError(400, problem);
 
     const existing = await pool.query('SELECT id FROM users WHERE username = $1 OR email = $2', [u, e]);
-    if (existing.rows.length > 0) throw new RequestError(400, 'Username or email already exists');
+    if (existing.rows.length > 0) throw new RequestError(400, t('errors.usernameEmailAlreadyExists'));
     if (await isBreachedPassword(p)) throw new RequestError(400, BREACHED_PASSWORD_MESSAGE);
 
     const passwordHash = await bcrypt.hash(p, 10);
@@ -62,7 +63,7 @@ export async function register(pool: Pool, body: Body, userAgent: string | null 
         });
     } catch (error) {
         if (typeof error === 'object' && error !== null && (error as { code?: unknown }).code === '23505') {
-            throw new RequestError(400, 'Username or email already exists');
+            throw new RequestError(400, t('errors.usernameEmailAlreadyExists'));
         }
         throw error;
     }
@@ -74,15 +75,15 @@ export async function register(pool: Pool, body: Body, userAgent: string | null 
  */
 export async function login(pool: Pool, body: Body, userAgent: string | null = null): Promise<{ id: number; twoFactorEnabled: boolean }> {
     const { username, password } = body;
-    if (!username || !password) throw new RequestError(400, 'Username and password are required');
+    if (!username || !password) throw new RequestError(400, t('errors.usernamePasswordRequired'));
     if (typeof username !== 'string' || typeof password !== 'string' || !isValidUsername(username)) {
-        throw new RequestError(400, 'Invalid username format. Username can only contain letters, numbers, and underscores');
+        throw new RequestError(400, t('errors.invalidUsernameFormat'));
     }
     const result = await pool.query('SELECT id, password_hash, totp_enabled_at FROM users WHERE username = $1', [username]);
     const user = result.rows[0];
     if (!user || !(await bcrypt.compare(password, user.password_hash))) {
         if (user) await recordLoginEvent(pool, user.id, 'wrong_password', userAgent);
-        throw new RequestError(400, 'Invalid credentials');
+        throw new RequestError(400, t('errors.invalidCredentials'));
     }
     return { id: user.id, twoFactorEnabled: user.totp_enabled_at !== null };
 }
@@ -102,7 +103,7 @@ export async function getUser(pool: Pool, userId: number): Promise<QueryResultRo
 export async function setTrackingOption(pool: Pool, userId: number, body: Body): Promise<void> {
     const { trackingOption } = body;
     if (trackingOption !== 'income' && trackingOption !== 'expenses' && trackingOption !== 'both') {
-        throw new RequestError(400, 'Invalid tracking option');
+        throw new RequestError(400, t('errors.invalidTrackingOption'));
     }
     // The former choice, kept for older screens: the modules it means (lib/modules.ts)
     await pool.query('UPDATE users SET tracking_option = $1, modules = $2 WHERE id = $3', [trackingOption, modulesFromTracking(trackingOption), userId]);
@@ -117,7 +118,7 @@ export async function setTrackingOption(pool: Pool, userId: number, body: Body):
 const RECOVERY_QUESTIONS = ['pet', 'school', 'city', 'mother', 'car', 'street'];
 const RECOVERY_MAX_FAILURES = 5;
 const RECOVERY_WINDOW_MINUTES = 15;
-export const RECOVERY_FAILED_MESSAGE = `Security answer could not be verified. Check it and try again; after ${RECOVERY_MAX_FAILURES} failed attempts, recovery is paused for ${RECOVERY_WINDOW_MINUTES} minutes.`;
+export const RECOVERY_FAILED_MESSAGE = t('errors.recoveryFailed', { attempts: RECOVERY_MAX_FAILURES, minutes: RECOVERY_WINDOW_MINUTES });
 
 // Without SESSION_SECRET (local runs), a per-process key: made-up questions then change on restart
 const fallbackRecoveryKey = randomBytes(32).toString('hex');
@@ -136,17 +137,17 @@ type Identifier = { column: 'email' | 'username'; value: string };
 function recoveryIdentifier(body: Body, emailOnly = false): Identifier {
     const { username, email } = body;
     if (email) {
-        if (typeof email !== 'string' || email.length > 255 || !isValidEmail(email)) throw new RequestError(400, 'Invalid email format');
+        if (typeof email !== 'string' || email.length > 255 || !isValidEmail(email)) throw new RequestError(400, t('errors.invalidEmailFormat'));
         return { column: 'email', value: email };
     }
-    if (emailOnly) throw new RequestError(400, 'Email is required');
+    if (emailOnly) throw new RequestError(400, t('errors.emailRequired'));
     if (username) {
         if (typeof username !== 'string' || username.length > 50 || !isValidUsername(username)) {
-            throw new RequestError(400, 'Invalid username format. Username can only contain letters, numbers, and underscores');
+            throw new RequestError(400, t('errors.invalidUsernameFormat'));
         }
         return { column: 'username', value: username };
     }
-    throw new RequestError(400, 'Username or email is required');
+    throw new RequestError(400, t('errors.usernameEmailRequired'));
 }
 
 async function findRecoveryUser(pool: Pool, { column, value }: Identifier): Promise<QueryResultRow | null> {
@@ -193,7 +194,7 @@ export async function forgotUsername(pool: Pool, body: Body): Promise<Record<str
     const identifier = recoveryIdentifier({ email: body.email }, true);
     const user = await findRecoveryUser(pool, identifier);
     if (body.securityAnswer === undefined) return { success: true, securityQuestion: recoveryQuestion(user, identifier.value) };
-    if (!validAnswer(body.securityAnswer)) throw new RequestError(400, 'Security answer is required');
+    if (!validAnswer(body.securityAnswer)) throw new RequestError(400, t('errors.securityAnswerRequired'));
     if (!(await checkRecoveryAnswer(pool, user, body.securityAnswer))) throw new RequestError(400, RECOVERY_FAILED_MESSAGE);
     return { success: true, username: user!.username };
 }
@@ -210,7 +211,7 @@ export async function resetPassword(pool: Pool, body: Body): Promise<void> {
     const identifier = recoveryIdentifier(body);
     const { securityAnswer, newPassword } = body;
     if (!validAnswer(securityAnswer) || !newPassword || typeof newPassword !== 'string') {
-        throw new RequestError(400, 'All fields are required');
+        throw new RequestError(400, t('errors.allFieldsRequired'));
     }
     const user = await findRecoveryUser(pool, identifier);
     const problem = passwordProblem(newPassword, user?.username ?? '');

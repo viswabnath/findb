@@ -14,6 +14,7 @@ type Amount = string | number | null | undefined;
 
 interface Summary {
     message?: string;
+    messageKind?: 'future' | 'beforeRegistration' | 'noTransactions';
     isCurrentMonth?: boolean;
     isMonthCompleted?: boolean;
     trackingOption?: string;
@@ -41,13 +42,11 @@ type Shown =
 
 const present = (value: Amount): value is string | number => value !== undefined && value !== null;
 
-/** The legacy explanation under a "no data" message */
-function messageDetail(message: string): string {
-    if (message.includes('Future')) return t('summary.noData.future');
-    if (message.includes('before registration')) return t('summary.noData.beforeRegistration');
-    if (message.includes('No transactions found')) return t('summary.noData.noTransactions');
-    return t('summary.noData.other');
-}
+type MessageKind = NonNullable<Summary['messageKind']>;
+
+/** The heading and explanation of a "no data" month */
+const messageTitle = (kind: MessageKind | undefined, message: string) => kind ? t(`summary.noData.${kind}Title`) : message;
+const messageDetail = (kind: MessageKind | undefined) => kind ? t(`summary.noData.${kind}`) : t('summary.noData.other');
 
 function SummaryCard({ kind, tile, icon: Icon, title, amount, subtitle, missingSubtitle }: {
     kind: string; tile: string; icon: typeof TrendingUp; title: string; amount: Amount; subtitle: string; missingSubtitle: string;
@@ -74,14 +73,14 @@ function SummaryView({ data, month, year }: { data: Summary; month: number; year
     const heading = <h3 className="sr-only">{t('summary.srHeading', { period })}</h3>;
 
     if (data.message) {
-        const noTransactions = data.message.includes('No transactions found');
+        const noTransactions = data.messageKind === 'noTransactions';
         return (
             <>
                 {heading}
                 <div className="card summary-message summary">
                     <CalendarX size={36} aria-hidden="true" className="summary-message-icon" />
-                    <h3>{data.message}</h3>
-                    <p>{messageDetail(data.message)}</p>
+                    <h3>{messageTitle(data.messageKind, data.message)}</h3>
+                    <p>{messageDetail(data.messageKind)}</p>
                     {noTransactions ? (
                         <div className="actions">
                             <button type="button" className="btn btn-secondary setup-accounts-btn" onClick={() => router.push('/setup')}>

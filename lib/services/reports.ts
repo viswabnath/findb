@@ -2,6 +2,7 @@ import type { Pool, QueryResultRow } from 'pg';
 import { RequestError } from '../transaction';
 import { balances, flows, fromPaise } from '../ledger';
 import { owedBack } from './reimbursements';
+import { t } from '../i18n';
 
 /**
  * Monthly summary and activity feed: the report routes moved from the former Express app (N3),
@@ -25,7 +26,7 @@ const EMPTY_SUMMARY = {
 
 /** The summary for a month: totals, balances at the month's end, and "no data" messages */
 export async function monthlySummary(pool: Pool, userId: number, month: string | null, year: string | null): Promise<Record<string, unknown>> {
-    if (!month || !year) throw new RequestError(400, 'Month and year are required');
+    if (!month || !year) throw new RequestError(400, t('errors.monthYearRequired'));
 
     const selectedMonth = parseInt(month, 10);
     const selectedYear = parseInt(year, 10);
@@ -39,7 +40,7 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
     if (selectedDate > now) {
         return {
             ...EMPTY_SUMMARY, trackingOption: 'both', isCurrentMonth: false, isMonthCompleted: false,
-            message: 'Future date selected - no data available',
+            messageKind: 'future', message: t('summary.noData.futureTitle'),
         };
     }
 
@@ -49,7 +50,7 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
                 COALESCE(tracking_option, 'both') as tracking_option FROM users WHERE id = $1`,
         [userId],
     );
-    if (userResult.rows.length === 0) throw new RequestError(404, 'User not found');
+    if (userResult.rows.length === 0) throw new RequestError(404, t('errors.userNotFound'));
 
     const registrationDate = new Date(userResult.rows[0].created_at);
     const trackingOption: string = userResult.rows[0].tracking_option;
@@ -58,7 +59,7 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
     if (selectedYear < registrationYear || (selectedYear === registrationYear && selectedMonth < registrationMonth)) {
         return {
             ...EMPTY_SUMMARY, trackingOption, isCurrentMonth: false, isMonthCompleted: true,
-            message: 'Date before registration - no data available',
+            messageKind: 'beforeRegistration', message: t('summary.noData.beforeRegistrationTitle'),
         };
     }
 
@@ -145,7 +146,7 @@ export async function monthlySummary(pool: Pool, userId: number, month: string |
     if (monthIncome === 0 && monthExpenses === 0 && hasNoAccountsSetup) {
         return {
             ...EMPTY_SUMMARY, trackingOption, isCurrentMonth, isMonthCompleted,
-            message: 'No transactions found for this month',
+            messageKind: 'noTransactions', message: t('summary.noData.noTransactionsTitle'),
         };
     }
 

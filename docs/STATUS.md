@@ -1,10 +1,10 @@
 # FinDB - Project Status
 
-_Last reviewed: 2026-10-02_
+_Last reviewed: 2026-10-14_
 
 ## Summary
 
-The app is one Next.js project on Vercel with Supabase Postgres; the move from Express (N0 to N4) is complete. The core features work: auth, accounts, transactions, the activity log and monthly summaries. Test results for the current code are in the latest pull request. The remaining [known issues](#known-issues) are medium or low severity. Next: v2, planned in [v2-plan.md](v2-plan.md) (awaiting approval).
+The app is one Next.js project on Vercel with Supabase Postgres; the move from Express (N0 to N4) is complete. The core features work: auth, accounts, transactions, the activity log and monthly summaries. Test results for the current code are in the latest pull request. The remaining [known issues](#known-issues) are medium or low severity. v2 Phase 1 ([v2-plan.md](v2-plan.md)) is complete, its "Done when" list included (a backup restore was rehearsed on 2026-10-14, [backups.md](backups.md#rehearsals)). Next: Phase 2, awaiting approval.
 
 ## Features
 
@@ -27,7 +27,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] Module switches: choose what to track at sign-up (presets or your own mix), change it in Settings, existing users mapped from the former income / expenses / both choice; a one-time offer to turn a module on when an entry's title points to it
 - [x] Sample data: a fresh account can explore three months of a sample family's money, marked on every screen, and clear it with one click; the database refuses real entries while it is loaded
 - [x] Next step on the Accounts screen: the most useful thing to do now (confirm a repeating entry, categorise spending, follow up a reimbursement, check an account against a statement)
-- [x] Design system: light and dark (or the device's), borders not shadows, Source Sans 3 tabular amounts, phone-first layouts, Recharts bar charts with colours checked for colour blindness, and every word of the app screens in `messages/en.ts`
+- [x] Design system: light and dark (or the device's), borders not shadows, Source Sans 3 tabular amounts, phone-first layouts, Recharts bar charts with colours checked for colour blindness, and every word of the app screens, the API's error messages and the privacy notice in `messages/en.ts`
 - [x] Profile: date of birth, city, tax residency, dependants; PAN and demat account IDs encrypted and shown masked; Aadhaar at most the last four digits
 - [x] Reconciliation: check an account against a statement, tick entries off, find the difference; reconciled entries warn before they change
 - [x] Reimbursements: money paid and owed back is not spending; repayments come back into an account; what is never repaid becomes spending in its category
@@ -103,7 +103,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - **Production moved to Mumbai.**
   - The database is now `findb-production-mumbai`, and Vercel runs in `bom1`, so requests from India no longer go to Sydney.
   - Every row was copied with the same ids, and the counts and totals were checked.
-- **No backups on the free plan.** There is now a nightly encrypted backup (see [backups.md](backups.md)).
+- **No backups on the free plan.** There is now a nightly encrypted backup, and a restore has been rehearsed (see [backups.md](backups.md)).
 
 ### Fixed on 2026-10-02
 - **N4: Express removed.** The legacy Express app, its frontend and their tests are gone; the app is one Next.js project. With them went the legacy toast that inserted messages as HTML, `tests/setup.js` that never ran, and the obsolete test files behind the ESLint warnings (lint is clean). Expired sessions are now deleted on each login (connect-pg-simple used to prune them).

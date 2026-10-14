@@ -4,6 +4,7 @@ import { fromPaise, toPaise } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
 import { listEntriesForEvent, type Entry } from './entries';
 import { entryDate } from './transactions';
+import { t } from '../i18n';
 
 /**
  * Events and projects (docs/ledger.md): a named purpose ("Sister's wedding", "Goa trip") that
@@ -86,11 +87,11 @@ export async function listEvents(pool: Pool, userId: number): Promise<EventSumma
 
 /** One of the user's events that is not archived, locked; 400 otherwise */
 export async function lockedEvent(client: Client, userId: number, id: unknown): Promise<{ id: number; name: string; oneOff: boolean }> {
-    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(400, 'Event not found');
+    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(400, t('errors.eventNotFound'));
     const result = await client.query(
         'SELECT id, name, one_off FROM events WHERE id = $1 AND user_id = $2 AND archived_at IS NULL FOR UPDATE', [id, userId]);
     const row = result.rows[0];
-    if (!row) throw new RequestError(400, 'Event not found');
+    if (!row) throw new RequestError(400, t('errors.eventNotFound'));
     return { id: Number(row.id), name: row.name, oneOff: row.one_off };
 }
 
@@ -99,7 +100,7 @@ interface EventInput { name: string; startsOn: string | null; endsOn: string | n
 function optionalDate(value: unknown, field: string): string | null {
     if (value === undefined || value === null || value === '') return null;
     const date = entryDate(value);
-    if (!date) throw new RequestError(400, `${field} is not a valid date`);
+    if (!date) throw new RequestError(400, t('errors.fieldNotValidDate', { field }));
     return date.date;
 }
 
@@ -107,32 +108,32 @@ function readEvent(body: Body, current?: EventInput): EventInput {
     const pick = <K extends keyof EventInput>(key: K, read: () => EventInput[K]): EventInput[K] =>
         (body[key === 'budgetPaise' ? 'budget' : key] === undefined && current ? current[key] : read());
     const name = pick('name', () => {
-        if (typeof body.name !== 'string' || !body.name.trim()) throw new RequestError(400, 'Event name is required');
-        if (body.name.trim().length > 80) throw new RequestError(400, 'Event name is too long (max 80 characters)');
+        if (typeof body.name !== 'string' || !body.name.trim()) throw new RequestError(400, t('errors.eventNameRequired'));
+        if (body.name.trim().length > 80) throw new RequestError(400, t('errors.eventNameTooLongMax'));
         return body.name.trim();
     });
-    const startsOn = pick('startsOn', () => optionalDate(body.startsOn, 'Start date'));
-    const endsOn = pick('endsOn', () => optionalDate(body.endsOn, 'End date'));
-    if (startsOn && endsOn && endsOn < startsOn) throw new RequestError(400, 'The end date is before the start date');
+    const startsOn = pick('startsOn', () => optionalDate(body.startsOn, t('errors.fields.startDate')));
+    const endsOn = pick('endsOn', () => optionalDate(body.endsOn, t('errors.fields.endDate')));
+    if (startsOn && endsOn && endsOn < startsOn) throw new RequestError(400, t('errors.endDateBeforeStartDate'));
     const budgetPaise = pick('budgetPaise', () => {
         if (body.budget === undefined || body.budget === null || body.budget === '') return null;
         let paise: number;
         try {
             paise = toPaise(body.budget);
         } catch {
-            throw new RequestError(400, 'Enter a valid budget');
+            throw new RequestError(400, t('errors.enterValidBudget'));
         }
-        if (paise < 0) throw new RequestError(400, 'A budget cannot be negative');
+        if (paise < 0) throw new RequestError(400, t('errors.budgetCannotNegative'));
         return paise;
     });
     const oneOff = pick('oneOff', () => {
         if (body.oneOff === undefined) return true;
-        if (typeof body.oneOff !== 'boolean') throw new RequestError(400, 'One-off must be true or false');
+        if (typeof body.oneOff !== 'boolean') throw new RequestError(400, t('errors.oneOffMustTrueFalse'));
         return body.oneOff;
     });
     const notes = pick('notes', () => {
         if (body.notes === undefined || body.notes === null || body.notes === '') return null;
-        if (typeof body.notes !== 'string' || body.notes.length > 500) throw new RequestError(400, 'Notes must be text, up to 500 characters');
+        if (typeof body.notes !== 'string' || body.notes.length > 500) throw new RequestError(400, t('errors.notesFormat'));
         return body.notes.trim() || null;
     });
     return { name, startsOn, endsOn, budgetPaise, oneOff, notes };
@@ -141,12 +142,12 @@ function readEvent(body: Body, current?: EventInput): EventInput {
 async function refuseDuplicate(client: Client, userId: number, name: string, exceptId = 0): Promise<void> {
     const clash = await client.query(
         'SELECT 1 FROM events WHERE user_id = $1 AND archived_at IS NULL AND lower(name) = lower($2) AND id <> $3', [userId, name, exceptId]);
-    if (clash.rows.length > 0) throw new RequestError(400, `You already have an event called ${name}`);
+    if (clash.rows.length > 0) throw new RequestError(400, t('errors.eventExists', { name }));
 }
 
 async function summaryOf(client: Client, userId: number, id: number): Promise<EventSummary> {
     const result = await client.query(`${SUMMARY_QUERY} AND ev.id = $2 GROUP BY ev.id`, [userId, id]);
-    if (!result.rows[0]) throw new RequestError(404, 'Event not found');
+    if (!result.rows[0]) throw new RequestError(404, t('errors.eventNotFound'));
     return toSummary(result.rows[0]);
 }
 
@@ -199,7 +200,7 @@ export async function archiveEvent(pool: Pool, userId: number, id: string): Prom
 
 /** An event with its breakdowns and timeline */
 export async function eventDetail(pool: Pool, userId: number, id: string): Promise<EventDetail> {
-    if (!/^\d+$/.test(id)) throw new RequestError(404, 'Event not found');
+    if (!/^\d+$/.test(id)) throw new RequestError(404, t('errors.eventNotFound'));
     const summary = await summaryOf(pool, userId, Number(id));
     const byAccount = await pool.query(
         `SELECT a.id, a.name, a.kind, a.subtype, SUM(l.amount_paise)::bigint AS paise

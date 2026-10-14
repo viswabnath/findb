@@ -1,4 +1,4 @@
-import { en } from '@/messages/en';
+import { en } from '../messages/en';
 
 /**
  * Every word on a screen comes from a message file (v2 plan: ready for Indian languages), never

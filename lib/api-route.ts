@@ -3,14 +3,15 @@ import { ownerPool, requestScope } from './db';
 import { allowRequest, authBlocked, recordAuthFailure } from './rate-limit';
 import { SESSION_COOKIE, sessionUserId } from './session';
 import { RequestError, withUserScope } from './transaction';
+import { t, type MessageKey } from './i18n';
 
 /**
  * Shared plumbing for the API route handlers, matching the legacy Express app's responses:
  * the same 401 and 429 bodies, RequestError for expected failures, and a generic 500 otherwise.
  */
 
-const GENERIC_ERROR = 'An error occurred. Please try again.';
-const BUSY_ERROR = 'FinDB is busy right now. Please try again in a moment.';
+const GENERIC_ERROR = t('errors.generic');
+const BUSY_ERROR = t('errors.busy');
 
 /**
  * Postgres codes for a wait cut short by the transaction time limits (lib/transaction.ts): a lock
@@ -22,6 +23,14 @@ const isBusy = (error: unknown) => BUSY_CODES.has(String((error as { code?: unkn
 
 /** The database refused to mix sample data with real money (FS001, migration 0018); its message is for the user */
 const isSampleRefusal = (error: unknown): error is Error => (error as { code?: unknown } | null)?.code === 'FS001';
+
+/** The sample data triggers' refusals (migration 0018), by the database's text, shown from the message file */
+const SAMPLE_REFUSALS: Record<string, MessageKey> = {
+    'Sample accounts are only for looking around. Add your own account for real entries, or clear the sample data.': 'errors.sample.sampleAccount',
+    'Sample entries cannot use your own accounts': 'errors.sample.ownAccount',
+    'You are looking at sample data. Clear it first (the button at the top), then add your own.': 'errors.sample.loaded',
+};
+const sampleRefusal = (error: Error) => (SAMPLE_REFUSALS[error.message] ? t(SAMPLE_REFUSALS[error.message]!) : error.message);
 
 export function jsonError(status: number, error: string): Response {
     return Response.json({ error }, { status });
@@ -60,9 +69,9 @@ interface PublicOptions {
 export function withPublic(handler: (request: NextRequest) => Promise<Response>, options: PublicOptions = {}) {
     return async (request: NextRequest): Promise<Response> => {
         const ip = clientIp(request);
-        if (!allowRequest(ip)) return jsonError(429, 'Too many requests. Please slow down.');
+        if (!allowRequest(ip)) return jsonError(429, t('errors.tooManyRequests'));
         if (options.authLimited && authBlocked(ip)) {
-            return jsonError(429, 'Too many authentication attempts. Please try again in 15 minutes.');
+            return jsonError(429, t('errors.tooManyAuthAttempts'));
         }
         let response: Response;
         try {
@@ -88,18 +97,18 @@ export function withPublic(handler: (request: NextRequest) => Promise<Response>,
 export function withUser<C>(handler: AuthedHandler<C>) {
     return async (request: NextRequest, context: C): Promise<Response> => {
         if (!allowRequest(clientIp(request))) {
-            return jsonError(429, 'Too many requests. Please slow down.');
+            return jsonError(429, t('errors.tooManyRequests'));
         }
         try {
             const userId = await sessionUserId(ownerPool(), request.cookies.get(SESSION_COOKIE)?.value);
-            if (userId === null) return jsonError(401, 'Authentication required');
+            if (userId === null) return jsonError(401, t('errors.authRequired'));
             // Everything the handler does with db() runs as the user, limited to their rows by the
             // database itself (docs/security.md)
             return await withUserScope(ownerPool(), userId,
                 scoped => requestScope.run(scoped, () => handler(request, userId, context)));
         } catch (error) {
             if (error instanceof RequestError) return jsonError(error.status, error.message);
-            if (isSampleRefusal(error)) return jsonError(400, error.message);
+            if (isSampleRefusal(error)) return jsonError(400, sampleRefusal(error));
             console.error(`${request.method} ${request.nextUrl.pathname} failed:`, error);
             return isBusy(error) ? jsonError(503, BUSY_ERROR) : jsonError(500, GENERIC_ERROR);
         }
