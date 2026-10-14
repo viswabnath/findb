@@ -3,6 +3,7 @@ import { logActivity } from '../activity-log';
 import { decryptField, encryptField } from '../field-encryption';
 import { RequestError, withTransaction } from '../transaction';
 import { entryDate } from './transactions';
+import { t } from '../i18n';
 
 /**
  * The user's profile and dependants (docs/privacy.md). PAN and demat or broker account IDs are
@@ -50,9 +51,9 @@ function today(): string {
 function optionalDate(value: unknown, label: string): string | null {
     if (value === undefined || value === null || value === '') return null;
     const date = entryDate(value);
-    if (!date) throw new RequestError(400, `${label} is not a valid date`);
-    if (date.date > today()) throw new RequestError(400, `${label} cannot be in the future`);
-    if (date.date < '1900-01-02') throw new RequestError(400, `${label} is too far in the past`);
+    if (!date) throw new RequestError(400, t('errors.fieldNotValidDate', { field: label }));
+    if (date.date > today()) throw new RequestError(400, t('errors.fieldInFuture', { field: label }));
+    if (date.date < '1900-01-02') throw new RequestError(400, t('errors.fieldTooOld', { field: label }));
     return date.date;
 }
 
@@ -93,16 +94,16 @@ export async function updateProfile(pool: Pool, userId: number, body: Body): Pro
         const has = (key: string) => body[key] !== undefined;
         const empty = (value: unknown) => value === null || value === '';
 
-        const dateOfBirth = has('dateOfBirth') ? optionalDate(body.dateOfBirth, 'Date of birth') : current?.date_of_birth ?? null;
+        const dateOfBirth = has('dateOfBirth') ? optionalDate(body.dateOfBirth, t('errors.fields.dateOfBirth')) : current?.date_of_birth ?? null;
         let city = current?.city ?? null;
         if (has('city')) {
-            if (!empty(body.city) && (typeof body.city !== 'string' || body.city.trim().length > 80)) throw new RequestError(400, 'City is too long (max 80 characters)');
+            if (!empty(body.city) && (typeof body.city !== 'string' || body.city.trim().length > 80)) throw new RequestError(400, t('errors.cityTooLongMax80'));
             city = empty(body.city) ? null : String(body.city).trim();
         }
         let taxResidency = current?.tax_residency ?? null;
         if (has('taxResidency')) {
             if (!empty(body.taxResidency) && !RESIDENCIES.includes(String(body.taxResidency))) {
-                throw new RequestError(400, 'Tax residency must be resident, NRI or RNOR');
+                throw new RequestError(400, t('errors.taxResidencyMustResidentNri'));
             }
             taxResidency = empty(body.taxResidency) ? null : String(body.taxResidency);
         }
@@ -112,7 +113,7 @@ export async function updateProfile(pool: Pool, userId: number, body: Body): Pro
                 panEnc = null;
             } else {
                 const pan = String(body.pan).trim().toUpperCase();
-                if (!isValidPan(pan)) throw new RequestError(400, 'PAN must be 5 letters, 4 digits and a letter, such as ABCDE1234F');
+                if (!isValidPan(pan)) throw new RequestError(400, t('errors.panFormat'));
                 panEnc = encryptField(pan, panContext(userId));
             }
         }
@@ -120,24 +121,24 @@ export async function updateProfile(pool: Pool, userId: number, body: Body): Pro
         if (has('aadhaarLast4')) {
             const value = empty(body.aadhaarLast4) ? null : String(body.aadhaarLast4).replace(/\s/g, '');
             if (value !== null && /^\d{12}$/.test(value)) {
-                throw new RequestError(400, 'FinDB keeps only the last four digits of Aadhaar, never the full number');
+                throw new RequestError(400, t('errors.aadhaarLastFourOnly'));
             }
-            if (value !== null && !/^\d{4}$/.test(value)) throw new RequestError(400, 'Enter the last four digits of Aadhaar');
+            if (value !== null && !/^\d{4}$/.test(value)) throw new RequestError(400, t('errors.enterLastFourDigitsAadhaar'));
             aadhaar = value;
         }
         let dematEnc = current?.demat_accounts_enc ?? null;
         if (has('dematAccounts')) {
             const list = body.dematAccounts;
-            if (list !== null && !Array.isArray(list)) throw new RequestError(400, 'Demat accounts must be a list');
+            if (list !== null && !Array.isArray(list)) throw new RequestError(400, t('errors.dematAccountsMustList'));
             const accounts = ((list ?? []) as unknown[]).map(item => {
                 const { broker, accountId } = (item ?? {}) as { broker?: unknown; accountId?: unknown };
-                if (typeof broker !== 'string' || !broker.trim() || broker.length > 60) throw new RequestError(400, 'Each demat account needs a broker name');
+                if (typeof broker !== 'string' || !broker.trim() || broker.length > 60) throw new RequestError(400, t('errors.eachDematAccountNeedsBroker'));
                 if (typeof accountId !== 'string' || !/^[A-Za-z0-9-]{4,32}$/.test(accountId.trim())) {
-                    throw new RequestError(400, 'A demat or broker account ID is 4 to 32 letters and digits');
+                    throw new RequestError(400, t('errors.dematIdFormat'));
                 }
                 return { broker: broker.trim(), accountId: accountId.trim().toUpperCase() };
             });
-            if (accounts.length > 20) throw new RequestError(400, 'At most 20 demat accounts');
+            if (accounts.length > 20) throw new RequestError(400, t('errors.tooManyDematAccounts'));
             dematEnc = accounts.length === 0 ? null : encryptField(JSON.stringify(accounts), dematContext(userId));
         }
 
@@ -156,11 +157,11 @@ export async function updateProfile(pool: Pool, userId: number, body: Body): Pro
 
 function readDependant(body: Body, current?: Dependant): Omit<Dependant, 'id'> {
     const relationship = String(body.relationship ?? current?.relationship ?? '');
-    if (!RELATIONSHIPS.includes(relationship)) throw new RequestError(400, 'Relationship must be spouse, child, parent or other');
+    if (!RELATIONSHIPS.includes(relationship)) throw new RequestError(400, t('errors.relationshipMustSpouseChildParent'));
     const nameValue = body.name ?? current?.name;
-    if (typeof nameValue !== 'string' || !nameValue.trim()) throw new RequestError(400, 'Name is required');
-    if (nameValue.trim().length > 80) throw new RequestError(400, 'Name is too long (max 80 characters)');
-    const dateOfBirth = body.dateOfBirth === undefined ? current?.dateOfBirth ?? null : optionalDate(body.dateOfBirth, 'Date of birth');
+    if (typeof nameValue !== 'string' || !nameValue.trim()) throw new RequestError(400, t('errors.nameRequired'));
+    if (nameValue.trim().length > 80) throw new RequestError(400, t('errors.nameTooLongMax80'));
+    const dateOfBirth = body.dateOfBirth === undefined ? current?.dateOfBirth ?? null : optionalDate(body.dateOfBirth, t('errors.fields.dateOfBirth'));
     return { relationship: relationship as Dependant['relationship'], name: nameValue.trim(), dateOfBirth };
 }
 
@@ -181,7 +182,7 @@ export async function addDependant(pool: Pool, userId: number, body: Body): Prom
     const input = readDependant(body);
     return withTransaction(pool, async (client) => {
         const count = await client.query('SELECT count(*)::int AS n FROM dependants WHERE user_id = $1', [userId]);
-        if (count.rows[0].n >= 20) throw new RequestError(400, 'At most 20 dependants');
+        if (count.rows[0].n >= 20) throw new RequestError(400, t('errors.tooManyDependants'));
         const created = await client.query(
             `INSERT INTO dependants (user_id, relationship, name, date_of_birth) VALUES ($1, $2, $3, $4) RETURNING ${DEPENDANT_COLUMNS}`,
             [userId, input.relationship, input.name, input.dateOfBirth]);
@@ -194,7 +195,7 @@ export async function updateDependant(pool: Pool, userId: number, id: string, bo
     return withTransaction(pool, async (client) => {
         const found = /^\d+$/.test(id)
             ? await client.query(`SELECT ${DEPENDANT_COLUMNS} FROM dependants WHERE id = $1 AND user_id = $2 FOR UPDATE`, [id, userId]) : { rows: [] };
-        if (!found.rows[0]) throw new RequestError(404, 'Dependant not found');
+        if (!found.rows[0]) throw new RequestError(404, t('errors.dependantNotFound'));
         const input = readDependant(body, toDependant(found.rows[0]));
         const updated = await client.query(
             `UPDATE dependants SET relationship = $1, name = $2, date_of_birth = $3 WHERE id = $4 AND user_id = $5 RETURNING ${DEPENDANT_COLUMNS}`,
@@ -208,7 +209,7 @@ export async function removeDependant(pool: Pool, userId: number, id: string): P
     await withTransaction(pool, async (client) => {
         const removed = /^\d+$/.test(id)
             ? await client.query('DELETE FROM dependants WHERE id = $1 AND user_id = $2 RETURNING relationship, name', [id, userId]) : { rows: [] };
-        if (!removed.rows[0]) throw new RequestError(404, 'Dependant not found');
+        if (!removed.rows[0]) throw new RequestError(404, t('errors.dependantNotFound'));
         await logActivity(client, userId, 'deleted', 'dependant', Number(id), `Removed ${removed.rows[0].relationship}: ${removed.rows[0].name}`);
     });
 }
@@ -233,6 +234,6 @@ export async function removeDematAccount(pool: Pool, userId: number, index: stri
     await pool.query('SELECT 1 FROM profiles WHERE user_id = $1 FOR UPDATE', [userId]);
     const list = await dematList(pool, userId);
     const position = Number(index);
-    if (!/^\d+$/.test(index) || position >= list.length) throw new RequestError(404, 'Demat account not found');
+    if (!/^\d+$/.test(index) || position >= list.length) throw new RequestError(404, t('errors.dematAccountNotFound'));
     return updateProfile(pool, userId, { dematAccounts: list.filter((_, at) => at !== position) });
 }

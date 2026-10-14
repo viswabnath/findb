@@ -3,6 +3,7 @@ import { logActivity } from '../activity-log';
 import { EXPENSE_CATEGORIES, INCOME_CATEGORIES, suggestByKeyword, titleWords } from '../categories';
 import { systemAccount } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
+import { t } from '../i18n';
 
 /**
  * Categories (docs/ledger.md): income and expense accounts in the ledger. Each user has the
@@ -71,24 +72,24 @@ export async function listCategories(pool: Pool, userId: number): Promise<Catego
 
 /** One of the user's categories, locked; 400 if it is not theirs, removed, or of the wrong kind */
 export async function lockedCategory(client: Client, userId: number, id: unknown, kind?: CategoryKind): Promise<Category> {
-    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(400, 'Category not found');
+    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(400, t('errors.categoryNotFound'));
     const result = await client.query(
         `SELECT ${CATEGORY_COLUMNS}, archived_at FROM ledger_accounts
          WHERE id = $1 AND user_id = $2 AND kind IN ('income', 'expense') FOR UPDATE`,
         [id, userId],
     );
     const row = result.rows[0];
-    if (!row || row.archived_at !== null) throw new RequestError(400, 'Category not found');
+    if (!row || row.archived_at !== null) throw new RequestError(400, t('errors.categoryNotFound'));
     if (kind && row.kind !== kind) {
-        throw new RequestError(400, kind === 'income' ? 'Choose an income category for income' : 'Choose a spending category for an expense');
+        throw new RequestError(400, kind === 'income' ? t('errors.chooseIncomeCategoryIncome') : t('errors.chooseSpendingCategoryExpense'));
     }
     return toCategory(row);
 }
 
 function categoryName(value: unknown): string {
-    if (typeof value !== 'string' || !value.trim()) throw new RequestError(400, 'Category name is required');
+    if (typeof value !== 'string' || !value.trim()) throw new RequestError(400, t('errors.categoryNameRequired'));
     const name = value.trim();
-    if (name.length > 60) throw new RequestError(400, 'Category name is too long (max 60 characters)');
+    if (name.length > 60) throw new RequestError(400, t('errors.categoryNameTooLongMax'));
     return name;
 }
 
@@ -96,13 +97,13 @@ async function refuseDuplicate(client: Client, userId: number, kind: CategoryKin
     const clash = await client.query(
         'SELECT 1 FROM ledger_accounts WHERE user_id = $1 AND kind = $2 AND archived_at IS NULL AND lower(name) = lower($3) AND id <> $4',
         [userId, kind, name, exceptId ?? 0]);
-    if (clash.rows.length > 0) throw new RequestError(400, `You already have a category called ${name}`);
+    if (clash.rows.length > 0) throw new RequestError(400, t('errors.categoryExists', { name }));
 }
 
 /** { kind: "income" | "expense", name, essential? }: a category of the user's own */
 export async function createCategory(pool: Pool, userId: number, body: Body): Promise<Category> {
     const kind = body.kind;
-    if (kind !== 'income' && kind !== 'expense') throw new RequestError(400, 'Kind must be income or expense');
+    if (kind !== 'income' && kind !== 'expense') throw new RequestError(400, t('errors.kindMustIncomeExpense'));
     const name = categoryName(body.name);
     return withTransaction(pool, async (client) => {
         await ensureCategories(client, userId);
@@ -122,10 +123,10 @@ export async function updateCategory(pool: Pool, userId: number, id: string, bod
         const category = await lockedCategory(client, userId, id);
         const name = body.name === undefined ? category.name : categoryName(body.name);
         if (category.fallback && (name !== category.name || body.essential !== undefined)) {
-            throw new RequestError(400, `${category.name} is built in and cannot be changed`);
+            throw new RequestError(400, t('errors.builtInCannotChange', { name: category.name }));
         }
         if (body.essential !== undefined && (category.kind !== 'expense' || typeof body.essential !== 'boolean')) {
-            throw new RequestError(400, 'Only spending categories are essential or not');
+            throw new RequestError(400, t('errors.onlySpendingCategoriesEssentialNot'));
         }
         if (name !== category.name) await refuseDuplicate(client, userId, category.kind, name, category.id);
         const essential = body.essential === undefined ? category.essential : body.essential;
@@ -142,7 +143,7 @@ export async function updateCategory(pool: Pool, userId: number, id: string, bod
 export async function archiveCategory(pool: Pool, userId: number, id: string): Promise<void> {
     await withTransaction(pool, async (client) => {
         const category = await lockedCategory(client, userId, id);
-        if (category.fallback) throw new RequestError(400, `${category.name} is built in and cannot be removed`);
+        if (category.fallback) throw new RequestError(400, t('errors.builtInCannotRemove', { name: category.name }));
         await client.query('UPDATE ledger_accounts SET archived_at = now() WHERE id = $1 AND user_id = $2', [category.id, userId]);
         await logActivity(client, userId, 'deleted', 'category', category.id, `Removed category: ${category.name}`, null, { name: category.name }, null);
     });
@@ -154,7 +155,7 @@ export async function archiveCategory(pool: Pool, userId: number, id: string): P
  */
 export async function suggestCategory(pool: Pool, userId: number, kind: unknown, description: unknown)
     : Promise<{ category: Category | null; reason: 'history' | 'keyword' | null }> {
-    if (kind !== 'income' && kind !== 'expense') throw new RequestError(400, 'Kind must be income or expense');
+    if (kind !== 'income' && kind !== 'expense') throw new RequestError(400, t('errors.kindMustIncomeExpense'));
     const title = typeof description === 'string' ? description.trim() : '';
     if (!title) return { category: null, reason: null };
     await ensureCategories(pool, userId);

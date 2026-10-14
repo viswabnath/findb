@@ -6,6 +6,7 @@ import { lockedCategory } from './categories';
 import { checkCanSpend, lockedMoneyAccount } from './entries';
 import { lockedEvent } from './events';
 import { entryDate } from './transactions';
+import { t } from '../i18n';
 
 /**
  * Reimbursements (docs/ledger.md): an expense paid personally that someone will pay back (an
@@ -86,28 +87,28 @@ export async function listReimbursements(pool: Pool, userId: number): Promise<Re
 }
 
 async function locked(client: Client, userId: number, id: unknown): Promise<Reimbursement> {
-    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(404, 'Reimbursement not found');
+    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(404, t('errors.reimbursementNotFound'));
     await client.query('SELECT id FROM reimbursements WHERE id = $1 AND user_id = $2 FOR UPDATE', [id, userId]);
     const result = await client.query(`${SELECT} AND r.id = $2`, [userId, id]);
-    if (!result.rows[0]) throw new RequestError(404, 'Reimbursement not found');
+    if (!result.rows[0]) throw new RequestError(404, t('errors.reimbursementNotFound'));
     return toReimbursement(result.rows[0]);
 }
 
-function paise(value: unknown, label = 'amount'): number {
+function paise(value: unknown): number {
     let amount: number;
     try {
         amount = toPaise(value);
     } catch {
-        throw new RequestError(400, `Enter a valid ${label}`);
+        throw new RequestError(400, t('errors.enterValidAmount'));
     }
-    if (amount <= 0) throw new RequestError(400, `Enter ${label === 'amount' ? 'an amount' : `a ${label}`} greater than zero`);
+    if (amount <= 0) throw new RequestError(400, t('errors.enterAmountGreaterThanZero'));
     return amount;
 }
 
 function requiredDate(value: unknown): string {
-    if (!value) throw new RequestError(400, 'Date is required');
+    if (!value) throw new RequestError(400, t('errors.dateRequired'));
     const date = entryDate(value);
-    if (!date) throw new RequestError(400, 'Invalid date format');
+    if (!date) throw new RequestError(400, t('errors.invalidDateFormat'));
     return date.date;
 }
 
@@ -116,9 +117,9 @@ function requiredDate(value: unknown): string {
  * that someone will pay back. The spending check applies to the account it is paid from.
  */
 export async function createReimbursement(pool: Pool, userId: number, body: Body): Promise<Reimbursement> {
-    if (typeof body.description !== 'string' || !body.description.trim()) throw new RequestError(400, 'Description is required');
+    if (typeof body.description !== 'string' || !body.description.trim()) throw new RequestError(400, t('errors.descriptionRequired'));
     const description = body.description.trim();
-    if (description.length > 200) throw new RequestError(400, 'Description is too long (max 200 characters)');
+    if (description.length > 200) throw new RequestError(400, t('errors.descriptionTooLongMax200'));
     const fromWhom = typeof body.fromWhom === 'string' && body.fromWhom.trim() ? body.fromWhom.trim().slice(0, 100) : null;
     const amount = paise(body.amount);
     const date = requiredDate(body.date);
@@ -153,11 +154,11 @@ export async function receiveRepayment(pool: Pool, userId: number, id: string, b
     const date = requiredDate(body.date);
     return withTransaction(pool, async (client) => {
         const item = await locked(client, userId, id);
-        if (item.status === 'repaid' || item.status === 'closed') throw new RequestError(400, 'This reimbursement is already closed');
+        if (item.status === 'repaid' || item.status === 'closed') throw new RequestError(400, t('errors.reimbursementAlreadyClosed'));
         const outstanding = toPaise(item.outstanding);
         const amount = body.amount === undefined || body.amount === null || body.amount === '' ? 0 : paise(body.amount);
-        if (amount > outstanding) throw new RequestError(400, `Only ₹${item.outstanding} is still owed`);
-        if (amount === 0 && body.close !== true) throw new RequestError(400, 'Enter the amount paid back');
+        if (amount > outstanding) throw new RequestError(400, t('errors.onlyThisOwed', { amount: item.outstanding }));
+        if (amount === 0 && body.close !== true) throw new RequestError(400, t('errors.enterAmountPaidBack'));
         const due = await systemAccount(client, userId, 'reimbursements');
         if (amount > 0) {
             const account = await lockedMoneyAccount(client, userId, body.accountId);
@@ -190,7 +191,7 @@ export async function deleteReimbursement(pool: Pool, userId: number, id: string
     await withTransaction(pool, async (client) => {
         const item = await locked(client, userId, id);
         if (item.repayments.length > 0 || item.status === 'closed' || item.status === 'repaid') {
-            throw new RequestError(400, 'Money has come back on this one already; close it instead');
+            throw new RequestError(400, t('errors.alreadyPaidBack'));
         }
         const entries = await client.query('SELECT id FROM journal_entries WHERE reimbursement_id = $1 AND user_id = $2 AND voided_at IS NULL', [item.id, userId]);
         for (const row of entries.rows) await voidEntry(client, userId, Number(row.id));

@@ -59,9 +59,9 @@ describe('occurrences', () => {
 
 test('ruleProblem checks each frequency\'s fields', () => {
     expect(ruleProblem({ frequency: 'daily' })).toBeNull();
-    expect(ruleProblem({ frequency: 'weekly', dayOfWeek: 7 })).toBe('Choose the day of the week');
-    expect(ruleProblem({ frequency: 'monthly', dayOfMonth: 0 })).toBe('Choose the day of the month (1 to 31)');
-    expect(ruleProblem({ frequency: 'yearly', month: 2, dayOfMonth: 30 })).toBe('That month does not have that many days');
+    expect(ruleProblem({ frequency: 'weekly', dayOfWeek: 7 })).toBe('dayOfWeek');
+    expect(ruleProblem({ frequency: 'monthly', dayOfMonth: 0 })).toBe('dayOfMonth');
+    expect(ruleProblem({ frequency: 'yearly', month: 2, dayOfMonth: 30 })).toBe('daysInMonth');
     expect(ruleProblem({ frequency: 'yearly', month: 2, dayOfMonth: 29 })).toBeNull();
-    expect(ruleProblem({ frequency: 'hourly' as never })).toBe('Repeat daily, weekly, monthly or yearly');
+    expect(ruleProblem({ frequency: 'hourly' as never })).toBe('frequency');
 });

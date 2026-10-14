@@ -50,6 +50,27 @@ Tools: `brew install libpq age` (the PostgreSQL tools are then in `/opt/homebrew
 
 Restoring over the live production database is a last resort: restore into a new project first, check it, then point the app at it.
 
+## Rehearsals
+
+A restore is rehearsed on the owner's computer, so production data never leaves it and the test project stays free of it: a throwaway local PostgreSQL 17 (`brew install postgresql@17`), on 127.0.0.1 only, in a temporary folder.
+
+```bash
+B=/opt/homebrew/opt/postgresql@17/bin
+$B/initdb -D <folder>/pgdata -A trust -U postgres
+$B/pg_ctl -D <folder>/pgdata -o "-p 5499 -c listen_addresses=127.0.0.1 -c unix_socket_directories=''" -l <folder>/pg.log -w start
+psql -h 127.0.0.1 -p 5499 -U postgres -c "create database findb_restore"
+for r in findb_app findb_user findb_backup; do psql -h 127.0.0.1 -p 5499 -U postgres -c "create role $r nologin"; done
+pg_restore -h 127.0.0.1 -p 5499 -U postgres --no-owner --no-privileges --dbname findb_restore backup.dump
+DB_HOST=127.0.0.1 DB_PORT=5499 DB_USER=postgres DB_PASSWORD=x DB_NAME=findb_restore DB_SSL=false DB_SCHEMA=public node scripts/ledger-check.js
+$B/pg_ctl -D <folder>/pgdata -m fast -w stop && rm -rf <folder>
+```
+
+The one expected error is `schema "public" already exists`. Check the table row counts, that `schema_migrations` lists every migration, that row level security and the `own_rows` policies are back, and that the ledger check passes.
+
+| Date | Backup | Result |
+|---|---|---|
+| 2026-10-14 | `findb-backup-2026-10-14` (run 38490086036) | Decrypted and restored; 23 tables, 19 migrations, RLS on all 23 tables, 22 `own_rows` policies, 4 triggers; ledger check passed. Decrypted copy and local database deleted. |
+
 ## Before the move to Mumbai
 
 Before production moved from Sydney to Mumbai on 2026-10-03, a full encrypted backup of the Sydney database was saved on the owner's computer, in `~/.findb/backups/`.

@@ -5,6 +5,7 @@ import {
     accountBalance, archiveMirroredAccount, balances, bankAccount, cardAccount, fromPaise, recordBankOpening, recordCashSetTo,
     systemAccount, updateMirroredAccount, voidEntries,
 } from '../ledger';
+import { t } from '../i18n';
 
 /**
  * Banks, credit cards and cash: the account routes moved from the former Express app (N3).
@@ -41,7 +42,7 @@ export async function listBanks(pool: Pool, userId: number): Promise<QueryResult
 }
 
 export async function addBank(pool: Pool, userId: number, body: Body): Promise<QueryResultRow> {
-    const name = requireName(body.name, 'Bank name is required').toUpperCase();
+    const name = requireName(body.name, t('errors.bankNameRequired')).toUpperCase();
     const initialBalance = body.initialBalance || 0;
     try {
         return await withTransaction(pool, async (client) => {
@@ -56,20 +57,20 @@ export async function addBank(pool: Pool, userId: number, body: Body): Promise<Q
             return { ...bank, current_balance: fromPaise(await accountBalance(client, await bankAccount(client, userId, bank.id))) };
         });
     } catch (error) {
-        if (isUniqueViolation(error)) throw new RequestError(400, 'Bank already exists');
+        if (isUniqueViolation(error)) throw new RequestError(400, t('errors.bankAlreadyExists'));
         throw error;
     }
 }
 
 export async function updateBank(pool: Pool, userId: number, id: string, body: Body): Promise<QueryResultRow> {
-    const name = requireName(body.name, 'Bank name is required');
+    const name = requireName(body.name, t('errors.bankNameRequired'));
     const { initialBalance } = body;
     if (initialBalance === undefined || notANumber(initialBalance) || parseFloat(String(initialBalance)) < 0) {
-        throw new RequestError(400, 'Valid initial balance is required');
+        throw new RequestError(400, t('errors.validInitialBalanceRequired'));
     }
     return withTransaction(pool, async (client) => {
         const current = await client.query('SELECT * FROM banks WHERE id = $1 AND user_id = $2 FOR UPDATE', [id, userId]);
-        if (current.rows.length === 0) throw new RequestError(404, 'Bank not found');
+        if (current.rows.length === 0) throw new RequestError(404, t('errors.bankNotFound'));
 
         const newBalance = parseFloat(String(initialBalance));
         const result = await client.query(
@@ -95,10 +96,10 @@ export async function deleteBank(pool: Pool, userId: number, id: string): Promis
             [userId, 'bank', id],
         );
         if (parseInt(incomeCount.rows[0].count, 10) + parseInt(expenseCount.rows[0].count, 10) > 0) {
-            throw new RequestError(400, 'Cannot delete bank with existing transactions. Please delete all related transactions first.');
+            throw new RequestError(400, t('errors.cannotDeleteBankExistingTransactions'));
         }
         const result = await client.query('DELETE FROM banks WHERE id = $1 AND user_id = $2 RETURNING *', [id, userId]);
-        if (result.rows.length === 0) throw new RequestError(404, 'Bank not found');
+        if (result.rows.length === 0) throw new RequestError(404, t('errors.bankNotFound'));
         await archiveMirroredAccount(client, userId, 'banks', id);
     });
 }
@@ -113,7 +114,7 @@ export async function listCards(pool: Pool, userId: number): Promise<QueryResult
 }
 
 export async function addCard(pool: Pool, userId: number, body: Body): Promise<QueryResultRow> {
-    const name = requireName(body.name, 'Card name is required').toUpperCase();
+    const name = requireName(body.name, t('errors.cardNameRequired')).toUpperCase();
     const { creditLimit } = body;
     try {
         return await withTransaction(pool, async (client) => {
@@ -129,29 +130,29 @@ export async function addCard(pool: Pool, userId: number, body: Body): Promise<Q
             return { ...card, used_limit: '0.00' };
         });
     } catch (error) {
-        if (isUniqueViolation(error)) throw new RequestError(400, 'Credit card already exists');
+        if (isUniqueViolation(error)) throw new RequestError(400, t('errors.creditCardAlreadyExists'));
         throw error;
     }
 }
 
 export async function updateCard(pool: Pool, userId: number, id: string, body: Body): Promise<QueryResultRow> {
-    const name = requireName(body.name, 'Card name is required');
+    const name = requireName(body.name, t('errors.cardNameRequired'));
     const { creditLimit } = body;
     if (creditLimit === undefined || notANumber(creditLimit) || parseFloat(String(creditLimit)) <= 0) {
-        throw new RequestError(400, 'Valid credit limit greater than 0 is required');
+        throw new RequestError(400, t('errors.validCreditLimitRequired'));
     }
     // Locked, so an expense cannot raise the used limit between the check and the update
     // (the Express route checked and updated outside a transaction)
     return withTransaction(pool, async (client) => {
         const current = await client.query('SELECT * FROM credit_cards WHERE id = $1 AND user_id = $2 FOR UPDATE', [id, userId]);
-        if (current.rows.length === 0) throw new RequestError(404, 'Credit card not found');
+        if (current.rows.length === 0) throw new RequestError(404, t('errors.creditCardNotFound'));
 
         // The amount used is what the card owes in the ledger (a negative balance)
         const usedLimit = -(await accountBalance(client, await cardAccount(client, userId, id))) / 100;
         const newLimit = parseFloat(String(creditLimit));
         if (newLimit < usedLimit) {
             throw new RequestError(400,
-                `Credit limit cannot be less than used limit (₹${usedLimit.toLocaleString('en-IN', { minimumFractionDigits: 2 })})`);
+                t('errors.creditLimitBelowUsed', { used: usedLimit.toLocaleString('en-IN', { minimumFractionDigits: 2 }) }));
         }
         const result = await client.query(
             'UPDATE credit_cards SET name = $1, credit_limit = $2 WHERE id = $3 AND user_id = $4 RETURNING *',
@@ -169,10 +170,10 @@ export async function deleteCard(pool: Pool, userId: number, id: string): Promis
             [userId, 'credit_card', id],
         );
         if (parseInt(transactions.rows[0].count, 10) > 0) {
-            throw new RequestError(400, 'Cannot delete credit card with existing transactions. Please delete all related transactions first.');
+            throw new RequestError(400, t('errors.cannotDeleteCreditCardExisting'));
         }
         const result = await client.query('DELETE FROM credit_cards WHERE id = $1 AND user_id = $2 RETURNING *', [id, userId]);
-        if (result.rows.length === 0) throw new RequestError(404, 'Credit card not found');
+        if (result.rows.length === 0) throw new RequestError(404, t('errors.creditCardNotFound'));
         await archiveMirroredAccount(client, userId, 'credit_cards', id);
     });
 }

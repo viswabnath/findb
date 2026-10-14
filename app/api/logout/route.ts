@@ -1,6 +1,7 @@
 import { isHttps, withPublic } from '@/lib/api-route';
 import { db } from '@/lib/db';
 import { clearSessionCookie, clearSignedInHintCookie, destroySession, SESSION_COOKIE } from '@/lib/session';
+import { t } from '@/lib/i18n';
 
 // Deletes the session and clears the sessionId cookie (Express cleared the wrong cookie name)
 export const POST = withPublic(async (request) => {
@@ -8,4 +9,4 @@ export const POST = withPublic(async (request) => {
     const headers = new Headers({ 'Set-Cookie': clearSessionCookie(isHttps(request)) });
     headers.append('Set-Cookie', clearSignedInHintCookie(isHttps(request)));
     return Response.json({ success: true }, { headers });
-}, { errorMessage: 'Logout failed' });
+}, { errorMessage: t('errors.logoutFailed') });

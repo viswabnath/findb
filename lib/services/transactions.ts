@@ -2,6 +2,7 @@ import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import { logActivity } from '../activity-log';
 import { RequestError, withTransaction } from '../transaction';
 import { accountBalance, moneyAccount, recordExpense, recordIncome, toPaise, voidEntries } from '../ledger';
+import { t } from '../i18n';
 
 /**
  * Income and expenses: the transaction routes moved from the former Express app (N3). Every write
@@ -34,7 +35,7 @@ export function entryDate(value: unknown): { date: string; month: number; year: 
 function requireEntryDate(value: unknown, requiredMessage?: string) {
     if (requiredMessage && !value) throw new RequestError(400, requiredMessage);
     const entry = entryDate(value);
-    if (!entry) throw new RequestError(400, 'Invalid date format');
+    if (!entry) throw new RequestError(400, t('errors.invalidDateFormat'));
     return entry;
 }
 
@@ -44,11 +45,11 @@ function requireEntryDate(value: unknown, requiredMessage?: string) {
  * pointed at someone else's account.
  */
 async function requireOwnAccount(client: Client, userId: number, type: unknown, id: unknown, allowed: readonly string[]) {
-    if (typeof type !== 'string' || !allowed.includes(type)) throw new RequestError(400, 'Invalid account type');
+    if (typeof type !== 'string' || !allowed.includes(type)) throw new RequestError(400, t('errors.invalidAccountType'));
     if (type === 'cash') return;
     const table = type === 'bank' ? 'banks' : 'credit_cards';
     const owned = await client.query(`SELECT id FROM ${table} WHERE id = $1 AND user_id = $2`, [id, userId]);
-    if (owned.rows.length === 0) throw new RequestError(400, type === 'bank' ? 'Bank not found' : 'Credit card not found');
+    if (owned.rows.length === 0) throw new RequestError(400, type === 'bank' ? t('errors.bankNotFound') : t('errors.creditCardNotFound'));
 }
 
 const INCOME_ACCOUNTS = ['bank', 'cash'] as const;
@@ -86,13 +87,13 @@ export async function listIncome(pool: Pool, userId: number, month: string | nul
 
 export async function getIncome(pool: Pool, userId: number, id: string): Promise<QueryResultRow> {
     const result = await pool.query('SELECT * FROM income_entries WHERE id = $1 AND user_id = $2', [id, userId]);
-    if (result.rows.length === 0) throw new RequestError(404, 'Income transaction not found');
+    if (result.rows.length === 0) throw new RequestError(404, t('errors.incomeTransactionNotFound'));
     return result.rows[0];
 }
 
 export async function addIncome(pool: Pool, userId: number, body: Body): Promise<QueryResultRow> {
     const { source, amount, creditedToType, creditedToId } = body;
-    const entry = requireEntryDate(body.date, 'Date is required');
+    const entry = requireEntryDate(body.date, t('errors.dateRequired'));
     return withTransaction(pool, async (client) => {
         await requireOwnAccount(client, userId, creditedToType, accountId(creditedToType, creditedToId), INCOME_ACCOUNTS);
         const result = await client.query(
@@ -111,7 +112,7 @@ export async function updateIncome(pool: Pool, userId: number, id: string, body:
     await withTransaction(pool, async (client) => {
         // Locked so concurrent edits of the same entry run one after the other
         const current = await client.query('SELECT * FROM income_entries WHERE id = $1 AND user_id = $2 FOR UPDATE', [id, userId]);
-        if (current.rows.length === 0) throw new RequestError(404, 'Income transaction not found');
+        if (current.rows.length === 0) throw new RequestError(404, t('errors.incomeTransactionNotFound'));
         const old = current.rows[0];
         await requireOwnAccount(client, userId, creditedToType, accountId(creditedToType, creditedToId), INCOME_ACCOUNTS);
         await client.query(
@@ -129,7 +130,7 @@ export async function updateIncome(pool: Pool, userId: number, id: string, body:
 export async function deleteIncome(pool: Pool, userId: number, id: string): Promise<void> {
     await withTransaction(pool, async (client) => {
         const current = await client.query('SELECT * FROM income_entries WHERE id = $1 AND user_id = $2 FOR UPDATE', [id, userId]);
-        if (current.rows.length === 0) throw new RequestError(404, 'Income transaction not found');
+        if (current.rows.length === 0) throw new RequestError(404, t('errors.incomeTransactionNotFound'));
         const old = current.rows[0];
         await client.query('DELETE FROM income_entries WHERE id = $1 AND user_id = $2', [id, userId]);
         await voidEntries(client, userId, 'income_entries', id);
@@ -163,7 +164,7 @@ export async function listExpenses(pool: Pool, userId: number, month: string | n
 
 export async function getExpense(pool: Pool, userId: number, id: string): Promise<QueryResultRow> {
     const result = await pool.query('SELECT * FROM expenses WHERE id = $1 AND user_id = $2', [id, userId]);
-    if (result.rows.length === 0) throw new RequestError(404, 'Expense transaction not found');
+    if (result.rows.length === 0) throw new RequestError(404, t('errors.expenseTransactionNotFound'));
     return result.rows[0];
 }
 
@@ -182,17 +183,17 @@ async function checkCanSpend(client: Client, userId: number, method: unknown, so
             : await client.query('SELECT credit_limit FROM credit_cards WHERE id = $1 AND user_id = $2 FOR UPDATE', [sourceId, userId]);
     const missing = locked.rows.length === 0;
     const balance = missing ? 0 : await accountBalance(client, await moneyAccount(client, userId, method, sourceId));
-    if (method === 'bank' && (missing || balance < needed)) throw new RequestError(400, 'Insufficient bank balance');
-    if (method === 'cash' && (missing || balance < needed)) throw new RequestError(400, 'Insufficient cash balance');
+    if (method === 'bank' && (missing || balance < needed)) throw new RequestError(400, t('errors.insufficientBankBalance'));
+    if (method === 'cash' && (missing || balance < needed)) throw new RequestError(400, t('errors.insufficientCashBalance'));
     // A card's balance is negative by the amount owed, so the room left is the limit plus the balance
     if (method === 'credit_card' && (missing || toPaise(locked.rows[0].credit_limit) + balance < needed)) {
-        throw new RequestError(400, 'Insufficient credit limit');
+        throw new RequestError(400, t('errors.insufficientCreditLimit'));
     }
 }
 
 export async function addExpense(pool: Pool, userId: number, body: Body): Promise<QueryResultRow> {
     const { title, amount, paymentMethod, paymentSourceId } = body;
-    const entry = requireEntryDate(body.date, 'Date is required');
+    const entry = requireEntryDate(body.date, t('errors.dateRequired'));
     return withTransaction(pool, async (client) => {
         await requireOwnAccount(client, userId, paymentMethod, accountId(paymentMethod, paymentSourceId), EXPENSE_ACCOUNTS);
         await checkCanSpend(client, userId, paymentMethod, paymentSourceId, amount);
@@ -212,7 +213,7 @@ export async function updateExpense(pool: Pool, userId: number, id: string, body
     await withTransaction(pool, async (client) => {
         // Locked so concurrent edits of the same entry run one after the other
         const current = await client.query('SELECT * FROM expenses WHERE id = $1 AND user_id = $2 FOR UPDATE', [id, userId]);
-        if (current.rows.length === 0) throw new RequestError(404, 'Expense transaction not found');
+        if (current.rows.length === 0) throw new RequestError(404, t('errors.expenseTransactionNotFound'));
         const old = current.rows[0];
         await requireOwnAccount(client, userId, paymentMethod, accountId(paymentMethod, paymentSourceId), EXPENSE_ACCOUNTS);
         await client.query(
@@ -230,7 +231,7 @@ export async function updateExpense(pool: Pool, userId: number, id: string, body
 export async function deleteExpense(pool: Pool, userId: number, id: string): Promise<void> {
     await withTransaction(pool, async (client) => {
         const current = await client.query('SELECT * FROM expenses WHERE id = $1 AND user_id = $2 FOR UPDATE', [id, userId]);
-        if (current.rows.length === 0) throw new RequestError(404, 'Expense transaction not found');
+        if (current.rows.length === 0) throw new RequestError(404, t('errors.expenseTransactionNotFound'));
         const old = current.rows[0];
         await client.query('DELETE FROM expenses WHERE id = $1 AND user_id = $2', [id, userId]);
         await voidEntries(client, userId, 'expenses', id);

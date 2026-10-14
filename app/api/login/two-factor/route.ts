@@ -2,6 +2,7 @@ import { jsonBody, userAgent, withPublic } from '@/lib/api-route';
 import { db } from '@/lib/db';
 import { finishLogin, requirePendingLogin } from '@/lib/login-flow';
 import { verifyLoginCode } from '@/lib/services/security';
+import { t } from '@/lib/i18n';
 
 // Step two: { code } from the authenticator app, or { recoveryCode }. Finishes the login with a new session.
 export const POST = withPublic(async (request) => {
@@ -12,4 +13,4 @@ export const POST = withPublic(async (request) => {
         { success: true, userId: pending.userId, name: user.name, trackingOption: user.tracking_option },
         { headers },
     );
-}, { authLimited: true, errorMessage: 'Login failed. Please try again.' });
+}, { authLimited: true, errorMessage: t('errors.loginFailed') });

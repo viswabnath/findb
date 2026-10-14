@@ -50,22 +50,24 @@ export function dayOfWeek(date: string): number {
     return new Date(Date.UTC(y, m - 1, d)).getUTCDay();
 }
 
-/** Whether a rule is complete and in range; returns the problem, or null */
-export function ruleProblem(rule: Rule): string | null {
+export type RuleProblem = 'dayOfWeek' | 'dayOfMonth' | 'month' | 'daysInMonth' | 'frequency';
+
+/** Whether a rule is complete and in range; returns the problem (its message is errors.schedule.<problem>), or null */
+export function ruleProblem(rule: Rule): RuleProblem | null {
     const between = (value: unknown, low: number, high: number) => Number.isInteger(value) && (value as number) >= low && (value as number) <= high;
     switch (rule.frequency) {
     case 'daily':
         return null;
     case 'weekly':
-        return between(rule.dayOfWeek, 0, 6) ? null : 'Choose the day of the week';
+        return between(rule.dayOfWeek, 0, 6) ? null : 'dayOfWeek';
     case 'monthly':
-        return between(rule.dayOfMonth, 1, 31) ? null : 'Choose the day of the month (1 to 31)';
+        return between(rule.dayOfMonth, 1, 31) ? null : 'dayOfMonth';
     case 'yearly':
-        if (!between(rule.month, 1, 12)) return 'Choose the month';
-        if (!between(rule.dayOfMonth, 1, 31)) return 'Choose the day of the month (1 to 31)';
-        return rule.dayOfMonth! > daysInMonth(2024, rule.month!) ? 'That month does not have that many days' : null;
+        if (!between(rule.month, 1, 12)) return 'month';
+        if (!between(rule.dayOfMonth, 1, 31)) return 'dayOfMonth';
+        return rule.dayOfMonth! > daysInMonth(2024, rule.month!) ? 'daysInMonth' : null;
     default:
-        return 'Repeat daily, weekly, monthly or yearly';
+        return 'frequency';
     }
 }
 

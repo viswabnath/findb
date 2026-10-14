@@ -6,6 +6,7 @@ import {
     PENDING_LOGIN_COOKIE, SESSION_COOKIE, signedInHintCookie, type PendingLogin, type PendingStage,
 } from './session';
 import { RequestError } from './transaction';
+import { t } from './i18n';
 
 /**
  * The steps of a login in the route handlers: a right password (or a new registration) starts a
@@ -23,7 +24,7 @@ export async function startPendingLogin(request: NextRequest, userId: number, st
 /** The request's pending login at one of the given stages, or a 401 asking to log in again */
 export async function requirePendingLogin(request: NextRequest, stages: PendingStage[]): Promise<PendingLogin> {
     const pending = await pendingLogin(db(), request.cookies.get(PENDING_LOGIN_COOKIE)?.value);
-    if (!pending || !stages.includes(pending.stage)) throw new RequestError(401, 'Your login has expired. Log in again.');
+    if (!pending || !stages.includes(pending.stage)) throw new RequestError(401, t('errors.loginExpired'));
     return pending;
 }
 

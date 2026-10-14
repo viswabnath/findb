@@ -409,7 +409,7 @@ A reconciliation: `{ "id", "account", "statementDate", "statementBalance", "stat
   "message": null
 }
 ```
-Income and expenses are the entries dated in the month; transfers count as neither. `netSavings` is `monthlyIncome - totalExpenses`. Balances are as at the month's last day, from the ledger, and `totalCurrentWealth` is banks, cash, wallets and meal cards less `cardDues` (what is owed on cards), the same figure as "What you have" on Accounts. `regularSpending` leaves out spending on one-off events (`oneOffSpending`). `owedToYou` is money paid and still to be paid back (reimbursements), counted neither as spending nor in wealth. When the month has no transactions, `message` is `"No transactions found for this month"` and the totals are 0.
+Income and expenses are the entries dated in the month; transfers count as neither. `netSavings` is `monthlyIncome - totalExpenses`. Balances are as at the month's last day, from the ledger, and `totalCurrentWealth` is banks, cash, wallets and meal cards less `cardDues` (what is owed on cards), the same figure as "What you have" on Accounts. `regularSpending` leaves out spending on one-off events (`oneOffSpending`). `owedToYou` is money paid and still to be paid back (reimbursements), counted neither as spending nor in wealth. When the month has no transactions, `message` is `"No transactions found for this month"`, `messageKind` is `noTransactions`, and the totals are 0 (`future` and `beforeRegistration` for the other two empty months). Error messages come from the `errors` section of `messages/en.ts`.
 
 ## Activity log
 

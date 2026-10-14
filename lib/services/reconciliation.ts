@@ -4,6 +4,7 @@ import { fromPaise, postEntry, systemAccount, toPaise } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
 import { lockedMoneyAccount } from './entries';
 import { entryDate } from './transactions';
+import { t } from '../i18n';
 
 /**
  * Reconciliation (docs/ledger.md): checking an account against a statement. The user enters the
@@ -48,7 +49,7 @@ export interface Reconciliation {
 const statementSign = (type: string) => (type === 'credit_card' ? -1 : 1);
 
 async function load(client: Client, userId: number, id: unknown, lock = false): Promise<Reconciliation> {
-    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(404, 'Reconciliation not found');
+    if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(404, t('errors.reconciliationNotFound'));
     const head = await client.query(
         `SELECT r.id, r.account_id, r.statement_date::text AS statement_date, r.statement_balance_paise, r.status, r.completed_at,
                 a.name AS account_name, a.subtype
@@ -56,7 +57,7 @@ async function load(client: Client, userId: number, id: unknown, lock = false): 
          WHERE r.id = $1 AND r.user_id = $2${lock ? ' FOR UPDATE OF r' : ''}`,
         [id, userId]);
     const row = head.rows[0];
-    if (!row) throw new RequestError(404, 'Reconciliation not found');
+    if (!row) throw new RequestError(404, t('errors.reconciliationNotFound'));
     const sign = statementSign(row.subtype);
     const done = await client.query(
         `SELECT COALESCE(SUM(l.amount_paise), 0)::bigint AS paise
@@ -118,12 +119,12 @@ export async function getReconciliation(pool: Pool, userId: number, id: string):
  */
 export async function startReconciliation(pool: Pool, userId: number, body: Body): Promise<Reconciliation> {
     const date = entryDate(body.statementDate);
-    if (!date) throw new RequestError(400, 'Statement date is required');
+    if (!date) throw new RequestError(400, t('errors.statementDateRequired'));
     let balance: number;
     try {
         balance = toPaise(body.statementBalance);
     } catch {
-        throw new RequestError(400, 'Enter the balance the statement shows');
+        throw new RequestError(400, t('errors.enterBalanceStatementShows'));
     }
     return withTransaction(pool, async (client) => {
         const account = await lockedMoneyAccount(client, userId, body.accountId);
@@ -151,19 +152,19 @@ export async function startReconciliation(pool: Pool, userId: number, body: Body
 
 async function lockedOpen(client: Client, userId: number, id: string): Promise<Reconciliation> {
     const item = await load(client, userId, id, true);
-    if (item.status !== 'open') throw new RequestError(400, 'This reconciliation is finished');
+    if (item.status !== 'open') throw new RequestError(400, t('errors.reconciliationFinished'));
     return item;
 }
 
 /** { lineIds, ticked }: tick lines off against the statement, or untick them */
 export async function tickLines(pool: Pool, userId: number, id: string, body: Body): Promise<Reconciliation> {
     const ids = body.lineIds;
-    if (!Array.isArray(ids) || ids.length === 0 || ids.some(line => !/^\d+$/.test(String(line)))) throw new RequestError(400, 'Choose the lines to tick');
-    if (typeof body.ticked !== 'boolean') throw new RequestError(400, 'Ticked must be true or false');
+    if (!Array.isArray(ids) || ids.length === 0 || ids.some(line => !/^\d+$/.test(String(line)))) throw new RequestError(400, t('errors.chooseLinesTick'));
+    if (typeof body.ticked !== 'boolean') throw new RequestError(400, t('errors.tickedMustTrueFalse'));
     return withTransaction(pool, async (client) => {
         const item = await lockedOpen(client, userId, id);
         const allowed = new Set(item.lines.map(line => line.lineId));
-        if (ids.some(line => !allowed.has(Number(line)))) throw new RequestError(400, 'A line is not part of this statement');
+        if (ids.some(line => !allowed.has(Number(line)))) throw new RequestError(400, t('errors.lineNotPartStatement'));
         await client.query(
             'UPDATE journal_lines SET reconciliation_id = $1 WHERE user_id = $2 AND id = ANY($3::bigint[])',
             [body.ticked ? item.id : null, userId, ids.map(Number)]);
@@ -181,7 +182,7 @@ export async function finishReconciliation(pool: Pool, userId: number, id: strin
         const difference = toPaise(item.difference);
         if (difference !== 0) {
             if (body.adjust !== true) {
-                throw new RequestError(400, `The statement and FinDB differ by ₹${fromPaise(Math.abs(difference))}. Find the entries, or record the difference as an adjustment.`);
+                throw new RequestError(400, t('errors.statementDiffers', { amount: fromPaise(Math.abs(difference)) }));
             }
             const ledgerAmount = statementSign(item.account.type) * difference;
             const entryId = await postEntry(client, {

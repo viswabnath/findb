@@ -2,6 +2,7 @@ import type { Pool, PoolClient } from 'pg';
 import { DATA_INVENTORY } from '../data-inventory';
 import { PRIVACY_NOTICE_VERSION } from '../privacy-notice';
 import { RequestError, withTransaction } from '../transaction';
+import { t } from '../i18n';
 
 /**
  * Consent to the privacy notice and the user's view of their data (docs/privacy.md). Consent is
@@ -41,7 +42,7 @@ export async function consentStatus(pool: Pick<Pool, 'query'>, userId: number): 
 /** { noticeVersion }: agree to the notice the user was shown, which must be the current one */
 export async function giveConsent(pool: Pool, userId: number, body: Record<string, unknown>, userAgent: string | null): Promise<void> {
     if (body.noticeVersion !== PRIVACY_NOTICE_VERSION) {
-        throw new RequestError(400, 'The privacy notice has changed. Reload the page to read the current one.');
+        throw new RequestError(400, t('errors.privacyNoticeChanged'));
     }
     await recordConsent(pool, userId, userAgent);
 }

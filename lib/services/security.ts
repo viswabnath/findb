@@ -4,6 +4,7 @@ import { decryptField, encryptField } from '../field-encryption';
 import { publicSessionId } from '../session';
 import { base32Encode, newTotpSecret, otpauthUri, verifyTotp } from '../totp';
 import { RequestError, withTransaction } from '../transaction';
+import { t } from '../i18n';
 
 /**
  * Two-factor login, recovery codes, the session list and login history (docs/security.md).
@@ -40,7 +41,7 @@ export async function recordLoginEvent(client: Client, userId: number, event: Lo
  */
 export async function twoFactorSetupInfo(pool: Pool, userId: number): Promise<{ secret: string; otpauthUri: string }> {
     const user = await pool.query('SELECT username, totp_pending_secret_enc FROM users WHERE id = $1', [userId]);
-    if (user.rows.length === 0) throw new RequestError(404, 'User not found');
+    if (user.rows.length === 0) throw new RequestError(404, t('errors.userNotFound'));
     let secret: string;
     if (user.rows[0].totp_pending_secret_enc) {
         secret = decryptField(user.rows[0].totp_pending_secret_enc, secretContext(userId));
@@ -71,13 +72,13 @@ function hashRecoveryCode(code: string): string {
 
 /** Confirm setup with the first code from the app: turns two-factor login on and returns the recovery codes */
 export async function confirmTwoFactorSetup(pool: Pool, userId: number, code: unknown, userAgent: string | null): Promise<string[]> {
-    if (typeof code !== 'string' || !code.trim()) throw new RequestError(400, 'Enter the 6-digit code from your app');
+    if (typeof code !== 'string' || !code.trim()) throw new RequestError(400, t('errors.enterCode'));
     return withTransaction(pool, async (client) => {
         const user = await client.query('SELECT totp_pending_secret_enc FROM users WHERE id = $1 FOR UPDATE', [userId]);
         const pending = user.rows[0]?.totp_pending_secret_enc;
-        if (!pending) throw new RequestError(400, 'Two-factor setup has not started. Reload the page and scan the new code.');
+        if (!pending) throw new RequestError(400, t('errors.twoFactorSetupNotStarted'));
         const step = verifyTotp(decryptField(pending, secretContext(userId)), code, null);
-        if (step === null) throw new RequestError(400, 'That code is not right. Check the time on your phone, and enter the newest code.');
+        if (step === null) throw new RequestError(400, t('errors.setupCodeWrong'));
         await client.query(
             `UPDATE users SET totp_secret_enc = totp_pending_secret_enc, totp_pending_secret_enc = NULL,
                     totp_enabled_at = NOW(), totp_last_step = $1 WHERE id = $2`,
@@ -99,7 +100,7 @@ async function tooManyWrongCodes(client: Client, userId: number): Promise<boolea
     return wrong.rows[0].n >= MAX_WRONG_CODES;
 }
 
-const TOO_MANY_CODES = `Too many wrong codes. Wait ${WRONG_CODE_WINDOW_MINUTES} minutes, then try again.`;
+const TOO_MANY_CODES = t('errors.tooManyWrongCodes', { minutes: WRONG_CODE_WINDOW_MINUTES });
 
 /**
  * Check the second step of a login: { code } from the authenticator app, or { recoveryCode }. A
@@ -109,7 +110,7 @@ export async function verifyLoginCode(pool: Pool, userId: number, body: Record<s
     : Promise<{ name: string; tracking_option: string }> {
     const { code, recoveryCode } = body;
     if ((typeof code !== 'string' || !code.trim()) && (typeof recoveryCode !== 'string' || !recoveryCode.trim())) {
-        throw new RequestError(400, 'Enter the 6-digit code from your app, or a recovery code');
+        throw new RequestError(400, t('errors.enterCodeOrRecoveryCode'));
     }
     // The wrong-code record must stay even though the request fails, so it is written outside the
     // transaction that is rolled back
@@ -119,7 +120,7 @@ export async function verifyLoginCode(pool: Pool, userId: number, body: Record<s
             const user = await client.query(
                 'SELECT name, tracking_option, totp_secret_enc, totp_last_step FROM users WHERE id = $1 FOR UPDATE', [userId]);
             const row = user.rows[0];
-            if (!row?.totp_secret_enc) throw new RequestError(400, 'Two-factor login is not set up yet');
+            if (!row?.totp_secret_enc) throw new RequestError(400, t('errors.twoFactorLoginNotSet'));
             if (await tooManyWrongCodes(client, userId)) throw new RequestError(429, TOO_MANY_CODES);
 
             if (typeof recoveryCode === 'string' && recoveryCode.trim()) {
@@ -131,7 +132,7 @@ export async function verifyLoginCode(pool: Pool, userId: number, body: Record<s
                 );
                 if (used.rows.length === 0) {
                     wrong = true;
-                    throw new RequestError(400, 'That recovery code is not right, or has been used');
+                    throw new RequestError(400, t('errors.recoveryCodeWrong'));
                 }
                 await recordLoginEvent(client, userId, 'recovery_code_used', userAgent);
             } else {
@@ -139,7 +140,7 @@ export async function verifyLoginCode(pool: Pool, userId: number, body: Record<s
                 const step = verifyTotp(decryptField(row.totp_secret_enc, secretContext(userId)), String(code), lastStep);
                 if (step === null) {
                     wrong = true;
-                    throw new RequestError(400, 'That code is not right. Enter the newest code from your app.');
+                    throw new RequestError(400, t('errors.codeWrong'));
                 }
                 await client.query('UPDATE users SET totp_last_step = $1 WHERE id = $2', [step, userId]);
             }
@@ -155,19 +156,19 @@ export async function verifyLoginCode(pool: Pool, userId: number, body: Record<s
 
 /** New recovery codes for a logged-in user, after a current code from their app */
 export async function regenerateRecoveryCodes(pool: Pool, userId: number, code: unknown, userAgent: string | null): Promise<string[]> {
-    if (typeof code !== 'string' || !code.trim()) throw new RequestError(400, 'Enter the 6-digit code from your app');
+    if (typeof code !== 'string' || !code.trim()) throw new RequestError(400, t('errors.enterCode'));
     let wrong = false;
     try {
         return await withTransaction(pool, async (client) => {
             const user = await client.query('SELECT totp_secret_enc, totp_last_step FROM users WHERE id = $1 FOR UPDATE', [userId]);
             const row = user.rows[0];
-            if (!row?.totp_secret_enc) throw new RequestError(400, 'Two-factor login is not set up yet');
+            if (!row?.totp_secret_enc) throw new RequestError(400, t('errors.twoFactorLoginNotSet'));
             if (await tooManyWrongCodes(client, userId)) throw new RequestError(429, TOO_MANY_CODES);
             const lastStep = row.totp_last_step === null ? null : Number(row.totp_last_step);
             const step = verifyTotp(decryptField(row.totp_secret_enc, secretContext(userId)), code, lastStep);
             if (step === null) {
                 wrong = true;
-                throw new RequestError(400, 'That code is not right. Enter the newest code from your app.');
+                throw new RequestError(400, t('errors.codeWrong'));
             }
             await client.query('UPDATE users SET totp_last_step = $1 WHERE id = $2', [step, userId]);
             await recordLoginEvent(client, userId, 'recovery_codes_created', userAgent);
@@ -225,7 +226,7 @@ export async function listSessions(pool: Pool, userId: number, currentSid: strin
 export async function signOutSession(pool: Pool, userId: number, publicId: string, userAgent: string | null): Promise<void> {
     const sessions = await pool.query('SELECT sid FROM session WHERE sess->>\'userId\' = $1', [String(userId)]);
     const match = sessions.rows.find(row => publicSessionId(row.sid) === publicId);
-    if (!match) throw new RequestError(404, 'Session not found');
+    if (!match) throw new RequestError(404, t('errors.sessionNotFound'));
     await withTransaction(pool, async (client) => {
         await client.query('DELETE FROM session WHERE sid = $1', [match.sid]);
         await recordLoginEvent(client, userId, 'signed_out_session', userAgent);
