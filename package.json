@@ -35,7 +35,8 @@
     "qrcode": "^1.5.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
-    "recharts": "3.10.1"
+    "recharts": "3.10.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -86,6 +87,7 @@
           "<rootDir>/tests/isolation.test.js",
           "<rootDir>/tests/privacy.test.js",
           "<rootDir>/tests/entries.test.js",
+          "<rootDir>/tests/statement-import.test.js",
           "<rootDir>/tests/categories.test.js",
           "<rootDir>/tests/events.test.js",
           "<rootDir>/tests/recurring.test.js",

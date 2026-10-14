@@ -173,7 +173,7 @@ describe('entries', () => {
 
     test('mistakes are refused', async () => {
         const post = body => agent.post('/api/entries').send({ date: DAY, description: 'Probe', amount: 10, ...body });
-        expect((await post({ type: 'income', accountId: card.id })).body.error).toBe('Income goes into a bank, cash, a wallet or a meal card');
+        expect((await post({ type: 'income', accountId: card.id })).body.error).toBe('Income goes into a bank, cash, a wallet or a meal card; on a credit card, only a refund or cashback');
         expect((await post({ type: 'transfer', accountId: bank.id, toAccountId: bank.id })).body.error).toBe('Choose two different accounts for a transfer');
         expect((await post({ type: 'gift', accountId: bank.id })).status).toBe(400);
         expect((await post({ type: 'expense', accountId: bank.id, amount: 0 })).body.error).toBe('Enter an amount greater than zero');

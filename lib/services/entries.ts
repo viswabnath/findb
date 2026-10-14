@@ -276,7 +276,7 @@ function toEntry(row: Record<string, unknown>): Entry {
 
 const ENTRY_QUERY = `
     SELECT e.id, e.entry_type, e.entry_date::text AS entry_date, e.description, e.source_table, e.source_id,
-           e.event_id, ev.name AS event_name, e.reimbursement_id,
+           e.event_id, ev.name AS event_name, e.reimbursement_id, e.import_batch_id,
            json_agg(json_build_object('account', l.account_id, 'paise', l.amount_paise, 'kind', a.kind,
                                       'subtype', a.subtype, 'name', a.name) ORDER BY l.id) AS lines,
            (SELECT coalesce(json_agg(t.name ORDER BY lower(t.name)), '[]'::json)
@@ -316,20 +316,26 @@ function requireOwnEntry(entry: Entry): void {
     }
 }
 
-function publicEntry({ sourceTable, sourceId, ...entry }: Entry & { sourceTable: string | null; sourceId: number | null }): Entry {
+type LockedEntry = Entry & { sourceTable: string | null; sourceId: number | null; importBatchId: number | null };
+
+function publicEntry({ sourceTable, sourceId, importBatchId, ...entry }: LockedEntry): Entry {
     void sourceTable;
     void sourceId;
+    void importBatchId;
     return entry;
 }
 
-async function lockedEntry(client: Client, userId: number, id: unknown): Promise<Entry & { sourceTable: string | null; sourceId: number | null }> {
+async function lockedEntry(client: Client, userId: number, id: unknown): Promise<LockedEntry> {
     if (!/^\d+$/.test(String(id ?? ''))) throw new RequestError(404, t('errors.entryNotFound'));
     await client.query(
         'SELECT id FROM journal_entries WHERE id = $1 AND user_id = $2 AND voided_at IS NULL FOR UPDATE', [id, userId]);
     const result = await client.query(`${ENTRY_QUERY} AND e.id = $2 GROUP BY e.id, ev.id`, [userId, id]);
     const row = result.rows[0];
     if (!row) throw new RequestError(404, t('errors.entryNotFound'));
-    return { ...toEntry(row), sourceTable: row.source_table, sourceId: row.source_id === null ? null : Number(row.source_id) };
+    return {
+        ...toEntry(row), sourceTable: row.source_table, sourceId: row.source_id === null ? null : Number(row.source_id),
+        importBatchId: row.import_batch_id === null ? null : Number(row.import_batch_id),
+    };
 }
 
 /** Whole paise from a positive amount (or zero, when allowed) */
@@ -352,6 +358,8 @@ interface EntryInput {
     tags: string[] | undefined;
     /** The event it is for; null or empty for none; left out on an edit, the entry keeps its event */
     eventId: unknown;
+    /** The statement import it came from, kept through edits so undoing the import removes it */
+    importBatchId?: number | null;
 }
 
 const MAX_TAGS = 10;
@@ -420,14 +428,17 @@ export async function checkCanSpend(client: Client, userId: number, account: Mon
 }
 
 /** The category account for income or an expense: the one chosen, or the fallback */
-async function categoryAccount(client: Client, userId: number, kind: 'income' | 'expense', categoryId: unknown): Promise<{ id: number; name: string }> {
+async function categoryAccount(client: Client, userId: number, kind: 'income' | 'expense', categoryId: unknown): Promise<{ id: number; name: string; key: string | null }> {
     if (categoryId === undefined || categoryId === null || categoryId === '') {
         const id = await systemAccount(client, userId, kind);
-        return { id, name: kind === 'income' ? 'Other income' : 'Uncategorised' };
+        return { id, name: kind === 'income' ? 'Other income' : 'Uncategorised', key: null };
     }
     const category = await lockedCategory(client, userId, categoryId, kind);
-    return { id: category.id, name: category.name };
+    return { id: category.id, name: category.name, key: category.key };
 }
+
+/** The income categories a credit card can receive: money back on it, not earnings */
+export const CARD_INCOME_KEYS = ['refund', 'cashback'];
 
 /** Validate the accounts and record the entry with its tags; returns its id */
 async function record(client: Client, userId: number, input: EntryInput, checkSpending: boolean, recurring?: { id: number; on: string })
@@ -442,8 +453,9 @@ async function record(client: Client, userId: number, input: EntryInput, checkSp
     let category: { id: number; name: string } | null = null;
     let lines: EntryLine[];
     if (input.type === 'income') {
-        if (account.type === 'credit_card') throw new RequestError(400, t('errors.incomeGoesIntoBankCash'));
-        category = await categoryAccount(client, userId, 'income', input.categoryId);
+        const income = await categoryAccount(client, userId, 'income', input.categoryId);
+        if (account.type === 'credit_card' && !CARD_INCOME_KEYS.includes(income.key ?? '')) throw new RequestError(400, t('errors.incomeGoesIntoBankCash'));
+        category = income;
         lines = [{ accountId: account.id, paise: input.paise }, { accountId: category.id, paise: -input.paise }];
     } else if (input.type === 'expense') {
         category = await categoryAccount(client, userId, 'expense', input.categoryId);
@@ -455,7 +467,9 @@ async function record(client: Client, userId: number, input: EntryInput, checkSp
         if (checkSpending) await checkCanSpend(client, userId, account, input.paise);
         lines = [{ accountId: toAccount.id, paise: input.paise }, { accountId: account.id, paise: -input.paise }];
     }
-    const id = (await postEntry(client, { userId, date: input.date, description: input.description, type: input.type, eventId, recurring, lines }))!;
+    const id = (await postEntry(client, {
+        userId, date: input.date, description: input.description, type: input.type, eventId, recurring, importBatchId: input.importBatchId, lines,
+    }))!;
     await setEntryTags(client, userId, id, input.tags ?? []);
     return { id, account, toAccount, category };
 }
@@ -544,6 +558,7 @@ export async function updateEntry(pool: Pool, userId: number, id: string, body: 
             categoryId: input.categoryId === undefined && input.type === old.type ? old.category?.id : input.categoryId,
             tags: input.tags ?? old.tags,
             eventId: input.eventId === undefined ? (old.event ? { keep: old.event.id } : null) : input.eventId,
+            importBatchId: old.importBatchId,
         };
         const { id: newId, account, toAccount, category } = await record(client, userId, kept, false);
         requireConfirmation(await carryCleared(client, userId, old.id, newId), body);
@@ -592,6 +607,7 @@ export async function categoriseEntries(pool: Pool, userId: number, body: Body):
             const { id: newId } = await record(client, userId, {
                 type: old.type, date: old.date, description: old.description, paise: toPaise(old.amount),
                 accountId: old.account.id, toAccountId: null, categoryId: category.id, tags: old.tags, eventId: old.event ? { keep: old.event.id } : null,
+                importBatchId: old.importBatchId,
             }, false);
             // The money line is unchanged, so its reconciliation tick moves with it
             await carryCleared(client, userId, old.id, newId);
