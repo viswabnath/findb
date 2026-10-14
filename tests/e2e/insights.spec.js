@@ -42,3 +42,33 @@ test('insights: unusual spend, averages and subscriptions', async ({ page }) => 
     await expect(page.locator('#insights-subscriptions [data-subscription="Netflix"]')).toContainText('Price up from ₹499.00');
     await expect(page.locator('#insights-subscriptions-total')).toHaveText('₹649.00 a month, ₹7,788.00 a year');
 });
+
+test('budgets: set on Insights, warned at 80% after a quick add, changed and removed', async ({ page }) => {
+    await register(page, uniqueUser());
+    await chooseTracking(page, 'both');
+    await addBank(page, 'E2E Budget Bank', 50000);
+    await page.goto('/insights');
+    await expect(page.locator('#budget-list')).toContainText('No budgets yet');
+    await page.locator('#budget-category').selectOption({ label: 'Groceries' });
+    await page.locator('#budget-amount').fill('1000');
+    await page.locator('[data-action="addBudget"]').click();
+    await expect(page.locator('.toast-message', { hasText: 'Groceries: ₹1,000.00 a month' })).toBeVisible();
+    const budget = page.locator('#budget-list [data-budget="Groceries"]');
+    await expect(budget).toContainText('₹0.00 of ₹1,000.00, ₹1,000.00 left');
+
+    await page.locator('#nav-bar [data-action="quickAdd"]').click();
+    await page.locator('#quick-amount').fill('850');
+    await page.locator('#quick-add-modal .chip[data-category="Groceries"]').click();
+    await page.locator('[data-action="saveQuickAdd"]').click();
+    await expect(page.locator('.toast-message', { hasText: 'Groceries has used 85% of its budget: ₹850.00 of ₹1,000.00 this month.' })).toBeVisible();
+
+    await page.reload();
+    await expect(budget).toHaveClass(/budget-near/);
+    await expect(budget.locator('[role="progressbar"]')).toHaveAttribute('aria-valuenow', '85');
+    await budget.locator('[data-action="editBudget"]').click();
+    await budget.locator('input').fill('2000');
+    await budget.locator('[data-action="saveBudget"]').click();
+    await expect(budget).toContainText('₹850.00 of ₹2,000.00, ₹1,150.00 left');
+    await budget.locator('[data-action="removeBudget"]').click();
+    await expect(page.locator('#budget-list')).toContainText('No budgets yet');
+});

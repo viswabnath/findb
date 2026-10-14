@@ -250,6 +250,19 @@ An entry: `{ "id", "type", "date", "description", "amount", "account": { "id", "
 
 `{ "month": "YYYY-MM", "firstMonth", "thresholds": { "unusualRatio", "unusualMinimum", "historyMonths" }, "spending": { "regular", "oneOff", "events": [{ "id", "name", "amount" }] }, "categories": [{ "id", "name", "thisMonth", "lastMonth", "average3", "average6", "average12", "change3", "unusual" }], "trend": [{ "month", "regular", "oneOff" }], "subscriptions": { "monthly", "yearly", "items": [{ "description", "cadence", "charges", "first", "last", "lastAmount", "monthly", "yearly", "category", "account", "status": "active \| new \| stopped", "priceRiseFrom" }] } }`. Calculations are in `src/core/insights.ts`: averages over complete months before the month (only months since the first entry; 3 months need 2 of them, 6 and 12 their whole span; `null` otherwise); `change3` compares the last 3 months with the 3 before, in percent; `unusual` is at least `unusualRatio` times the 3-month average and `unusualMinimum` above it. Regular spending leaves out one-off events. Subscriptions are expenses of the last 15 months grouped by their description's first words, at a steady weekly, monthly, quarterly or yearly rhythm and within 1.5 times each other's amount; `monthly` and `yearly` total those not stopped.
 
+## Budgets
+
+A monthly limit per spending category (`lib/services/budgets.ts`); what is spent against it is the category's expense lines dated in the month, events included.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/budgets` | `?month=1-12&year=YYYY` (this month when left out) | budgets, fullest first: `{ "id", "category": { "id", "name" }, "amount", "spent", "left", "percent", "state": "ok \| near \| over" }` |
+| PUT | `/api/budgets` | `{ "categoryId", "amount" }` | the budget, this month; setting a category again changes its limit |
+| DELETE | `/api/budgets/:id` | – | `{ "success": true }` |
+| GET | `/api/budgets/status` | `?categoryId=&date=YYYY-MM-DD` | `{ "budget": {...} \| null }` for the date's month: the warning after an entry is saved |
+
+`state` is `near` from 80% and `over` from 100%. `GET /api/next-step` returns `{ "kind": "budget" }` for the fullest budget at 80% or more this month, after repeating entries to confirm.
+
 ## Search
 
 Entries across every month (`lib/services/search.ts`).

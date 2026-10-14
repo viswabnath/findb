@@ -493,6 +493,19 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 #insights-unusual li { justify-content: flex-start; }
 @media (max-width: 640px) { .span-choice { min-width: 0; width: 100%; } }
 
+/* Budgets (components/insights/BudgetsCard.tsx): the bar carries the state, and so do the words */
+.budget-list li { display: grid; gap: 8px; }
+.budget-line { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; }
+.budget-figures { font-family: var(--font-num); font-variant-numeric: tabular-nums; color: var(--muted); }
+.budget-over .budget-figures { color: var(--danger); font-weight: 700; }
+.budget-bar { height: 8px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); overflow: hidden; }
+.budget-bar span { display: block; height: 100%; background: var(--c-income); }
+.budget-near .budget-bar span { background: var(--gold); }
+.budget-over .budget-bar span { background: var(--danger); }
+.budget-actions, .budget-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.budget-actions .when { margin-right: auto; }
+.budget-edit input { max-width: 160px; }
+
 /* Search (components/search/SearchScreen.tsx) */
 .search-bar { border-bottom: 0; }
 .search-filters { border-top: 1px solid var(--line); }

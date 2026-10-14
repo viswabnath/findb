@@ -97,6 +97,11 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         holds: 'Which tags are on which entry', purpose: 'Grouping your entries your way', retention: 'With the entry or the tag',
     },
     {
+        table: 'budgets', category: 'money', exported: true,
+        holds: 'Monthly limits you set for spending categories', purpose: 'Warning you at 80% and 100% of a limit',
+        retention: 'Until you delete them or your account',
+    },
+    {
         table: 'saved_searches', category: 'money', exported: true,
         holds: 'Searches you saved: their names and filters (words, dates, amounts, accounts, categories, tags, events)',
         purpose: 'Running your usual searches in one tap', retention: 'Until you delete them or your account',

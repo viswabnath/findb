@@ -12,6 +12,7 @@ import { t } from '@/lib/i18n';
 import { ReimbursementsCard } from './ReimbursementsCard';
 import { RepeatingCard } from './RepeatingCard';
 import { ENTRIES_CHANGED } from '@/components/app/QuickAdd';
+import { budgetWarning } from '@/lib/budget-alert';
 
 /**
  * Income, expenses and transfers, recorded in the ledger (/api/entries) on any money account
@@ -287,6 +288,8 @@ export function TransactionsScreen() {
         };
         if (await add(body, t('transactions.expense.added'))) {
             setExpenseForm(form => ({ ...form, title: '', amount: '', tags: '', categoryChosen: false, categoryId: fallbackCategory('expense') }));
+            const warning = await budgetWarning(body.categoryId, date);
+            if (warning) toast('warning', warning);
         }
     }
 

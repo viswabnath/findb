@@ -174,9 +174,7 @@ export const FEATURES: Feature[] = [
             'Unusual spending flags: "Fuel: ₹5,000 this month, 2.5 times its average", with the thresholds shown',
             'Regular spending and one-off events side by side, so a wedding does not distort your averages',
             'Charts of your top categories and of the last 12 months, and this month against last month',
-        ],
-        next: [
-            'Monthly budgets per category, with alerts at 80% and 100%',
+            'Monthly budgets per category, with a warning at 80% and 100% right after you add the spending that crosses it',
         ],
         example: {
             title: 'Forgotten subscriptions',
