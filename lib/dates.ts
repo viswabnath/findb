@@ -31,3 +31,8 @@ export function filterYears(now: Date = new Date()): number[] {
     for (let year = 2020; year <= now.getFullYear() + 1; year++) years.push(year);
     return years;
 }
+
+/** Today in India as YYYY-MM-DD, wherever the device is and at any hour (entries are dated in India's time) */
+export function todayInIndiaClient(now: Date = new Date()): string {
+    return new Date(now.getTime() + 330 * 60_000).toISOString().slice(0, 10);
+}

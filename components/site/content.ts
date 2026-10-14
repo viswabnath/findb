@@ -104,6 +104,8 @@ export const FEATURES: Feature[] = [
             'Income into a bank account, cash, a wallet or a meal card',
             'Expenses paid by cash, bank, credit card, wallet or meal card',
             'Categories such as Groceries, Fuel and Restaurants, suggested from the title ("Swiggy" means Restaurants) and learning from your own choices',
+            'Quick add from any screen: an amount, a tap on one of your most used categories, done',
+            'Add many entries at once in a grid, or paste rows straight from a spreadsheet',
             'Your own categories and tags, and putting many entries in a category at once',
             'Marking spending as essential or optional, to see what you really need each month',
             'Repeating entries for salary, rent, EMIs, SIPs and subscriptions: recorded automatically, or confirmed with one tap, with a reminder before they are due',

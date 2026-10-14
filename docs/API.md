@@ -220,6 +220,7 @@ Income, expenses and transfers on any money account, in the ledger. A transfer m
 |---|---|---|---|
 | GET | `/api/entries` | `?month=1-12&year=YYYY` (required) | array of entries dated in that month, newest first |
 | POST | `/api/entries` | see below | the new entry |
+| POST | `/api/entries/bulk` | `{ "entries": [ ...as POST, with an optional "row" number ] }` | `{ "created", "entries" }`: at most 200, saved in one transaction in order, or none; a refusal is `"Row <row>: <reason>"` (the grid's own row numbers, else positions from 1) |
 | PUT | `/api/entries/:id` | same as POST | the entry as changed, under a new id (the old one is kept, voided) |
 | DELETE | `/api/entries/:id` | – | `{ "success": true }` (the entry is voided) |
 
@@ -251,6 +252,7 @@ Income and spending categories are income and expense accounts in the ledger. Ea
 | POST | `/api/categories` | `{ "kind": "income" \| "expense", "name", "essential"? }` | the new category |
 | PUT | `/api/categories/:id` | `{ "name"?, "essential"? }` | the updated category |
 | DELETE | `/api/categories/:id` | – | `{ "success": true }`: removed from the lists; entries keep it |
+| GET | `/api/categories/frequent` | `?kind=income\|expense&limit=1-12` (6) | the most used categories of that kind in the last 90 days, then the defaults in order; no fallback (quick add's one-tap choices) |
 | GET | `/api/categories/suggest` | `?kind=income\|expense&description=...` | `{ "category": {...} \| null, "reason": "history" \| "keyword" \| null }` |
 
 A category: `{ "id", "kind", "name", "key", "essential", "fallback" }`. `key` is the default it started as (`groceries`), null for the user's own; `essential` is for spending (null for income and the fallback). Names are unique per kind, up to 60 characters. The fallbacks cannot be renamed, marked or removed. A suggestion is the category the user chose last time for the same title, then for a title starting with the same word, then a default by keyword ("Swiggy" means restaurants).

@@ -2,11 +2,13 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, CalendarHeart, ChartColumn, History, LogOut, Settings, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, CalendarHeart, ChartColumn, History, LogOut, Plus, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { t } from '@/lib/i18n';
 import { ConsentScreen } from '@/components/privacy/ConsentScreen';
 import { Logo } from '@/components/site/Logo';
+import { useToast } from '@/components/Toast';
+import { QuickAdd, takeSavedMessage } from './QuickAdd';
 import { apiDelete, apiGet, apiPost, onActiveRequestsChange } from '@/lib/api-client';
 
 interface NavItem {
@@ -37,6 +39,7 @@ const TAB_ITEMS = NAV_ITEMS.filter(item => item.section !== 'settings');
  */
 export function AppShell({ children }: { children: ReactNode }) {
     const pathname = usePathname();
+    const toast = useToast();
     const [logoutOpen, setLogoutOpen] = useState(false);
     const [busy, setBusy] = useState(false);
     const [name, setName] = useState('');
@@ -46,12 +49,23 @@ export function AppShell({ children }: { children: ReactNode }) {
     const [dueNotice, setDueNotice] = useState<{ posted: number; pending: number } | null>(null);
     // Sample data is loaded (lib/services/sample-data.ts): marked on every screen until cleared
     const [sample, setSample] = useState(false);
+    // Quick add, from any screen, for what the user tracks
+    const [quickOpen, setQuickOpen] = useState(false);
+    const [kinds, setKinds] = useState<('expense' | 'income')[]>([]);
+
+    // Quick add saved an entry and reloaded this screen: say so now
+    useEffect(() => {
+        const saved = takeSavedMessage();
+        if (saved) toast('success', saved);
+    }, [toast]);
 
     useEffect(() => {
-        apiGet<{ name?: string; consentNeeded?: boolean; noticeVersion?: string; sampleData?: boolean }>('/api/user').then(result => {
+        apiGet<{ name?: string; consentNeeded?: boolean; noticeVersion?: string; sampleData?: boolean; modules?: string[] }>('/api/user').then(result => {
             if (!result.ok) return;
             setName(result.data.name ?? '');
             setSample(result.data.sampleData === true);
+            const modules = result.data.modules ?? [];
+            setKinds([...(modules.includes('spending') || modules.includes('credit_cards') ? ['expense' as const] : []), ...(modules.includes('income') ? ['income' as const] : [])]);
             if (result.data.consentNeeded && result.data.noticeVersion) {
                 setConsentVersion(result.data.noticeVersion);
                 return;
@@ -104,6 +118,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                             <Icon aria-hidden="true" />{label}
                         </a>
                     ))}
+                    {!consentVersion && kinds.length > 0 ? (
+                        <button type="button" className="btn btn-primary quick-add-button" data-action="quickAdd" onClick={() => setQuickOpen(true)}>
+                            <Plus aria-hidden="true" /> {t('quickAdd.open')}
+                        </button>
+                    ) : null}
                     <span className="sidebar-spacer" />
                     {name ? (
                         <div className="sidebar-user">
@@ -120,6 +139,11 @@ export function AppShell({ children }: { children: ReactNode }) {
                     <header className="app-topbar">
                         <a href="/setup" aria-label={t('shell.brand')}><Logo /></a>
                         <span className="topbar-actions">
+                            {!consentVersion && kinds.length > 0 ? (
+                                <button type="button" className="btn btn-primary btn-sm" data-action="quickAddPhone" aria-label={t('quickAdd.open')} onClick={() => setQuickOpen(true)}>
+                                    <Plus aria-hidden="true" />
+                                </button>
+                            ) : null}
                             <a href="/settings" className="btn btn-secondary btn-sm" data-section="settings" aria-current={pathname === '/settings' ? 'page' : undefined}
                                 aria-label={t('nav.settings')}>
                                 <Settings aria-hidden="true" />
@@ -189,6 +213,8 @@ export function AppShell({ children }: { children: ReactNode }) {
             >
                 <p id="logout-confirmation-message">{t('shell.logoutText')}</p>
             </Modal>
+
+            {kinds.length > 0 ? <QuickAdd open={quickOpen} onClose={() => setQuickOpen(false)} kinds={kinds} /> : null}
 
             <div id="global-loader" className={`loader-overlay${busy ? '' : ' hidden'}`} role="progressbar" aria-label={t('shell.loading')} aria-hidden={!busy} />
         </>

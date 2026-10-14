@@ -150,6 +150,29 @@ export async function archiveCategory(pool: Pool, userId: number, id: string): P
 }
 
 /**
+ * The user's most used categories of a kind over the last 90 days, most used first, filled up with
+ * the defaults in their usual order (quick add shows these as one-tap choices). The fallback is left out.
+ */
+export async function frequentCategories(pool: Pool, userId: number, kind: unknown, limit: unknown): Promise<Category[]> {
+    if (kind !== 'income' && kind !== 'expense') throw new RequestError(400, t('errors.kindMustIncomeExpense'));
+    const count = Math.min(Math.max(Number.parseInt(String(limit ?? '6'), 10) || 6, 1), 12);
+    await ensureCategories(pool, userId);
+    const order = [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES].map(category => category.key);
+    const result = await pool.query(
+        `SELECT ${CATEGORY_COLUMNS.split(', ').map(column => `a.${column}`).join(', ')}
+         FROM ledger_accounts a
+         LEFT JOIN LATERAL (
+             SELECT count(*) AS uses FROM journal_lines l JOIN journal_entries e ON e.user_id = l.user_id AND e.id = l.entry_id
+             WHERE l.user_id = a.user_id AND l.account_id = a.id AND e.voided_at IS NULL AND e.entry_date >= CURRENT_DATE - 90
+         ) used ON true
+         WHERE a.user_id = $1 AND a.kind = $2 AND a.system_key IS NULL AND a.archived_at IS NULL
+         ORDER BY used.uses DESC, coalesce(array_position($3::text[], a.category_key), 1000), lower(a.name)
+         LIMIT $4`,
+        [userId, kind, order, count]);
+    return result.rows.map(toCategory);
+}
+
+/**
  * The category a title suggests: the one the user chose last time for the same title, then for a
  * title starting with the same word, then a default category by keyword (lib/categories.ts).
  */
