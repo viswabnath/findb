@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, CalendarHeart, ChartColumn, History, LogOut, Plus, Settings, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, CalendarHeart, ChartColumn, History, LogOut, Plus, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { t } from '@/lib/i18n';
 import { ConsentScreen } from '@/components/privacy/ConsentScreen';
@@ -28,10 +28,11 @@ const NAV_ITEMS: NavItem[] = [
     { section: 'summary', label: t('nav.summary'), icon: ChartColumn, href: '/summary' },
     { section: 'events', label: t('nav.events'), icon: CalendarHeart, href: '/events' },
     { section: 'activity', label: t('nav.activity'), icon: History, href: '/activity' },
+    { section: 'search', label: t('nav.search'), icon: Search, href: '/search' },
     { section: 'settings', label: t('nav.settings'), icon: Settings, href: '/settings' },
 ];
-// Phones: five tabs fit at 360 px with whole labels; Settings is in the top bar instead
-const TAB_ITEMS = NAV_ITEMS.filter(item => item.section !== 'settings');
+// Phones: five tabs fit at 360 px with whole labels; Search and Settings are in the top bar instead
+const TAB_ITEMS = NAV_ITEMS.filter(item => item.section !== 'settings' && item.section !== 'search');
 
 /**
  * The logged-in frame: a sidebar on larger screens, a top bar and a bottom tab bar on phones,
@@ -144,6 +145,10 @@ export function AppShell({ children }: { children: ReactNode }) {
                                     <Plus aria-hidden="true" />
                                 </button>
                             ) : null}
+                            <a href="/search" className="btn btn-secondary btn-sm" data-section="search" aria-current={pathname === '/search' ? 'page' : undefined}
+                                aria-label={t('nav.search')}>
+                                <Search aria-hidden="true" />
+                            </a>
                             <a href="/settings" className="btn btn-secondary btn-sm" data-section="settings" aria-current={pathname === '/settings' ? 'page' : undefined}
                                 aria-label={t('nav.settings')}>
                                 <Settings aria-hidden="true" />

@@ -242,6 +242,19 @@ Income, expenses and transfers on any money account, in the ledger. A transfer m
 
 An entry: `{ "id", "type", "date", "description", "amount", "account": { "id", "name", "type" }, "toAccount", "category": { "id", "name" }, "tags", "event": { "id", "name" }, "legacy" }`. `tags` is a sorted array of names. `legacy` marks income and expenses recorded through the routes below; editing or deleting one here also removes its row there.
 
+## Search
+
+Entries across every month (`lib/services/search.ts`).
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/search` | `?q=&from=&to=&min=&max=&type=&accountId=&categoryId=&tag=&eventId=&offset=` | `{ "filters", "entries", "total", "totals": { "income", "expense", "transfer" }, "offset", "more", "accounts", "categories", "events" }` |
+| GET | `/api/searches` | – | saved searches by name: `{ "id", "name", "filters" }` |
+| POST | `/api/searches` | `{ "name", "filters" }` | the saved search; the same name (ignoring case) replaces it; at most 20 |
+| DELETE | `/api/searches/:id` | – | `{ "success": true }` |
+
+`q` is up to 100 characters; each word (up to 8) must appear in the entry's description, its accounts' or category's names, its tags or its event, or, when it reads as an amount (`450`, `22,000`, `₹99`), equal the entry's amount. `%` and `_` are taken literally. `from` and `to` are dates (inclusive), `min` and `max` rupees, `type` income, expense or transfer, `tag` matched ignoring case. Entries come newest first, 50 at a time (`offset`, `more`); `total` and `totals` cover every match. On the first page, `accounts`, `categories` and `events` are those whose names hold every word.
+
 ## Categories
 
 Income and spending categories are income and expense accounts in the ledger. Each user has the defaults (`lib/categories.ts`: 18 spending, 10 income), made the first time they are needed, plus the built-in fallbacks "Uncategorised" and "Other income".

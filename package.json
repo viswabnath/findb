@@ -89,6 +89,7 @@
           "<rootDir>/tests/privacy.test.js",
           "<rootDir>/tests/entries.test.js",
           "<rootDir>/tests/statement-import.test.js",
+          "<rootDir>/tests/search.test.js",
           "<rootDir>/tests/categories.test.js",
           "<rootDir>/tests/events.test.js",
           "<rootDir>/tests/recurring.test.js",
