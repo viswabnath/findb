@@ -200,7 +200,7 @@ describe('import', () => {
         const layout = await agent.post('/api/imports').send({ accountId: bank.id, fileKind: 'csv', layout: { ...LAYOUT, mapping: { ...LAYOUT.mapping, date: null } },
             rows: [{ date: D, description: 'x', amount: '-1', action: { type: 'category', categoryId: null } }] });
         expect(layout.body.error).toBe('The column choice is not valid. Choose the columns again.');
-        expect((await agent.post('/api/imports').send({ accountId: bank.id, fileKind: 'pdf', rows: [{ date: D, description: 'x', amount: '-1', action: { type: 'category', categoryId: null } }] })).status).toBe(400);
+        expect((await agent.post('/api/imports').send({ accountId: bank.id, fileKind: 'docx', rows: [{ date: D, description: 'x', amount: '-1', action: { type: 'category', categoryId: null } }] })).status).toBe(400);
         expect((await agent.get('/api/imports')).body).toHaveLength(1);
     });
 
@@ -223,9 +223,9 @@ describe('import', () => {
         expect(check.rows[0].n).toBe(0);
     });
 
-    test('a card refund imports as income in Refund', async () => {
+    test('a card refund imports as income in Refund, from a PDF', async () => {
         const response = await agent.post('/api/imports').send({
-            accountId: card.id, fileKind: 'excel', rows: [{ date: D1, description: 'Amazon', amount: '299', action: { type: 'category', categoryId: category('Refund').id } }],
+            accountId: card.id, fileKind: 'pdf', rows: [{ date: D1, description: 'Amazon', amount: '299', action: { type: 'category', categoryId: category('Refund').id } }],
         });
         expect(response.status).toBe(200);
         expect(response.body).toMatchObject({ imported: 1, transfers: 0, closing: null });

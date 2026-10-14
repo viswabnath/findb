@@ -4,7 +4,7 @@ _Last reviewed: 2026-10-14_
 
 ## Summary
 
-The app is one Next.js project on Vercel with Supabase Postgres; the move from Express (N0 to N4) is complete. The core features work: auth, accounts, transactions, the activity log and monthly summaries. Test results for the current code are in the latest pull request. The remaining [known issues](#known-issues) are medium or low severity. v2 Phase 1 ([v2-plan.md](v2-plan.md)) is complete, its "Done when" list included (a backup restore was rehearsed on 2026-10-14, [backups.md](backups.md#rehearsals)). Phase 2 is under way: statement import (CSV and Excel) is done; PDF statements, import from other apps, faster entry, search, insights, budgets and the document vault are next.
+The app is one Next.js project on Vercel with Supabase Postgres; the move from Express (N0 to N4) is complete. The core features work: auth, accounts, transactions, the activity log and monthly summaries. Test results for the current code are in the latest pull request. The remaining [known issues](#known-issues) are medium or low severity. v2 Phase 1 ([v2-plan.md](v2-plan.md)) is complete, its "Done when" list included (a backup restore was rehearsed on 2026-10-14, [backups.md](backups.md#rehearsals)). Phase 2 is under way: statement import (CSV, Excel and PDF, including password-protected PDFs) is done; import from other apps, faster entry, search, insights, budgets and the document vault are next.
 
 ## Features
 
@@ -38,7 +38,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] Double-entry ledger ([ledger.md](ledger.md)): every balance and the monthly summary are read from it; the former balance columns are dropped (migration 0019), and `ledger_entry_check` matches every income and expense row to its ledger record
 
 ### Transactions
-- [x] Statement import: CSV and Excel bank and card statements, read in the browser; known bank layouts or columns chosen once and remembered; a review with duplicates, transfers and suggested categories; undo per import
+- [x] Statement import: CSV, Excel and PDF (also password-protected) bank and card statements, read in the browser; known bank layouts or columns chosen once and remembered; a review with duplicates, transfers and suggested categories; undo per import
 - [x] Income (credited to a bank or cash) and expenses (paid by cash, bank or credit card)
 - [x] Create/edit/delete keeps account balances in sync
 - [x] Month/year filtering

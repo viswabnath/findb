@@ -13,7 +13,7 @@ import { todayInIndia } from './recurring';
 /**
  * Statement import (v2 Phase 2, docs/ledger.md): bank and card statements into the ledger.
  *
- * The browser reads the CSV or Excel file (src/core/statement.ts), so the file never reaches FinDB.
+ * The browser reads the CSV, Excel or PDF file (src/core/statement.ts), so the file never reaches FinDB.
  * It sends the rows for a review (previewImport), which flags for each row:
  *   - a duplicate: an entry already on the account with the same amount within three days (an
  *     earlier import of the same statement, or one entered by hand);
@@ -369,14 +369,14 @@ export interface ImportResult {
 }
 
 /**
- * { accountId, fileKind: "csv" | "excel", rowsInFile, closingBalance?: { date, amount }, layout?: { signature, presetKey, mapping },
+ * { accountId, fileKind: "csv" | "excel" | "pdf", rowsInFile, closingBalance?: { date, amount }, layout?: { signature, presetKey, mapping },
  *   rows: [{ line, date, description, amount, action }] }: record the kept rows as one import.
  */
 export async function commitImport(pool: Pool, userId: number, body: Body): Promise<ImportResult> {
     const rows = readRows(body.rows);
     const actions = (body.rows as Body[]).map((row, index) => readAction(row.action, rows[index]!.line));
     const fileKind = body.fileKind;
-    if (fileKind !== 'csv' && fileKind !== 'excel') throw new RequestError(400, t('errors.import.fileKind'));
+    if (fileKind !== 'csv' && fileKind !== 'excel' && fileKind !== 'pdf') throw new RequestError(400, t('errors.import.fileKind'));
     const rowsInFile = Number.isInteger(body.rowsInFile) && Number(body.rowsInFile) >= rows.length ? Number(body.rowsInFile) : rows.length;
     const layout = readLayout(body.layout);
     const closingInput = (body.closingBalance && typeof body.closingBalance === 'object' ? body.closingBalance : null) as Body | null;

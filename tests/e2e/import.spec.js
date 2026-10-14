@@ -2,11 +2,13 @@
 /**
  * Statement import (/import, v2 Phase 2): a known bank layout from a CSV, reviewed and imported
  * with its transfer and categories, then undone; an unknown layout from an Excel file, with the
- * columns chosen once and remembered, and the same statement again flagged as duplicates.
+ * columns chosen once and remembered, and the same statement again flagged as duplicates; a
+ * password-protected PDF over two pages, opened with its password on the device.
  */
 const { test, expect } = require('@playwright/test');
 const XLSX = require('xlsx');
 const { uniqueUser, register, chooseTracking, addBank } = require('./helpers');
+const { statementPdf } = require('./pdf-fixture');
 
 const pad = n => String(n).padStart(2, '0');
 /** A date some days ago, as a statement writes it: day first, two-digit year */
@@ -131,4 +133,56 @@ test('a file that is not a statement says so', async ({ page }) => {
     await openImport(page);
     await page.locator('#import-file').setInputFiles({ name: 'notes.csv', mimeType: 'text/csv', buffer: Buffer.from('1,2,3\n4,5,6\n') });
     await expect(page.locator('#import-problem')).toHaveText('No statement table was found in this file. Is it the account statement as CSV or Excel?');
+});
+
+test('a password-protected PDF over two pages: opened on the device with its password, then reviewed', async ({ page }) => {
+    await newUser(page);
+    await openImport(page);
+
+    const header = [[40, 700, 'Date'], [100, 700, 'Narration'], [300, 700, 'Chq./Ref.No.'], [360, 700, 'Value Dt'], [400, 700, 'Withdrawal Amt.'],
+        [475, 700, 'Deposit Amt.'], [535, 700, 'Closing Balance']];
+    const pdf = statementPdf([
+        [
+            [40, 760, 'HDFC BANK Ltd.'], [40, 745, 'Statement of account'], ...header,
+            [40, 680, statementDate(6)], [100, 680, 'UPI-ZOMATO LTD-zomato@hdfcbank'], [300, 680, '0000412345'], [360, 680, statementDate(6)], [420, 680, '320.00'], [545, 680, '9,680.00'],
+            [100, 670, '-HDFC0MERUPI-Dinner'],
+        ],
+        [
+            ...header,
+            [40, 680, statementDate(5)], [100, 680, 'NEFT CR-ACME PVT LTD-SALARY'], [300, 680, 'N123'], [360, 680, statementDate(5)], [490, 680, '5,000.00'], [540, 680, '14,680.00'],
+            [40, 80, 'This is a computer generated statement'],
+        ],
+    ], { password: 'ravi1990' });
+    const file = { name: 'Acct_Statement.pdf', mimeType: 'application/pdf', buffer: pdf };
+    await page.locator('#import-file').setInputFiles(file);
+
+    await expect(page.locator('#import-problem')).toHaveText('This PDF is protected by a password. Enter it below to open the file.');
+    await page.locator('#import-password').fill('wrong');
+    await page.locator('[data-action="openPdf"]').click();
+    await expect(page.locator('#import-problem')).toHaveText('That password did not open the PDF. Check it and try again.');
+    await expect(page.locator('#import-password')).toHaveValue('');
+
+    // The password never leaves the page
+    const sent = [];
+    page.on('request', request => { if ((request.postData() ?? '').includes('ravi1990') || request.url().includes('ravi1990')) sent.push(request.url()); });
+    await page.locator('#import-password').fill('ravi1990');
+    await page.locator('[data-action="openPdf"]').click();
+
+    await expect(page.locator('#import-layout')).toHaveText('HDFC Bank account layout');
+    await expect(page.locator('#import-password')).toHaveCount(0);
+    await expect(page.locator('#import-rows li')).toHaveCount(2);
+    await expect(page.locator('#import-rows li').first().locator('.import-description')).toHaveValue('Zomato Ltd');
+    await expect(page.locator('#import-rows li').first().locator('select.import-action option:checked')).toHaveText('Restaurants and food delivery');
+    await expect(page.locator('#import-rows li').nth(1).locator('select.import-action option:checked')).toHaveText('Salary');
+    await expect(page.locator('#import-balances')).toContainText('The statement ends at ₹14,680.00');
+    await page.locator('[data-action="importRows"]').click();
+    await expect(page.locator('#import-done-text')).toHaveText('2 entries are now in E2E IMPORT BANK.');
+    expect(sent).toEqual([]);
+});
+
+test('a scanned PDF with no text says so', async ({ page }) => {
+    await newUser(page);
+    await openImport(page);
+    await page.locator('#import-file').setInputFiles({ name: 'scan.pdf', mimeType: 'application/pdf', buffer: statementPdf([[]]) });
+    await expect(page.locator('#import-problem')).toHaveText(/This PDF is a scanned image/);
 });
