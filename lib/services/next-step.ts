@@ -2,6 +2,7 @@ import type { Pool } from 'pg';
 import { addDays } from '../../src/core/schedule';
 import { formatRupees } from '../format';
 import { t } from '../i18n';
+import { listBudgets } from './budgets';
 import { dueItems, todayInIndia } from './recurring';
 import { listReimbursements } from './reimbursements';
 import { hasSampleData } from './sample-data';
@@ -9,13 +10,14 @@ import { hasSampleData } from './sample-data';
 /**
  * The one clear next step shown at the top of the Accounts screen (v2 plan, Phase 1): the most
  * useful thing to do now, in this order:
- *   sample data loaded > nothing set up yet > repeating entries to confirm > spending with no
+ *   sample data loaded > nothing set up yet > repeating entries to confirm > a budget near or over
+ *   its limit this month > spending with no
  *   category this month > money owed back for over a month > an account not checked against a
  *   statement for a month > the everyday step.
  */
 
 export interface NextStep {
-    kind: 'sample' | 'start' | 'confirm' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
+    kind: 'sample' | 'start' | 'confirm' | 'budget' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
     text: string;
     /** Where the step is done; absent when it is a button on the card (sample data) */
     href?: string;
@@ -47,6 +49,16 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
             text: pending.length === 1
                 ? t('nextStep.confirmOne', { name: first.description, amount: formatRupees(first.amount), date: first.date })
                 : t('nextStep.confirmMany', { count: pending.length, name: first.description }),
+        };
+    }
+
+    // The fullest budget at 80% or more of its limit this month
+    const [fullest] = (await listBudgets(pool, userId, today.slice(5, 7), today.slice(0, 4))).filter(budget => budget.state !== 'ok');
+    if (fullest) {
+        const values = { name: fullest.category.name, spent: formatRupees(fullest.spent), limit: formatRupees(fullest.amount), percent: fullest.percent };
+        return {
+            kind: 'budget', href: '/insights#budgets-section', label: t('nextStep.budgetLabel'),
+            text: fullest.state === 'over' ? t('nextStep.budgetOver', values) : t('nextStep.budgetNear', values),
         };
     }
 

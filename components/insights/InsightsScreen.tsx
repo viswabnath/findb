@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { CalendarHeart, ChartColumn, Lightbulb, Repeat, TriangleAlert } from 'lucide-react';
 import { BarList } from '@/components/ui/Charts';
+import { BudgetsCard } from './BudgetsCard';
 import { apiGet, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { filterYears, MONTH_NAMES } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
@@ -140,6 +141,8 @@ export function InsightsScreen() {
                     </div>
                 ) : <p className="card-pad empty-note">{t('insights.nothingSpent')}</p>}
             </section>
+
+            <BudgetsCard month={Number(data.month.slice(5, 7))} year={Number(data.month.slice(0, 4))} />
 
             <section className="card" aria-labelledby="insights-unusual-title" id="insights-unusual">
                 <div className="card-head">

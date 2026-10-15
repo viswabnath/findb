@@ -4,7 +4,7 @@ _Last reviewed: 2026-10-14_
 
 ## Summary
 
-The app is one Next.js project on Vercel with Supabase Postgres; the move from Express (N0 to N4) is complete. The core features work: auth, accounts, transactions, the activity log and monthly summaries. Test results for the current code are in the latest pull request. The remaining [known issues](#known-issues) are medium or low severity. v2 Phase 1 ([v2-plan.md](v2-plan.md)) is complete, its "Done when" list included (a backup restore was rehearsed on 2026-10-14, [backups.md](backups.md#rehearsals)). Phase 2 is under way. Done: statement import (CSV, Excel and PDF, including password-protected PDFs), faster entry (quick add, the Add many grid), search (with saved searches), and insights (averages, unusual spend, events beside regular spending, subscriptions). Next: budgets and the document vault. Import from other money apps is set aside for now (decided 2026-10-14).
+The app is one Next.js project on Vercel with Supabase Postgres; the move from Express (N0 to N4) is complete. The core features work: auth, accounts, transactions, the activity log and monthly summaries. Test results for the current code are in the latest pull request. The remaining [known issues](#known-issues) are medium or low severity. v2 Phase 1 ([v2-plan.md](v2-plan.md)) is complete, its "Done when" list included (a backup restore was rehearsed on 2026-10-14, [backups.md](backups.md#rehearsals)). Phase 2 is under way. Done: statement import (CSV, Excel and PDF, including password-protected PDFs), faster entry (quick add, the Add many grid), search (with saved searches), insights (averages, unusual spend, events beside regular spending, subscriptions), and budgets (warnings at 80% and 100%). Next: the document vault and receipt reading. Import from other money apps is set aside for now (decided 2026-10-14).
 
 ## Features
 
@@ -50,6 +50,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] Filtering by entity type, month/year or date range; pagination; CSV export
 
 ### Reporting
+- [x] Budgets: a monthly limit per spending category, with warnings at 80% and 100% after an entry and on the Accounts next step
 - [x] Insights: category averages over 3, 6 and 12 months, unusual spend with its thresholds shown, regular and one-off event spending side by side, a 12-month trend, and a subscription finder
 - [x] Monthly summary: income, expenses, net savings, current wealth, per-account balances
 - [x] Tracking modes: income only, expenses only, or both

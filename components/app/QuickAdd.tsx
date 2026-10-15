@@ -7,6 +7,7 @@ import { apiGet, apiPost, httpError, redirectIfUnauthorized } from '@/lib/api-cl
 import { formatRupees } from '@/lib/format';
 import { t } from '@/lib/i18n';
 import { todayInIndiaClient } from '@/lib/dates';
+import { budgetWarning } from '@/lib/budget-alert';
 
 /**
  * Quick add (v2 Phase 2, faster entry): an amount, the account and a category, from any screen.
@@ -123,15 +124,17 @@ export function QuickAdd({ open, onClose, kinds }: Props) {
         if (!result.ok) return toast('error', httpError(result));
         remember(accountId);
         const message = t(kind === 'income' ? 'quickAdd.savedIncome' : 'quickAdd.savedExpense', { amount: formatRupees(amount), category: chosen.name });
+        const warning = kind === 'expense' ? await budgetWarning(chosen.id, form.date) : null;
         onClose();
         // Screens showing balances or totals without listening for the event start again, and
         // show the message once they have
         if (RELOAD_PATHS.includes(window.location.pathname)) {
-            keepMessage(message);
+            keepMessage(warning ? `${message}. ${warning}` : message);
             window.location.reload();
             return;
         }
         toast('success', message);
+        if (warning) toast('warning', warning);
         window.dispatchEvent(new CustomEvent(ENTRIES_CHANGED));
     }
 
