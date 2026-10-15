@@ -100,6 +100,7 @@
           "<rootDir>/tests/people.test.js",
           "<rootDir>/tests/groups.test.js",
           "<rootDir>/tests/loans.test.js",
+          "<rootDir>/tests/chits.test.js",
           "<rootDir>/tests/categories.test.js",
           "<rootDir>/tests/events.test.js",
           "<rootDir>/tests/recurring.test.js",

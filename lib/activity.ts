@@ -16,7 +16,7 @@ export interface ActivityLabel {
 }
 
 type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating'
-    | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant' | 'modules' | 'sample_data' | 'import' | 'search' | 'budget' | 'document' | 'person' | 'person_loan' | 'group' | 'loan';
+    | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant' | 'modules' | 'sample_data' | 'import' | 'search' | 'budget' | 'document' | 'person' | 'person_loan' | 'group' | 'loan' | 'chit';
 type Action = 'created' | 'updated' | 'deleted';
 
 /** Each entry's icon and CSS class; the words are in messages/en.ts (activity.labels) */
@@ -45,6 +45,7 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         person: { icon: 'plus', className: 'action-create' },
         group: { icon: 'plus', className: 'action-create' },
         loan: { icon: 'plus', className: 'action-create' },
+        chit: { icon: 'plus', className: 'action-create' },
         person_loan: { icon: 'refresh-cw', className: 'action-create' },
     },
     updated: {
@@ -71,6 +72,7 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         person: { icon: 'pencil', className: 'action-update' },
         group: { icon: 'pencil', className: 'action-update' },
         loan: { icon: 'pencil', className: 'action-update' },
+        chit: { icon: 'pencil', className: 'action-update' },
         person_loan: { icon: 'refresh-cw', className: 'action-update' },
     },
     deleted: {
@@ -97,6 +99,7 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         person: { icon: 'trash-2', className: 'action-delete' },
         group: { icon: 'trash-2', className: 'action-delete' },
         loan: { icon: 'trash-2', className: 'action-delete' },
+        chit: { icon: 'trash-2', className: 'action-delete' },
         person_loan: { icon: 'refresh-cw', className: 'action-delete' },
     },
 };

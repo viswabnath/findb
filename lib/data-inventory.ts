@@ -121,6 +121,19 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         purpose: 'What you repaid and the interest you paid each year', retention: 'Until you delete your account; removed ones are kept as history',
     },
     {
+        table: 'chit_funds', category: 'money', exported: true,
+        holds: 'Your chits: name, organiser and registration, value, members, months, contribution and commission',
+        purpose: 'Tracking what to pay and what a chit earns or costs', retention: 'Until you delete your account; removed ones are kept as history',
+    },
+    {
+        table: 'chit_instalments', category: 'money', exported: true,
+        holds: 'Each month\'s payment into a chit and its dividend', purpose: 'Tracking a chit', retention: 'With the chit',
+    },
+    {
+        table: 'chit_auctions', category: 'money', exported: true,
+        holds: 'Each month\'s auction: the winning bid, and whether you won with what deductions', purpose: 'Working out dividends and the prize', retention: 'With the chit',
+    },
+    {
         table: 'pledges', category: 'money', exported: true,
         holds: 'What you pledged for a loan (gold, a deposit, a policy, shares or property): its description and value; for gold, its weight, purity and the rate used',
         purpose: 'Showing what is pledged, and warning before a gold loan\'s margin call', retention: 'With the loan',
