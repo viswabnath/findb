@@ -19,6 +19,9 @@ describe('buildContentSecurityPolicy', () => {
         expect(policy.get('object-src')).toBe("'none'");
         expect(policy.get('frame-ancestors')).toBe("'self'");
         expect(policy.get('font-src')).toBe("'self'");
+        // The receipt reader's worker comes from this site; WebAssembly is allowed only in its own files
+        expect(policy.get('worker-src')).toBe("'self'");
+        expect(policy.get('script-src')).not.toContain('wasm-unsafe-eval');
     });
 
     test('adds unsafe-eval only in development', () => {

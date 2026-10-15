@@ -469,7 +469,7 @@ function looksLikeName(part: string): boolean {
 }
 
 /** Capitals in each word when the text is all capitals ("SWIGGY LIMITED" is "Swiggy Limited") */
-function softenCapitals(text: string): string {
+export function softenCapitals(text: string): string {
     if (text !== text.toUpperCase()) return text;
     return text.toLowerCase().replace(/\b[a-z]/g, letter => letter.toUpperCase());
 }

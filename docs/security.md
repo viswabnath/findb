@@ -47,6 +47,10 @@ Keys come from `FIELD_ENCRYPTION_KEYS`, `version:base64key` entries, comma-separ
 
 Uploaded documents (`lib/services/documents.ts`) are encrypted with the same keys before they leave the server (`encryptBytes`: a `FDB1` header with the key version, the IV and the tag, then the ciphertext), bound to the user and the file's storage path, and kept in a private Supabase Storage bucket in Mumbai (`lib/document-store.ts`). The bucket holds only ciphertext; the server reaches it with `SUPABASE_SERVICE_ROLE_KEY`, a server-only secret in Vercel and `.env` (never in the browser). Uploads are checked by their first bytes (PDF, JPEG, PNG, WebP only), not their names; files come back with `Cache-Control: private, no-store`, pictures inline and PDFs as downloads, under the API's deny-all Content-Security-Policy.
 
+## Receipt reading and the Content-Security-Policy
+
+Quick add reads receipt photos and UPI screenshots in the browser with tesseract.js (`lib/receipt-reader.ts`), so the picture is not sent anywhere to be read. Its files are served by FinDB itself from `public/ocr/<version>/`, copied from `node_modules` on install (`scripts/copy-ocr-assets.js`, not in git): the worker, the engine (WebAssembly, three variants for the browser's SIMD support) and the English model (about 3 MB, cached by the browser). The app's pages allow a worker from this site only (`worker-src 'self'`, never `blob:`). Compiling WebAssembly (`'wasm-unsafe-eval'`) is allowed only in the OCR files' own policy (`OCR_CONTENT_SECURITY_POLICY` in `next.config.ts`, for `/ocr/*`), never on the app's pages; `tests/unit/security-headers.test.ts` checks both.
+
 ## Sessions and login history
 
 - The `session` table records the user, when the session started, when it was last used (updated at most every five minutes) and the browser's user agent. Settings lists each device as, for example, "Chrome on Android"; a session's id there is a hash, never the real one.

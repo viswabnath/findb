@@ -105,6 +105,7 @@ export const FEATURES: Feature[] = [
             'Expenses paid by cash, bank, credit card, wallet or meal card',
             'Categories such as Groceries, Fuel and Restaurants, suggested from the title ("Swiggy" means Restaurants) and learning from your own choices',
             'Quick add from any screen: an amount, a tap on one of your most used categories, done',
+            'Snap a receipt or a UPI screenshot: the amount, date and shop are read on your phone, for you to check, and the picture is kept with the entry',
             'Add many entries at once in a grid, or paste rows straight from a spreadsheet',
             'A private document vault: receipts, statements, policies and warranties, encrypted, linked to the entries they prove, found by financial year, with a reminder before they expire',
             'Search every entry by its words, amount, dates, account, category, tag or event, see the totals, and save the searches you use often',
@@ -145,7 +146,6 @@ export const FEATURES: Feature[] = [
         next: [
             'Scanned PDF statements, which hold a picture of the page instead of text',
             'Import from other money apps and spreadsheets, so you keep your history',
-            'Photos of receipts and UPI payment screenshots are read and turned into entries for you to confirm',
         ],
         example: {
             title: 'Three months in five minutes',
