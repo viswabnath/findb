@@ -29,11 +29,13 @@ export function onActiveRequestsChange(listener: (active: number) => void): () =
 async function request<T>(method: Method, path: string, body?: unknown): Promise<ApiResult<T>> {
     setActive(1);
     try {
+        const form = body instanceof FormData;
         const response = await fetch(path, {
             method,
             credentials: 'same-origin',
-            headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
-            body: body === undefined ? undefined : JSON.stringify(body),
+            // A form (a file upload) sets its own multipart type
+            headers: body === undefined || form ? undefined : { 'Content-Type': 'application/json' },
+            body: body === undefined ? undefined : form ? body : JSON.stringify(body),
         });
         const data = (await response.json().catch(() => ({}))) as T;
         return { ok: response.ok, status: response.status, data };
@@ -46,6 +48,8 @@ export const apiGet = <T>(path: string) => request<T>('GET', path);
 export const apiPost = <T>(path: string, body: unknown) => request<T>('POST', path, body);
 export const apiPut = <T>(path: string, body: unknown) => request<T>('PUT', path, body);
 export const apiDelete = <T>(path: string) => request<T>('DELETE', path);
+/** A multipart form, such as a file and its details */
+export const apiUpload = <T>(path: string, form: FormData) => request<T>('POST', path, form);
 
 /** Error text from an API error body, with a fallback (legacy: "HTTP error! status: N") */
 export function apiError(data: unknown, fallback: string): string {

@@ -250,6 +250,20 @@ An entry: `{ "id", "type", "date", "description", "amount", "account": { "id", "
 
 `{ "month": "YYYY-MM", "firstMonth", "thresholds": { "unusualRatio", "unusualMinimum", "historyMonths" }, "spending": { "regular", "oneOff", "events": [{ "id", "name", "amount" }] }, "categories": [{ "id", "name", "thisMonth", "lastMonth", "average3", "average6", "average12", "change3", "unusual" }], "trend": [{ "month", "regular", "oneOff" }], "subscriptions": { "monthly", "yearly", "items": [{ "description", "cadence", "charges", "first", "last", "lastAmount", "monthly", "yearly", "category", "account", "status": "active \| new \| stopped", "priceRiseFrom" }] } }`. Calculations are in `src/core/insights.ts`: averages over complete months before the month (only months since the first entry; 3 months need 2 of them, 6 and 12 their whole span; `null` otherwise); `change3` compares the last 3 months with the 3 before, in percent; `unusual` is at least `unusualRatio` times the 3-month average and `unusualMinimum` above it. Regular spending leaves out one-off events. Subscriptions are expenses of the last 15 months grouped by their description's first words, at a steady weekly, monthly, quarterly or yearly rhythm and within 1.5 times each other's amount; `monthly` and `yearly` total those not stopped.
 
+## Documents
+
+The document vault (`lib/services/documents.ts`). Files are encrypted and kept in private storage (`lib/document-store.ts`).
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/documents` | `?entryId=\|accountId=\|eventId=` (optional) | `{ "documents": [...], "used", "limit" }`: by the document's date (else its upload date), newest first; bytes used of the 20 MB allowance |
+| POST | `/api/documents` | `multipart/form-data`: `file`, `kind`, `title`, `date`, `expiresOn`, `notes`, `links` (JSON `[{ "type": "entry \| account \| event", "id" }]`) | the document |
+| PUT | `/api/documents/:id` | `{ "kind"?, "title"?, "date"?, "expiresOn"?, "notes"?, "links"? }` | the document |
+| DELETE | `/api/documents/:id` | – | `{ "success": true }`: the document, its links and its file are deleted |
+| GET | `/api/documents/:id/file` | `?download=1` (optional) | the file, decrypted; pictures `inline`, PDFs (and `download=1`) as `attachment` |
+
+A document: `{ "id", "kind", "title", "date", "financialYear", "expiresOn", "notes", "fileName", "mimeType", "size", "createdAt", "links": [{ "type", "id", "name" }] }`. `kind` is receipt, statement, invoice, policy, loan, property, warranty, certificate, tax or other; `title` defaults to the file's name; `financialYear` is India's (April to March, `2026-27`) from `date`. Files are PDF, JPEG, PNG or WebP by their first bytes, up to 2 MB, 20 MB per user. Storage unreachable is `503`. An edited entry's links move to its new id. `GET /api/next-step` returns `{ "kind": "expiring" }` for a document expiring within 30 days (or in the last week).
+
 ## Budgets
 
 A monthly limit per spending category (`lib/services/budgets.ts`); what is spent against it is the category's expense lines dated in the month, events included.

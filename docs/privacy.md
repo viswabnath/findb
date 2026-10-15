@@ -18,6 +18,8 @@ How FinDB meets India's Digital Personal Data Protection Act, 2023 (DPDP), as fa
 
 Export (everything marked `exported`) and erasure (the account and everything that cascades from it) in Phase 5 build on the same list.
 
+Documents in the vault are encrypted by FinDB and kept in a private Supabase Storage bucket in India (`docs/security.md`); deleting one deletes its file. Deleting an account cascades to every table but not yet to the bucket: erasure in Phase 5 must remove the user's folder (`<user id>/`) too.
+
 Statement files are read in the browser and never uploaded, and a protected PDF's password is used there only to open it: only the rows the user keeps are sent and saved, as entries, with the layout's column names (`import_profiles`) and a summary of each import (`import_batches`).
 
 ## Rights today

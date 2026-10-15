@@ -106,6 +106,7 @@ export const FEATURES: Feature[] = [
             'Categories such as Groceries, Fuel and Restaurants, suggested from the title ("Swiggy" means Restaurants) and learning from your own choices',
             'Quick add from any screen: an amount, a tap on one of your most used categories, done',
             'Add many entries at once in a grid, or paste rows straight from a spreadsheet',
+            'A private document vault: receipts, statements, policies and warranties, encrypted, linked to the entries they prove, found by financial year, with a reminder before they expire',
             'Search every entry by its words, amount, dates, account, category, tag or event, see the totals, and save the searches you use often',
             'Your own categories and tags, and putting many entries in a category at once',
             'Marking spending as essential or optional, to see what you really need each month',

@@ -493,6 +493,18 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 #insights-unusual li { justify-content: flex-start; }
 @media (max-width: 640px) { .span-choice { min-width: 0; width: 100%; } }
 
+/* Documents (components/documents) */
+.documents-meter { padding-top: 0; padding-bottom: 0; }
+.documents-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; align-items: end; }
+.documents-form .documents-file, .documents-form .documents-notes { grid-column: 1 / -1; }
+.documents-submit { grid-column: 1 / -1; }
+.documents-privacy { margin-top: 0; padding-top: 0; }
+.documents-filters { display: flex; flex-wrap: wrap; gap: 12px; padding-top: 0; }
+.documents-filters .field { min-width: 160px; }
+.document-actions { display: inline-flex; gap: 8px; align-items: center; }
+#documents-expiring p { margin: 0; }
+.attach-upload { margin-top: 16px; }
+
 /* Budgets (components/insights/BudgetsCard.tsx): the bar carries the state, and so do the words */
 .budget-list li { display: grid; gap: 8px; }
 .budget-line { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; }

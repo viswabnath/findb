@@ -1,7 +1,8 @@
 /**
  * Unit tests for field encryption, the breached-password check and the device description
  */
-import { decryptField, encryptField, needsReencryption } from '../../lib/field-encryption';
+import { decryptBytes, decryptField, encryptBytes, encryptField, needsReencryption } from '../../lib/field-encryption';
+import { financialYear, sniffType } from '../../lib/services/documents';
 import { isBreachedPassword } from '../../lib/breached-password';
 import { describeUserAgent } from '../../lib/services/security';
 
@@ -47,6 +48,40 @@ describe('field encryption', () => {
         expect(() => encryptField('x', 'ctx')).toThrow('FIELD_ENCRYPTION_KEYS is not set');
         process.env.FIELD_ENCRYPTION_KEYS = '1:short';
         expect(() => encryptField('x', 'ctx')).toThrow('32-byte keys');
+    });
+
+    test('files: encrypted, bound to their place, readable after a new key', () => {
+        process.env.FIELD_ENCRYPTION_KEYS = `1:${KEY_1}`;
+        const file = Buffer.from('%PDF-1.4 a receipt');
+        const stored = encryptBytes(file, 'document:7:7/abc');
+        expect(stored.subarray(0, 4).toString()).toBe('FDB1');
+        expect(stored.includes(Buffer.from('receipt'))).toBe(false);
+        expect(decryptBytes(stored, 'document:7:7/abc').equals(file)).toBe(true);
+        expect(() => decryptBytes(stored, 'document:8:8/abc')).toThrow();
+        const changed = Buffer.from(stored);
+        changed[40]! ^= 1;
+        expect(() => decryptBytes(changed, 'document:7:7/abc')).toThrow();
+        process.env.FIELD_ENCRYPTION_KEYS = `2:${KEY_2},1:${KEY_1}`;
+        expect(decryptBytes(stored, 'document:7:7/abc').equals(file)).toBe(true);
+        expect(encryptBytes(file, 'x').readUInt16BE(4)).toBe(2);
+        expect(() => decryptBytes(Buffer.from('not encrypted at all, just text here'), 'x')).toThrow('not an encrypted file');
+    });
+});
+
+describe('documents', () => {
+    test('the file type comes from its first bytes, not its name', () => {
+        expect(sniffType(Buffer.from('%PDF-1.7\n'))).toBe('application/pdf');
+        expect(sniffType(Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0, 0]))).toBe('image/jpeg');
+        expect(sniffType(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0]))).toBe('image/png');
+        expect(sniffType(Buffer.concat([Buffer.from('RIFF'), Buffer.alloc(4), Buffer.from('WEBPVP8 ')]))).toBe('image/webp');
+        expect(sniffType(Buffer.from('<html><script>'))).toBeNull();
+        expect(sniffType(Buffer.from('MZ executable'))).toBeNull();
+    });
+
+    test('India\'s financial year runs April to March', () => {
+        expect(financialYear('2026-04-01')).toBe('2026-27');
+        expect(financialYear('2026-03-31')).toBe('2025-26');
+        expect(financialYear('2099-12-31')).toBe('2099-00');
     });
 });
 

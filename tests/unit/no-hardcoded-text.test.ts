@@ -9,7 +9,7 @@ import { join } from 'path';
  */
 
 const ROOT = join(__dirname, '..', '..', 'components');
-const APP_FOLDERS = ['activity', 'app', 'auth', 'entries', 'events', 'import', 'insights', 'privacy', 'reconcile', 'search', 'settings', 'setup', 'summary', 'transactions', 'ui'];
+const APP_FOLDERS = ['activity', 'app', 'auth', 'documents', 'entries', 'events', 'import', 'insights', 'privacy', 'reconcile', 'search', 'settings', 'setup', 'summary', 'transactions', 'ui'];
 const SHARED_FILES = ['Modal.tsx', 'Toast.tsx', 'HydrationGate.tsx'];
 
 /** Not words a reader needs translated: example formats */

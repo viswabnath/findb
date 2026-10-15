@@ -14,6 +14,7 @@ The free Supabase plan has no automatic backups, so FinDB backs up its productio
 - **Where:** a workflow artifact named `findb-backup-YYYY-MM-DD`, kept for 30 days.
   - In a public repository, signed-in GitHub users can download artifacts, but without the private key the file is unreadable.
 - **Cost:** about a minute a day; GitHub-hosted runners are free for public repositories.
+- **Not included yet:** document vault files (Supabase Storage, `documents` bucket). The dump holds their descriptions and storage paths; the files themselves are encrypted in the bucket and are not copied. Adding them to the backup is a follow-up.
 
 ## Keep the private key safe
 

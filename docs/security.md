@@ -41,7 +41,11 @@ Keys come from `FIELD_ENCRYPTION_KEYS`, `version:base64key` entries, comma-separ
 - Every environment has its own key: production (Vercel Production and `.env`) and tests (`.env.test`, and Vercel Preview).
 - Without the key, two-factor setup and login fail, so nobody can log in: set it before deploying.
 - **Rotation:** put a new key in front (`2:new,1:old`); new values use it and old values still read. `needsReencryption` tells which values to rewrite; once all are rewritten, remove the old key.
-- **Losing the key** makes every two-factor secret unreadable; users would need their recovery codes and a reset. Keep a copy in a password manager.
+- **Losing the key** makes every two-factor secret unreadable, and every document in the vault; users would need their recovery codes and a reset. Keep a copy in a password manager.
+
+## Document vault files
+
+Uploaded documents (`lib/services/documents.ts`) are encrypted with the same keys before they leave the server (`encryptBytes`: a `FDB1` header with the key version, the IV and the tag, then the ciphertext), bound to the user and the file's storage path, and kept in a private Supabase Storage bucket in Mumbai (`lib/document-store.ts`). The bucket holds only ciphertext; the server reaches it with `SUPABASE_SERVICE_ROLE_KEY`, a server-only secret in Vercel and `.env` (never in the browser). Uploads are checked by their first bytes (PDF, JPEG, PNG, WebP only), not their names; files come back with `Cache-Control: private, no-store`, pictures inline and PDFs as downloads, under the API's deny-all Content-Security-Policy.
 
 ## Sessions and login history
 

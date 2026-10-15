@@ -97,6 +97,15 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         holds: 'Which tags are on which entry', purpose: 'Grouping your entries your way', retention: 'With the entry or the tag',
     },
     {
+        table: 'documents', category: 'money', exported: true,
+        holds: 'Documents you upload (receipts, statements, policies, papers): their name, type, dates and size; the files themselves are encrypted and kept in private storage',
+        purpose: 'Keeping the evidence for your money in one place', retention: 'Until you delete them or your account',
+    },
+    {
+        table: 'document_links', category: 'money', exported: true,
+        holds: 'Which document belongs to which entry, account or event', purpose: 'Finding the evidence for an entry', retention: 'With the document',
+    },
+    {
         table: 'budgets', category: 'money', exported: true,
         holds: 'Monthly limits you set for spending categories', purpose: 'Warning you at 80% and 100% of a limit',
         retention: 'Until you delete them or your account',
