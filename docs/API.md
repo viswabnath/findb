@@ -269,6 +269,23 @@ Money lent to and borrowed from people (`lib/services/people.ts`, `src/core/inte
 
 A loan: `{ "id", "personId", "direction", "principal", "startedOn", "dueOn", "interestRate", "perHundredMonthly", "notes", "outstanding", "principalRepaid", "interestPaid", "interestDue", "status": "open \| overdue \| settled", "closed", "history": [{ "entryId", "date", "type", "amount", "principal", "interest", "account" }] }`. Interest is simple, on what is still owed, day by day (365-day year); rates are stored % a year and also shown as ₹ per ₹100 a month. `GET /api/next-step` returns `{ "kind": "overdue" }` for money past its due date.
 
+## Groups
+
+Shared expenses in trips and flats (`lib/services/groups.ts`, `src/core/split.ts`). Members are named `you` and `p<person id>`.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/groups` | – | groups: `{ "id", "name", "event", "members": [{ "key", "personId", "name", "balance" }], "yourBalance", "plan": [{ "from", "fromName", "to", "toName", "amount" }], "yourCost", "groupCost", "byCategory", "expenses", "settlements" }` |
+| POST | `/api/groups` | `{ "name", "memberIds": [person ids], "eventId"? }` | the group |
+| PUT | `/api/groups/:id` | `{ "name"?, "memberIds"?, "eventId"? }` | the group; a member with costs or payments stays |
+| DELETE | `/api/groups/:id` | – | removed once everyone is settled |
+| POST | `/api/groups/:id/expenses` | `{ "date", "description", "amount", "paidBy", "accountId"?, "categoryId"?, "split": "equal \| exact \| percent \| shares", "parts": [{ "member", "value"? }], "treat"? }` | the group |
+| DELETE | `/api/groups/:id/expenses/:expenseId` | – | the group; the user's entry voided |
+| POST | `/api/groups/:id/settlements` | `{ "from", "to", "amount", "date", "accountId"? }` | the group |
+| DELETE | `/api/groups/:id/settlements/:settlementId` | – | the group |
+
+A balance is positive when the group owes that member. `exact` values are rupees, `percent` numbers adding to 100, `shares` whole numbers; `treat` makes the cost the payer's alone. In the user's books: when they pay, the whole amount leaves `accountId`, their share is spending (in `categoryId`), and each friend's share is owed to them on the friend's person account; when a friend pays, the user's share is spending owed to that friend; a cost they neither paid nor share has no entry. A settlement involving the user moves money through `accountId`; one between two friends changes only the group. In `/api/entries` the user's share shows as an expense with `"shared": true`, changed only in the group.
+
 ## Documents
 
 The document vault (`lib/services/documents.ts`). Files are encrypted and kept in private storage (`lib/document-store.ts`).

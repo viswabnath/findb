@@ -244,12 +244,32 @@ export interface Entry {
      * is "Reimbursements due", and it is changed from the reimbursement, not as an entry
      */
     reimbursement: boolean;
+    /**
+     * The user's share of a group's shared expense (lib/services/groups.ts): shown as spending of
+     * that share, and changed in the group, not as an entry
+     */
+    shared: boolean;
 }
 
 interface LineRow { account: number; paise: number; kind: string; subtype: string; name: string }
 
 function toEntry(row: Record<string, unknown>): Entry {
     const lines = row.lines as LineRow[];
+    if (row.entry_type === 'shared_expense') {
+        // Only the user's share is their spending; the account is the one that paid, or the friend who did
+        const spending = lines.find(line => line.kind === 'expense')!;
+        const paidFrom = lines.find(line => MONEY_TYPES.includes(line.subtype as MoneyAccountType) && line.paise < 0)
+            ?? lines.find(line => line.subtype === 'person' && line.paise < 0) ?? lines.find(line => line.subtype === 'person')!;
+        return {
+            id: Number(row.id), type: 'expense', date: String(row.entry_date), description: String(row.description),
+            amount: fromPaise(Math.abs(Number(spending?.paise ?? 0))),
+            account: { id: Number(paidFrom.account), name: paidFrom.name, type: paidFrom.subtype as MoneyAccountType },
+            toAccount: null, category: spending ? { id: Number(spending.account), name: spending.name } : null,
+            tags: (row.tags as string[] | null) ?? [],
+            event: row.event_id === null || row.event_id === undefined ? null : { id: Number(row.event_id), name: String(row.event_name) },
+            legacy: false, reimbursement: false, shared: true,
+        };
+    }
     const money = lines.filter(line => MONEY_TYPES.includes(line.subtype as MoneyAccountType));
     const other = lines.find(line => line.kind === 'income' || line.kind === 'expense');
     const type = row.entry_type as EntryKind;
@@ -272,6 +292,7 @@ function toEntry(row: Record<string, unknown>): Entry {
         event: row.event_id === null || row.event_id === undefined ? null : { id: Number(row.event_id), name: String(row.event_name) },
         legacy: row.source_table !== null,
         reimbursement: row.reimbursement_id !== null && row.reimbursement_id !== undefined,
+        shared: false,
     };
 }
 
@@ -287,7 +308,11 @@ const ENTRY_QUERY = `
     JOIN journal_lines l ON l.user_id = e.user_id AND l.entry_id = e.id
     JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
     LEFT JOIN events ev ON ev.user_id = e.user_id AND ev.id = e.event_id
-    WHERE e.user_id = $1 AND e.voided_at IS NULL AND e.entry_type IN ('income', 'expense', 'transfer')`;
+    WHERE e.user_id = $1 AND e.voided_at IS NULL AND e.entry_type IN ('income', 'expense', 'transfer', 'shared_expense')
+      -- A shared expense where the user neither paid nor shared has no spending line: not theirs to list
+      AND (e.entry_type <> 'shared_expense' OR EXISTS (
+          SELECT 1 FROM journal_lines x JOIN ledger_accounts xa ON xa.user_id = x.user_id AND xa.id = x.account_id
+          WHERE x.user_id = e.user_id AND x.entry_id = e.id AND xa.kind = 'expense'))`;
 
 /** Income, expenses and transfers dated in a month (month 1-12), newest first */
 export async function listEntries(pool: Pool, userId: number, month: string | null, year: string | null): Promise<Entry[]> {
@@ -323,6 +348,7 @@ function requireOwnEntry(entry: Entry): void {
     if (entry.reimbursement) {
         throw new RequestError(400, t('errors.entryIsReimbursement', { description: entry.description }));
     }
+    if (entry.shared) throw new RequestError(400, t('errors.entryIsShared', { description: entry.description }));
 }
 
 type LockedEntry = Entry & { sourceTable: string | null; sourceId: number | null; importBatchId: number | null };

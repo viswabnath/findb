@@ -508,6 +508,26 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .loan-history .amount { margin-left: auto; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 .form-grid .field.full { grid-column: 1 / -1; }
 
+/* Groups (components/people/GroupsScreen.tsx) */
+.group-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 12px; }
+.group-card { margin: 0; }
+.group-open { display: grid; gap: 4px; width: 100%; padding: clamp(16px, 2.5vw, 24px); border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.group-open .what { font-weight: 700; font-size: 1.05rem; }
+.group-balance { font-weight: 600; }
+.group-new { display: grid; gap: 14px; }
+.group-new fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+#group-detail { display: grid; gap: 16px; }
+#group-detail > .btn-link { justify-self: start; }
+.group-plan { display: grid; gap: 8px; border-top: 1px solid var(--line); }
+.group-plan ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.group-plan li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; }
+.group-cost-form { display: grid; gap: 14px; }
+.group-split { border: 0; margin: 0; padding: 0; min-width: 0; display: grid; gap: 10px; }
+.group-parts { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.group-parts li { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.group-parts input[type="number"] { max-width: 140px; }
+.group-categories { margin: 0 clamp(16px, 2.5vw, 24px) 16px; width: auto; }
+
 /* Documents (components/documents) */
 .documents-meter { padding-top: 0; padding-bottom: 0; }
 .documents-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; align-items: end; }

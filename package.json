@@ -98,6 +98,7 @@
           "<rootDir>/tests/budgets.test.js",
           "<rootDir>/tests/documents.test.js",
           "<rootDir>/tests/people.test.js",
+          "<rootDir>/tests/groups.test.js",
           "<rootDir>/tests/categories.test.js",
           "<rootDir>/tests/events.test.js",
           "<rootDir>/tests/recurring.test.js",
