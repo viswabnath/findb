@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, CalendarHeart, ChartColumn, FolderLock, HandCoins, History, Lightbulb, LogOut, Plus, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, CalendarHeart, ChartColumn, FolderLock, HandCoins, UsersRound, History, Lightbulb, LogOut, Plus, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { t } from '@/lib/i18n';
 import { ConsentScreen } from '@/components/privacy/ConsentScreen';
@@ -31,6 +31,7 @@ const NAV_ITEMS: NavItem[] = [
     { section: 'insights', label: t('nav.insights'), icon: Lightbulb, href: '/insights' },
     { section: 'events', label: t('nav.events'), icon: CalendarHeart, href: '/events' },
     { section: 'people', label: t('nav.people'), icon: HandCoins, href: '/people', module: 'debts' },
+    { section: 'groups', label: t('nav.groups'), icon: UsersRound, href: '/groups', module: 'debts' },
     { section: 'documents', label: t('nav.documents'), icon: FolderLock, href: '/documents' },
     { section: 'activity', label: t('nav.activity'), icon: History, href: '/activity' },
     { section: 'search', label: t('nav.search'), icon: Search, href: '/search' },
@@ -38,7 +39,7 @@ const NAV_ITEMS: NavItem[] = [
 ];
 // Phones: five tabs fit at 360 px with whole labels; Search and Settings are in the top bar instead.
 // Insights opens from Summary, Documents and People from Transactions
-const TAB_ITEMS = NAV_ITEMS.filter(item => !['settings', 'search', 'insights', 'documents', 'people'].includes(item.section));
+const TAB_ITEMS = NAV_ITEMS.filter(item => !['settings', 'search', 'insights', 'documents', 'people', 'groups'].includes(item.section));
 
 /**
  * The logged-in frame: a sidebar on larger screens, a top bar and a bottom tab bar on phones,

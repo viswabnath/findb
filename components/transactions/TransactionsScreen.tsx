@@ -38,6 +38,8 @@ interface Entry {
     event: { id: number; name: string } | null;
     /** Part of a reimbursement: changed under Owed back to you, not here */
     reimbursement?: boolean;
+    /** The user's share of a group's cost: changed in the group */
+    shared?: boolean;
 }
 interface Draft {
     id: number; type: EntryType; description: string; amount: string; accountId: string; toAccountId: string; date: string;
@@ -389,6 +391,8 @@ export function TransactionsScreen() {
     const formClass = (type: EntryType) => (activeForm === type || !tabs.includes(activeForm) && type === tabs[0] ? ' is-active' : '');
     const rowActions = (entry: Entry) => entry.reimbursement ? (
         <span className="row-actions sub">{t('transactions.fromReimbursement')}</span>
+    ) : entry.shared ? (
+        <span className="row-actions sub"><a href="/groups">{t('groups.fromGroup')}</a></span>
     ) : (
         <span className="row-actions">
             <button type="button" className="icon-btn" data-action={`edit-${entry.type}`} data-id={entry.id} onClick={() => startEdit(entry)}>

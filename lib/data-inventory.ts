@@ -107,6 +107,28 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         purpose: 'Knowing who owes what, and when', retention: 'Until you delete your account; removed ones are kept as history',
     },
     {
+        table: 'groups', category: 'money', exported: true,
+        holds: 'Your groups (trips, flats) and the event they count towards', purpose: 'Sharing costs', retention: 'Until you remove them or delete your account',
+    },
+    {
+        table: 'group_members', category: 'money', exported: true,
+        holds: 'Which people are in which group', purpose: 'Sharing costs', retention: 'With the group',
+    },
+    {
+        table: 'shared_expenses', category: 'money', exported: true,
+        holds: 'Costs shared in a group: what, when, how much, who paid and how it was split', purpose: 'Working out who owes whom',
+        retention: 'Until you delete your account; removed ones are kept as history',
+    },
+    {
+        table: 'shared_expense_shares', category: 'money', exported: true,
+        holds: 'Each person\'s share of a shared cost', purpose: 'Working out who owes whom', retention: 'With the cost',
+    },
+    {
+        table: 'settlements', category: 'money', exported: true,
+        holds: 'Payments that settle up a group: who paid whom, how much and when', purpose: 'Working out who owes whom',
+        retention: 'Until you delete your account; removed ones are kept as history',
+    },
+    {
         table: 'documents', category: 'money', exported: true,
         holds: 'Documents you upload (receipts, statements, policies, papers): their name, type, dates and size; the files themselves are encrypted and kept in private storage',
         purpose: 'Keeping the evidence for your money in one place', retention: 'Until you delete them or your account',

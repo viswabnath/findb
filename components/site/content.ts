@@ -220,17 +220,21 @@ export const FEATURES: Feature[] = [
         group: 'borrow',
         name: 'Money with friends and family',
         icon: 'people',
-        status: 'building',
+        status: 'available',
         short: 'Money lent, money borrowed, and costs shared on trips or with flatmates.',
         summary:
             'Lend ₹20,000 to a friend, share a Goa trip with four people, or split rent with flatmates. FinDB remembers who owes whom, so nobody has to keep it in their head.',
         points: [
-            'Money lent or borrowed, with or without interest, with reminders',
+            'Money lent or borrowed, with or without interest, repaid in parts, with overdue money flagged',
             'Interest shown both as % a year and as rupees per ₹100 a month, the way it is often agreed between people',
             'Groups for trips and flatmates: who paid and who shares each cost',
             'Split equally, by exact amounts, by percentage or by shares',
             'Settle up with the fewest payments possible',
-            'Your trip cost shows only your own share, not what you paid for everyone',
+            'Your trip cost shows only your own share, not what you paid for everyone, beside what the whole group spent, by category',
+        ],
+        next: [
+            'Reminders by notification before money is due (with the phone app)',
+            'Shared groups your friends can see and add to, if they also use FinDB',
         ],
         example: {
             title: 'A Goa trip with three friends',

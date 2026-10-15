@@ -137,15 +137,22 @@ export async function search(pool: Pool, userId: number, source: Record<string, 
 
     const matched = `
         WITH m AS (
-            SELECT e.id, e.entry_date, e.entry_type, e.event_id,
-                   (SELECT max(abs(l.amount_paise)) FROM journal_lines l WHERE l.user_id = e.user_id AND l.entry_id = e.id) AS paise,
+            SELECT e.id, e.entry_date, CASE WHEN e.entry_type = 'shared_expense' THEN 'expense' ELSE e.entry_type END AS entry_type, e.event_id,
+                   CASE WHEN e.entry_type = 'shared_expense'
+                        -- A shared expense counts as the user's share
+                        THEN (SELECT sum(l.amount_paise) FROM journal_lines l JOIN ledger_accounts la ON la.user_id = l.user_id AND la.id = l.account_id
+                              WHERE l.user_id = e.user_id AND l.entry_id = e.id AND la.kind = 'expense')
+                        ELSE (SELECT max(abs(l.amount_paise)) FROM journal_lines l WHERE l.user_id = e.user_id AND l.entry_id = e.id) END AS paise,
                    concat_ws(' ', e.description, ev.name,
                        (SELECT string_agg(a.name, ' ') FROM journal_lines l JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
                         WHERE l.user_id = e.user_id AND l.entry_id = e.id),
                        (SELECT string_agg(tg.name, ' ') FROM entry_tags et JOIN tags tg ON tg.user_id = et.user_id AND tg.id = et.tag_id
                         WHERE et.user_id = e.user_id AND et.entry_id = e.id)) AS haystack
             FROM journal_entries e LEFT JOIN events ev ON ev.user_id = e.user_id AND ev.id = e.event_id
-            WHERE e.user_id = $1 AND e.voided_at IS NULL AND e.entry_type IN ('income', 'expense', 'transfer')
+            WHERE e.user_id = $1 AND e.voided_at IS NULL AND e.entry_type IN ('income', 'expense', 'transfer', 'shared_expense')
+              AND (e.entry_type <> 'shared_expense' OR EXISTS (
+                  SELECT 1 FROM journal_lines x JOIN ledger_accounts xa ON xa.user_id = x.user_id AND xa.id = x.account_id
+                  WHERE x.user_id = e.user_id AND x.entry_id = e.id AND xa.kind = 'expense'))
         )
         SELECT m.id, m.entry_type, m.paise, count(*) OVER () AS total,
                sum(m.paise) FILTER (WHERE m.entry_type = 'income') OVER () AS income,
