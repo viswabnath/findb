@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeftRight, ArrowRight, FileUp, FolderLock, Paperclip, Pencil, Rows3, Plus, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, FileUp, FolderLock, HandCoins, Paperclip, Pencil, Rows3, Plus, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useFormMessage } from '@/components/useFormMessage';
@@ -448,6 +448,9 @@ export function TransactionsScreen() {
                         </a>
                         <a className="btn btn-secondary btn-sm" id="documents-link" href="/documents">
                             <FolderLock aria-hidden="true" /> {t('documents.link')}
+                        </a>
+                        <a className="btn btn-secondary btn-sm" id="people-link" href="/people">
+                            <HandCoins aria-hidden="true" /> {t('people.link')}
                         </a>
                     </span>
                 </div>

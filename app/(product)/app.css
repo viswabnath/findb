@@ -493,6 +493,21 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 #insights-unusual li { justify-content: flex-start; }
 @media (max-width: 640px) { .span-choice { min-width: 0; width: 100%; } }
 
+/* People (components/people/PeopleScreen.tsx) */
+.people-totals { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.people-totals .card { display: grid; gap: 4px; margin: 0; }
+.people-totals b { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 1.4rem; }
+.people-totals .amount.in { color: var(--c-income); }
+.people-add { margin-bottom: 16px; }
+.person-loan { display: grid; gap: 8px; }
+.person-loan .tag { margin-left: 8px; }
+.tag.status-overdue { background: var(--gold-soft); color: var(--fg); }
+.tag.status-settled { background: var(--surface-2); color: var(--muted); }
+.loan-history { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 0.9rem; color: var(--muted); }
+.loan-history li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.loan-history .amount { margin-left: auto; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.form-grid .field.full { grid-column: 1 / -1; }
+
 /* Documents (components/documents) */
 .documents-meter { padding-top: 0; padding-bottom: 0; }
 .documents-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; align-items: end; }

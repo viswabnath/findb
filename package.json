@@ -21,7 +21,8 @@
     "test:unit": "jest --selectProjects unit",
     "test:coverage": "jest --selectProjects unit --coverage",
     "test:e2e": "playwright test",
-    "postinstall": "node scripts/copy-ocr-assets.js"
+    "postinstall": "node scripts/copy-ocr-assets.js",
+    "clean": "node scripts/clean.js"
   },
   "keywords": [],
   "author": "",
@@ -96,6 +97,7 @@
           "<rootDir>/tests/insights.test.js",
           "<rootDir>/tests/budgets.test.js",
           "<rootDir>/tests/documents.test.js",
+          "<rootDir>/tests/people.test.js",
           "<rootDir>/tests/categories.test.js",
           "<rootDir>/tests/events.test.js",
           "<rootDir>/tests/recurring.test.js",

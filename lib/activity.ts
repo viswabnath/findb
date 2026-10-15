@@ -16,7 +16,7 @@ export interface ActivityLabel {
 }
 
 type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating'
-    | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant' | 'modules' | 'sample_data' | 'import' | 'search' | 'budget' | 'document';
+    | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant' | 'modules' | 'sample_data' | 'import' | 'search' | 'budget' | 'document' | 'person' | 'person_loan';
 type Action = 'created' | 'updated' | 'deleted';
 
 /** Each entry's icon and CSS class; the words are in messages/en.ts (activity.labels) */
@@ -42,6 +42,8 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         search: { icon: 'plus', className: 'action-create' },
         budget: { icon: 'plus', className: 'action-create' },
         document: { icon: 'plus', className: 'action-create' },
+        person: { icon: 'plus', className: 'action-create' },
+        person_loan: { icon: 'refresh-cw', className: 'action-create' },
     },
     updated: {
         cash_balance: { icon: 'banknote', className: 'action-cash-update' },
@@ -64,6 +66,8 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         search: { icon: 'pencil', className: 'action-update' },
         budget: { icon: 'pencil', className: 'action-update' },
         document: { icon: 'pencil', className: 'action-update' },
+        person: { icon: 'pencil', className: 'action-update' },
+        person_loan: { icon: 'refresh-cw', className: 'action-update' },
     },
     deleted: {
         cash_balance: { icon: 'banknote', className: 'action-cash-delete' },
@@ -86,6 +90,8 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         search: { icon: 'trash-2', className: 'action-delete' },
         budget: { icon: 'trash-2', className: 'action-delete' },
         document: { icon: 'trash-2', className: 'action-delete' },
+        person: { icon: 'trash-2', className: 'action-delete' },
+        person_loan: { icon: 'refresh-cw', className: 'action-delete' },
     },
 };
 const OTHER: Record<Action, Omit<ActivityLabel, 'text'>> = {

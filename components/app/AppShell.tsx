@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, CalendarHeart, ChartColumn, FolderLock, History, Lightbulb, LogOut, Plus, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, CalendarHeart, ChartColumn, FolderLock, HandCoins, History, Lightbulb, LogOut, Plus, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { t } from '@/lib/i18n';
 import { ConsentScreen } from '@/components/privacy/ConsentScreen';
@@ -16,6 +16,8 @@ interface NavItem {
     label: string;
     icon: LucideIcon;
     href: string;
+    /** Shown only when this module is on (lib/modules.ts) */
+    module?: string;
 }
 
 /**
@@ -28,14 +30,15 @@ const NAV_ITEMS: NavItem[] = [
     { section: 'summary', label: t('nav.summary'), icon: ChartColumn, href: '/summary' },
     { section: 'insights', label: t('nav.insights'), icon: Lightbulb, href: '/insights' },
     { section: 'events', label: t('nav.events'), icon: CalendarHeart, href: '/events' },
+    { section: 'people', label: t('nav.people'), icon: HandCoins, href: '/people', module: 'debts' },
     { section: 'documents', label: t('nav.documents'), icon: FolderLock, href: '/documents' },
     { section: 'activity', label: t('nav.activity'), icon: History, href: '/activity' },
     { section: 'search', label: t('nav.search'), icon: Search, href: '/search' },
     { section: 'settings', label: t('nav.settings'), icon: Settings, href: '/settings' },
 ];
 // Phones: five tabs fit at 360 px with whole labels; Search and Settings are in the top bar instead.
-// Insights opens from Summary, Documents from Transactions
-const TAB_ITEMS = NAV_ITEMS.filter(item => !['settings', 'search', 'insights', 'documents'].includes(item.section));
+// Insights opens from Summary, Documents and People from Transactions
+const TAB_ITEMS = NAV_ITEMS.filter(item => !['settings', 'search', 'insights', 'documents', 'people'].includes(item.section));
 
 /**
  * The logged-in frame: a sidebar on larger screens, a top bar and a bottom tab bar on phones,
@@ -56,6 +59,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     // Quick add, from any screen, for what the user tracks
     const [quickOpen, setQuickOpen] = useState(false);
     const [kinds, setKinds] = useState<('expense' | 'income')[]>([]);
+    const [modules, setModules] = useState<string[]>([]);
 
     // Quick add saved an entry and reloaded this screen: say so now
     useEffect(() => {
@@ -69,6 +73,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             setName(result.data.name ?? '');
             setSample(result.data.sampleData === true);
             const modules = result.data.modules ?? [];
+            setModules(modules);
             setKinds([...(modules.includes('spending') || modules.includes('credit_cards') ? ['expense' as const] : []), ...(modules.includes('income') ? ['income' as const] : [])]);
             if (result.data.consentNeeded && result.data.noticeVersion) {
                 setConsentVersion(result.data.noticeVersion);
@@ -116,7 +121,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <nav id="nav-bar" aria-label={t('shell.main')}>
                     <a href="/setup" className="sidebar-brand" aria-label={t('shell.brand')}><Logo /></a>
                     <span className="sidebar-label">{t('shell.yourMoney')}</span>
-                    {NAV_ITEMS.map(({ section, label, icon: Icon, href }) => (
+                    {NAV_ITEMS.filter(item => !item.module || modules.includes(item.module)).map(({ section, label, icon: Icon, href }) => (
                         <a key={section} href={href} className="nav-link" data-action="showSection" data-section={section}
                             aria-current={pathname === href ? 'page' : undefined}>
                             <Icon aria-hidden="true" />{label}

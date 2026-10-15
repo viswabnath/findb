@@ -3,6 +3,7 @@ import { addDays } from '../../src/core/schedule';
 import { formatRupees } from '../format';
 import { t } from '../i18n';
 import { listBudgets } from './budgets';
+import { overdueLoans } from './people';
 import { dueItems, todayInIndia } from './recurring';
 import { listReimbursements } from './reimbursements';
 import { hasSampleData } from './sample-data';
@@ -11,13 +12,13 @@ import { hasSampleData } from './sample-data';
  * The one clear next step shown at the top of the Accounts screen (v2 plan, Phase 1): the most
  * useful thing to do now, in this order:
  *   sample data loaded > nothing set up yet > repeating entries to confirm > a budget near or over
- *   its limit this month > a document expiring within 30 days > spending with no
+ *   its limit this month > a document expiring within 30 days > money from a person overdue > spending with no
  *   category this month > money owed back for over a month > an account not checked against a
  *   statement for a month > the everyday step.
  */
 
 export interface NextStep {
-    kind: 'sample' | 'start' | 'confirm' | 'budget' | 'expiring' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
+    kind: 'sample' | 'start' | 'confirm' | 'budget' | 'expiring' | 'overdue' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
     text: string;
     /** Where the step is done; absent when it is a button on the card (sample data) */
     href?: string;
@@ -71,6 +72,16 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
         return {
             kind: 'expiring', href: '/documents', label: t('nextStep.expiringLabel'),
             text: date < today ? t('nextStep.expired', { title, date }) : t('nextStep.expiring', { title, date }),
+        };
+    }
+
+    // Money a person was to pay back (or the user was to repay) by a date now past
+    const [late] = await overdueLoans(pool, userId);
+    if (late) {
+        const values = { name: late.person, amount: formatRupees(late.loan.outstanding), date: late.loan.dueOn ?? '' };
+        return {
+            kind: 'overdue', href: '/people', label: t('nextStep.overdueLabel'),
+            text: late.loan.direction === 'lent' ? t('nextStep.overdueLent', values) : t('nextStep.overdueBorrowed', values),
         };
     }
 

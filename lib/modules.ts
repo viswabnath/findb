@@ -25,7 +25,7 @@ export interface ModuleInfo {
 
 // Names and lines are in messages/en.ts (modules.*)
 const AVAILABLE: Record<ModuleKey, boolean> = {
-    income: true, spending: true, credit_cards: true, debts: false, investments: false, property: false,
+    income: true, spending: true, credit_cards: true, debts: true, investments: false, property: false,
     savings: false, insurance: false, goals: false, tax: false, household: false,
 };
 
