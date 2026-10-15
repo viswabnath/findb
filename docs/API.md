@@ -250,6 +250,25 @@ An entry: `{ "id", "type", "date", "description", "amount", "account": { "id", "
 
 `{ "month": "YYYY-MM", "firstMonth", "thresholds": { "unusualRatio", "unusualMinimum", "historyMonths" }, "spending": { "regular", "oneOff", "events": [{ "id", "name", "amount" }] }, "categories": [{ "id", "name", "thisMonth", "lastMonth", "average3", "average6", "average12", "change3", "unusual" }], "trend": [{ "month", "regular", "oneOff" }], "subscriptions": { "monthly", "yearly", "items": [{ "description", "cadence", "charges", "first", "last", "lastAmount", "monthly", "yearly", "category", "account", "status": "active \| new \| stopped", "priceRiseFrom" }] } }`. Calculations are in `src/core/insights.ts`: averages over complete months before the month (only months since the first entry; 3 months need 2 of them, 6 and 12 their whole span; `null` otherwise); `change3` compares the last 3 months with the 3 before, in percent; `unusual` is at least `unusualRatio` times the 3-month average and `unusualMinimum` above it. Regular spending leaves out one-off events. Subscriptions are expenses of the last 15 months grouped by their description's first words, at a steady weekly, monthly, quarterly or yearly rhythm and within 1.5 times each other's amount; `monthly` and `yearly` total those not stopped.
 
+## People
+
+Money lent to and borrowed from people (`lib/services/people.ts`, `src/core/interest.ts`). Lending, borrowing and repayments move money between a money account and the person's ledger account; only interest is income (Interest) or spending (Loan interest and fees).
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/people` | – | `{ "people": [{ "id", "name", "notes", "balance", "loans": [...] }], "owedToYou", "youOwe" }`; `balance` is positive while they owe the user |
+| POST | `/api/people` | `{ "name", "notes"? }` | `{ "id", "name" }` |
+| PUT | `/api/people/:id` | `{ "name"?, "notes"? }` | `{ "id", "name" }` |
+| DELETE | `/api/people/:id` | – | removed once nothing is owed either way |
+| POST | `/api/people/:id/loans` | `{ "direction": "lent \| borrowed", "amount", "accountId", "date", "dueOn"?, "interestRate"?, "rateUnit"?: "year \| per100month", "notes"? }` | the loan |
+| PUT | `/api/person-loans/:id` | `{ "dueOn"?, "interestRate"?, "rateUnit"?, "notes"? }` | the loan |
+| DELETE | `/api/person-loans/:id` | – | every entry of it voided |
+| POST | `/api/person-loans/:id/repayments` | `{ "amount", "accountId", "date", "interest"? }` | the loan; interest due on that date is taken first unless `interest` is given |
+| DELETE | `/api/person-loans/:id/repayments/:entryId` | – | the loan, with that repayment or settlement voided |
+| POST | `/api/person-loans/:id/settle` | `{ "date"? }` | the loan, closed; what is left becomes a gift given (Gifts) or received (Gifts received) |
+
+A loan: `{ "id", "personId", "direction", "principal", "startedOn", "dueOn", "interestRate", "perHundredMonthly", "notes", "outstanding", "principalRepaid", "interestPaid", "interestDue", "status": "open \| overdue \| settled", "closed", "history": [{ "entryId", "date", "type", "amount", "principal", "interest", "account" }] }`. Interest is simple, on what is still owed, day by day (365-day year); rates are stored % a year and also shown as ₹ per ₹100 a month. `GET /api/next-step` returns `{ "kind": "overdue" }` for money past its due date.
+
 ## Documents
 
 The document vault (`lib/services/documents.ts`). Files are encrypted and kept in private storage (`lib/document-store.ts`).

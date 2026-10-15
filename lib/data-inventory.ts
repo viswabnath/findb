@@ -97,6 +97,16 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         holds: 'Which tags are on which entry', purpose: 'Grouping your entries your way', retention: 'With the entry or the tag',
     },
     {
+        table: 'people', category: 'money', exported: true,
+        holds: 'Names of people you lend to, borrow from or share costs with, and your notes on them',
+        purpose: 'Keeping track of money with people', retention: 'Until you remove them or delete your account',
+    },
+    {
+        table: 'person_loans', category: 'money', exported: true,
+        holds: 'Money you lent to or borrowed from a person: amount, dates, interest rate and notes',
+        purpose: 'Knowing who owes what, and when', retention: 'Until you delete your account; removed ones are kept as history',
+    },
+    {
         table: 'documents', category: 'money', exported: true,
         holds: 'Documents you upload (receipts, statements, policies, papers): their name, type, dates and size; the files themselves are encrypted and kept in private storage',
         purpose: 'Keeping the evidence for your money in one place', retention: 'Until you delete them or your account',
