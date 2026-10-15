@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { ScanText } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { apiGet, apiPost, httpError, redirectIfUnauthorized } from '@/lib/api-client';
@@ -8,6 +9,8 @@ import { formatRupees } from '@/lib/format';
 import { t } from '@/lib/i18n';
 import { todayInIndiaClient } from '@/lib/dates';
 import { budgetWarning } from '@/lib/budget-alert';
+import { readReceipt } from '@/lib/receipt-reader';
+import { uploadFile } from '@/components/documents/DocumentsScreen';
 
 /**
  * Quick add (v2 Phase 2, faster entry): an amount, the account and a category, from any screen.
@@ -78,10 +81,15 @@ export function QuickAdd({ open, onClose, kinds }: Props) {
     const [kind, setKind] = useState<Kind>(kinds[0] ?? 'expense');
     const [form, setForm] = useState({ amount: '', accountId: '', categoryId: '', note: '', date: '' });
     const [saving, setSaving] = useState(false);
+    // A receipt photo or UPI screenshot read on this device: what it said, and whether to keep it
+    const [receipt, setReceipt] = useState<{ file: File; keep: boolean; note: string; readAs: string | null } | null>(null);
+    const [reading, setReading] = useState<number | null>(null);
 
     useEffect(() => {
         if (!open) return;
         setForm(current => ({ ...current, amount: '', note: '', date: todayInIndiaClient() }));
+        setReceipt(null);
+        setReading(null);
         (async () => {
             const [accountList, categoryList, spending, income] = await Promise.all([
                 apiGet<Account[]>('/api/accounts'), apiGet<Category[]>('/api/categories'),
@@ -110,12 +118,36 @@ export function QuickAdd({ open, onClose, kinds }: Props) {
         setForm(current => ({ ...current, categoryId: '' }));
     }
 
+    /** Read a receipt or screenshot and fill in what it says, for the user to check */
+    async function read(file: File | undefined) {
+        if (!file) return;
+        setReading(0);
+        try {
+            const result = await readReceipt(file, progress => setReading(progress));
+            setKind('expense');
+            setForm(current => ({
+                ...current, amount: result.amount ?? current.amount, date: result.date ?? current.date, note: result.merchant ?? current.note,
+            }));
+            const found = [result.amount ? t('quickAdd.receipt.amount') : null, result.date ? t('quickAdd.receipt.date') : null,
+                result.merchant ? t('quickAdd.receipt.merchant') : null].filter(Boolean).join(', ');
+            setReceipt({ file, keep: true, note: found ? t('quickAdd.receipt.found', { found }) : t('quickAdd.receipt.nothing'), readAs: result.readAs });
+            if (result.merchant) {
+                const suggestion = await apiGet<{ category: Category | null }>(`/api/categories/suggest?${new URLSearchParams({ kind: 'expense', description: result.merchant })}`);
+                if (suggestion.ok && suggestion.data.category) setForm(current => ({ ...current, categoryId: String(suggestion.data.category!.id) }));
+            }
+        } catch {
+            setReceipt({ file, keep: true, note: t('quickAdd.receipt.failed'), readAs: null });
+        } finally {
+            setReading(null);
+        }
+    }
+
     async function save() {
         const amount = form.amount.trim();
         if (!amount || !(Number(amount) > 0)) return toast('error', t('quickAdd.needAmount'));
         if (!chosen) return toast('error', t('quickAdd.needCategory'));
         setSaving(true);
-        const result = await apiPost('/api/entries', {
+        const result = await apiPost<{ id: number }>('/api/entries', {
             type: kind, date: form.date, amount, accountId: Number(accountId), categoryId: chosen.id,
             description: form.note.trim() || chosen.name,
         });
@@ -124,7 +156,12 @@ export function QuickAdd({ open, onClose, kinds }: Props) {
         if (!result.ok) return toast('error', httpError(result));
         remember(accountId);
         const message = t(kind === 'income' ? 'quickAdd.savedIncome' : 'quickAdd.savedExpense', { amount: formatRupees(amount), category: chosen.name });
-        const warning = kind === 'expense' ? await budgetWarning(chosen.id, form.date) : null;
+        let warning = kind === 'expense' ? await budgetWarning(chosen.id, form.date) : null;
+        // The receipt goes into Documents, on the new entry
+        if (receipt?.keep) {
+            const kept = await uploadFile(receipt.file, { kind: 'receipt', title: form.note.trim() || chosen.name, date: form.date }, [{ type: 'entry', id: result.data.id }]);
+            if (!kept.ok && kept.error) warning = [warning, t('quickAdd.receipt.notKept', { reason: kept.error })].filter(Boolean).join(' ');
+        }
         onClose();
         // Screens showing balances or totals without listening for the event start again, and
         // show the message once they have
@@ -161,6 +198,33 @@ export function QuickAdd({ open, onClose, kinds }: Props) {
                                 {t(`quickAdd.kinds.${item}`)}
                             </button>
                         ))}
+                    </div>
+                ) : null}
+                {kinds.includes('expense') ? (
+                    <div className="quick-receipt">
+                        <input id="quick-receipt" className="sr-only" type="file" accept="image/*" disabled={reading !== null}
+                            onChange={event => { read(event.target.files?.[0]); event.target.value = ''; }} />
+                        <label htmlFor="quick-receipt" className="btn btn-secondary btn-sm" data-action="readReceipt" aria-disabled={reading !== null}>
+                            <ScanText aria-hidden="true" /> {reading !== null ? t('quickAdd.receipt.reading', { percent: Math.round(reading * 100) }) : t('quickAdd.receipt.read')}
+                        </label>
+                        {receipt ? (
+                            <>
+                                <p className="form-note" id="quick-receipt-note" role="status">{receipt.note}</p>
+                                {receipt.readAs ? (
+                                    <p className="form-note quick-receipt-check" id="quick-receipt-readas">
+                                        {t('quickAdd.receipt.rupee', { amount: form.amount, readAs: receipt.readAs })}{' '}
+                                        <button type="button" className="btn-link" data-action="useReadAs"
+                                            onClick={() => { setForm(current => ({ ...current, amount: receipt.readAs! })); setReceipt({ ...receipt, readAs: null }); }}>
+                                            {t('quickAdd.receipt.useReadAs', { readAs: receipt.readAs })}
+                                        </button>
+                                    </p>
+                                ) : null}
+                                <label className="check-line">
+                                    <input type="checkbox" id="quick-receipt-keep" checked={receipt.keep} onChange={event => setReceipt({ ...receipt, keep: event.target.checked })} />
+                                    {t('quickAdd.receipt.keep')}
+                                </label>
+                            </>
+                        ) : <p className="form-note">{t('quickAdd.receipt.hint')}</p>}
                     </div>
                 ) : null}
                 <div className="field">

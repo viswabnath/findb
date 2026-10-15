@@ -20,13 +20,15 @@
     "test:clean": "npm run setup-test-db && npm run reset-test-db-with-user -- --yes && npm test",
     "test:unit": "jest --selectProjects unit",
     "test:coverage": "jest --selectProjects unit --coverage",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "postinstall": "node scripts/copy-ocr-assets.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "FinDB: a personal finance dashboard for India",
   "dependencies": {
+    "@tesseract.js-data/eng": "1.0.0",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.2.0",
     "lucide-react": "^1.49.0",
@@ -37,6 +39,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "recharts": "3.10.1",
+    "tesseract.js": "7.0.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {

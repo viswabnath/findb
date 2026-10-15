@@ -20,6 +20,13 @@ export const SECURITY_HEADERS = [
 
 export const API_CONTENT_SECURITY_POLICY = "default-src 'none'; frame-ancestors 'none'";
 
+/**
+ * The receipt reader's files (public/ocr, scripts/copy-ocr-assets.js): its worker runs the OCR
+ * engine, which is WebAssembly, and fetches the language data. Only these files may compile
+ * WebAssembly; the app's pages may not. The path carries the version, so they are cached for good.
+ */
+export const OCR_CONTENT_SECURITY_POLICY = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; frame-ancestors 'none'";
+
 export const SITE_CONTENT_SECURITY_POLICY = buildSiteContentSecurityPolicy({ isDevelopment: process.env.NODE_ENV === 'development' });
 
 const nextConfig: NextConfig = {
@@ -35,6 +42,13 @@ const nextConfig: NextConfig = {
         return [
             { source: '/:path*', headers: SECURITY_HEADERS },
             { source: '/api/:path*', headers: [{ key: 'Content-Security-Policy', value: API_CONTENT_SECURITY_POLICY }] },
+            {
+                source: '/ocr/:path*',
+                headers: [
+                    { key: 'Content-Security-Policy', value: OCR_CONTENT_SECURITY_POLICY },
+                    { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+                ],
+            },
             ...SITE_ROUTES.map(source => ({ source, headers: [{ key: 'Content-Security-Policy', value: SITE_CONTENT_SECURITY_POLICY }] })),
         ];
     },

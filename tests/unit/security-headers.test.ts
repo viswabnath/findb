@@ -1,7 +1,7 @@
 /**
  * The security headers in next.config.ts (they moved from vercel.json and Helmet in N4)
  */
-import nextConfig, { API_CONTENT_SECURITY_POLICY, SECURITY_HEADERS, SITE_CONTENT_SECURITY_POLICY } from '../../next.config';
+import nextConfig, { API_CONTENT_SECURITY_POLICY, OCR_CONTENT_SECURITY_POLICY, SECURITY_HEADERS, SITE_CONTENT_SECURITY_POLICY } from '../../next.config';
 import { SITE_ROUTES } from '../../lib/site-routes';
 import { config as proxyConfig } from '../../proxy';
 
@@ -30,11 +30,24 @@ describe('security headers', () => {
         // A second Content-Security-Policy on an app page would block its nonce scripts
         const rules = await nextConfig.headers!();
         const withPolicy = rules.filter(rule => rule.headers.some(header => header.key === 'Content-Security-Policy'));
-        const pageRules = withPolicy.filter(rule => rule.source !== '/api/:path*');
+        const pageRules = withPolicy.filter(rule => rule.source !== '/api/:path*' && rule.source !== '/ocr/:path*');
         expect(pageRules.map(rule => rule.source).sort()).toEqual([...SITE_ROUTES].sort());
         for (const rule of pageRules) expect(rule.headers).toEqual([{ key: 'Content-Security-Policy', value: SITE_CONTENT_SECURITY_POLICY }]);
         const appPages = proxyConfig.matcher.filter((entry): entry is string => typeof entry === 'string');
         for (const page of appPages) expect(pageRules.map(rule => rule.source)).not.toContain(page);
+    });
+
+    test('only the receipt reader\'s files may compile WebAssembly, and they are cached for good', async () => {
+        const rules = await nextConfig.headers!();
+        const ocr = rules.find(rule => rule.source === '/ocr/:path*');
+        expect(ocr?.headers).toEqual([
+            { key: 'Content-Security-Policy', value: OCR_CONTENT_SECURITY_POLICY },
+            { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ]);
+        expect(OCR_CONTENT_SECURITY_POLICY).toBe("default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; frame-ancestors 'none'");
+        for (const rule of rules.filter(item => item.source !== '/ocr/:path*')) {
+            for (const header of rule.headers) expect(header.value).not.toContain('wasm-unsafe-eval');
+        }
     });
 
     test('the X-Powered-By header is off', () => {

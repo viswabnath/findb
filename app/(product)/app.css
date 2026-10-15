@@ -537,6 +537,9 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .search-list .amount.in { color: var(--c-income); }
 
 /* Quick add (components/app/QuickAdd.tsx) */
+.quick-receipt { display: grid; gap: 6px; justify-items: start; }
+.quick-receipt .form-note { margin: 0; }
+.quick-receipt label[aria-disabled="true"] { opacity: 0.7; pointer-events: none; }
 .quick-add-button { margin: 16px 12px 0; justify-content: center; }
 .quick-add { display: grid; gap: 14px; }
 .quick-add .quick-amount { font-family: var(--font-num); font-variant-numeric: tabular-nums; font-size: 1.5rem; font-weight: 700; }

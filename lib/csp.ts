@@ -32,6 +32,8 @@ export function buildContentSecurityPolicy({ nonce, isDevelopment, isHttps }: Cs
         "font-src 'self'",
         "img-src 'self' data:",
         "connect-src 'self'",
+        // The receipt reader's worker (public/ocr), from this site only
+        "worker-src 'self'",
         "base-uri 'self'",
         "form-action 'self'",
         "frame-ancestors 'self'",
