@@ -51,6 +51,11 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
+    // Deleting a user does not reach the storage bucket (docs/privacy.md): delete the files first
+    for (const as of [agent, otherAgent]) {
+        const vault = (await as.get('/api/documents')).body;
+        for (const item of vault.documents ?? []) await as.delete(`/api/documents/${item.id}`);
+    }
     for (const name of [USER, OTHER]) await deleteTestUser(name);
     await closeTarget();
 });
