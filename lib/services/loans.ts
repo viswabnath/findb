@@ -8,6 +8,8 @@ import {
     addMonths, byFinancialYear, effectiveYearlyRate, emiFor, foreclosureAmount, interestSaved, schedule,
     type Instalment, type Keep, type LoanTerms, type Prepayment, type RateChange,
 } from '../../src/core/loans';
+import { goldValuePaise, marginState, type MarginRisk } from '../../src/core/pledge';
+import type { Karat } from '../../src/core/calculators';
 import { ensureCategories } from './categories';
 import { checkCanSpend, lockedMoneyAccount } from './entries';
 import { todayInIndia } from './recurring';
@@ -24,7 +26,30 @@ import { entryDate } from './transactions';
 type Client = Pick<PoolClient, 'query'>;
 type Body = Record<string, unknown>;
 
-const KINDS = ['home', 'vehicle', 'personal', 'education', 'business', 'consumer', 'other'];
+const KINDS = ['home', 'vehicle', 'personal', 'education', 'business', 'consumer', 'other', 'gold', 'against_fd', 'against_policy', 'against_securities', 'against_property'];
+/** Loans that are backed by an asset, and the kind of asset each pledges */
+const SECURED: Record<string, string> = { gold: 'gold', against_fd: 'fd', against_policy: 'policy', against_securities: 'securities', against_property: 'property' };
+const RATE_TYPES = ['reducing', 'flat', 'interest_only', 'bullet'];
+
+export interface Pledge {
+    assetKind: string;
+    description: string;
+    value: string;
+    valuedOn: string;
+    weightGrams: string | null;
+    purityKarat: number | null;
+    /** ₹ a gram of 24 karat gold, as last valued */
+    goldRate: string | null;
+    ltvLimit: string;
+    /** The loan (with interest due on a bullet loan) as % of the asset's value, and the margin risk */
+    ltv: number;
+    risk: MarginRisk;
+    /** How far the asset's value can fall before the limit */
+    headroom: string;
+    /** The asset's value less what is owed against it */
+    available: string;
+    released: boolean;
+}
 
 export interface LoanPayment {
     id: number; kind: string; date: string; principal: string; interest: string; charges: string; total: string;
@@ -36,7 +61,7 @@ export interface Loan {
     name: string;
     lender: string | null;
     kind: string;
-    rateType: 'reducing' | 'flat';
+    rateType: 'reducing' | 'flat' | 'interest_only' | 'bullet';
     rateKind: 'fixed' | 'floating';
     principal: string;
     /** The rate now: % a year and ₹ per ₹100 a month */
@@ -67,6 +92,7 @@ export interface Loan {
     payments: LoanPayment[];
     closed: boolean;
     notes: string | null;
+    pledge: Pledge | null;
 }
 
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
@@ -125,12 +151,52 @@ async function loadLoans(client: Client, userId: number, onlyId?: number): Promi
     const payments = (await client.query(
         `SELECT id, loan_id, kind, paid_on::text AS paid_on, principal_paise, interest_paise, charges_paise, keep, status FROM loan_payments
          WHERE user_id = $1 AND loan_id = ANY($2::bigint[]) AND deleted_at IS NULL ORDER BY paid_on, id`, [userId, ids])).rows;
+    const pledges = (await client.query(
+        `SELECT loan_id, asset_kind, description, value_paise, valued_on::text AS valued_on, weight_grams::text AS weight_grams, purity_karat,
+                gold_rate_paise, ltv_limit::text AS ltv_limit, released_on FROM pledges WHERE user_id = $1 AND loan_id = ANY($2::bigint[])`, [userId, ids])).rows;
     const today = todayInIndia();
-    return (loans.rows as LoanRow[]).map(row => toLoan(row, changes.filter(item => Number(item.loan_id) === Number(row.id)),
-        payments.filter(item => Number(item.loan_id) === Number(row.id)), today));
+    return (loans.rows as LoanRow[]).map(row => {
+        const loan = toLoan(row, changes.filter(item => Number(item.loan_id) === Number(row.id)), payments.filter(item => Number(item.loan_id) === Number(row.id)), today);
+        const pledge = pledges.find(item => Number(item.loan_id) === loan.id);
+        return { ...loan, pledge: pledge ? toPledge(pledge, loan, today) : null };
+    });
 }
 
-function toLoan(row: LoanRow, changeRows: Record<string, unknown>[], paymentRows: Record<string, unknown>[], today: string): Loan {
+function toPledge(row: Record<string, unknown>, loan: Omit<Loan, 'pledge'>, today: string): Pledge {
+    const value = Number(row.value_paise);
+    // A bullet loan's interest builds up and is owed at the end: it counts against the gold too
+    const accrued = loan.rateType === 'bullet' && !loan.closed
+        ? Math.round((toPaise(loan.outstanding) * Number(loan.yearlyRate) * Math.max(day(today) - day(loan.disbursedOn), 0)) / 365 / 100) - toPaise(loan.interestPaid)
+        : 0;
+    const owed = toPaise(loan.outstanding) + Math.max(accrued, 0);
+    const state = marginState(owed, value, Number(row.ltv_limit));
+    return {
+        assetKind: String(row.asset_kind), description: String(row.description), value: fromPaise(value), valuedOn: String(row.valued_on),
+        weightGrams: row.weight_grams === null ? null : String(Number(row.weight_grams)), purityKarat: row.purity_karat === null ? null : Number(row.purity_karat),
+        goldRate: row.gold_rate_paise === null ? null : fromPaise(Number(row.gold_rate_paise)), ltvLimit: String(Number(row.ltv_limit)),
+        ltv: state.ltv, risk: loan.closed ? 'ok' : state.risk, headroom: fromPaise(state.headroom), available: fromPaise(Math.max(value - owed, 0)),
+        released: row.released_on !== null || loan.closed,
+    };
+}
+
+/** { assetKind?, description, value?, weightGrams?, purityKarat?, goldRate?, ltvLimit? } for a secured loan; gold is valued from weight, purity and rate */
+function readPledge(body: unknown, assetKind: string): { assetKind: string; description: string; value: number; weight: string | null; karat: number | null; rate: number | null; limit: number } {
+    const pledge = (body && typeof body === 'object' ? body : {}) as Body;
+    const description = text(pledge.description).slice(0, 200) || t(`loans.assets.${assetKind as 'gold'}`);
+    const limit = pledge.ltvLimit === undefined || pledge.ltvLimit === '' ? 75 : Number(pledge.ltvLimit);
+    if (!Number.isFinite(limit) || limit <= 0 || limit > 100) throw new RequestError(400, t('errors.loans.badLtv'));
+    if (assetKind === 'gold') {
+        const weight = Number(pledge.weightGrams);
+        const karat = Number(pledge.purityKarat);
+        if (!Number.isFinite(weight) || weight <= 0 || weight > 100_000) throw new RequestError(400, t('errors.loans.badWeight'));
+        if (![24, 22, 18, 14].includes(karat)) throw new RequestError(400, t('errors.loans.badPurity'));
+        const rate = paiseOf(pledge.goldRate);
+        return { assetKind, description, value: goldValuePaise(weight, karat as Karat, rate), weight: String(weight), karat, rate, limit };
+    }
+    return { assetKind, description, value: paiseOf(pledge.value), weight: null, karat: null, rate: null, limit };
+}
+
+function toLoan(row: LoanRow, changeRows: Record<string, unknown>[], paymentRows: Record<string, unknown>[], today: string): Omit<Loan, 'pledge'> {
     const principal = Number(row.principal_paise);
     const terms: LoanTerms = { principal, yearlyRate: Number(row.yearly_rate), months: row.months, firstDue: row.first_due, type: row.rate_type };
     const changes: RateChange[] = changeRows.map(item => ({ from: String(item.effective_from), yearlyRate: Number(item.yearly_rate), keep: item.keep as Keep }));
@@ -224,7 +290,8 @@ export async function createLoan(pool: Pool, userId: number, body: Body): Promis
     const lender = text(body.lender).slice(0, 100) || null;
     const kind = String(body.kind ?? 'other');
     if (!KINDS.includes(kind)) throw new RequestError(400, t('errors.loans.badKind'));
-    const rateType = body.rateType === 'flat' ? 'flat' : 'reducing';
+    const rateType = RATE_TYPES.includes(String(body.rateType)) ? String(body.rateType) : 'reducing';
+    const pledge = SECURED[kind] ? readPledge(body.pledge, SECURED[kind]!) : null;
     const rateKind = body.rateKind === 'floating' ? 'floating' : 'fixed';
     const principal = paiseOf(body.principal);
     const rate = rateOf(body.interestRate, body.rateUnit);
@@ -268,6 +335,12 @@ export async function createLoan(pool: Pool, userId: number, body: Body): Promis
                     [{ accountId: await interestCategory(client, userId), paise: fee + charges }, { accountId: into.id, paise: -(fee + charges) }], { charges: fee + charges });
             }
         }
+        if (pledge) {
+            await client.query(
+                `INSERT INTO pledges (user_id, loan_id, asset_kind, description, value_paise, valued_on, weight_grams, purity_karat, gold_rate_paise, ltv_limit)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+                [userId, loanId, pledge.assetKind, pledge.description, pledge.value, today, pledge.weight, pledge.karat, pledge.rate, pledge.limit]);
+        }
         await logActivity(client, userId, 'created', 'loan', loanId, `Added loan: ${name}`, fromPaise(principal), null,
             { name, lender, kind, principal: fromPaise(principal), rate, months, existing, outstanding: existing ? fromPaise(outstanding) : null });
         return (await loadLoans(client, userId, loanId))[0]!;
@@ -286,7 +359,10 @@ export async function payEmi(pool: Pool, userId: number, id: string, body: Body)
         const owed = toPaise(loan.outstanding);
         const rate = Number([...loan.rateChanges].reverse().find(change => change.from <= date)?.yearlyRate ?? loan.yearlyRate);
         const due = loan.nextDue;
-        const flatInterest = loan.rateType === 'flat' && due ? toPaise(loan.schedule.find(row => row.date === due.date)?.interest ?? '0') : null;
+        // Flat, interest-only and bullet loans: the interest is the schedule's (a bullet's is all of it, less what was paid)
+        const scheduled = due ? toPaise(loan.schedule.find(row => row.date === due.date)?.interest ?? '0') : 0;
+        const flatInterest = loan.rateType === 'flat' || loan.rateType === 'interest_only' ? scheduled
+            : loan.rateType === 'bullet' ? Math.max(scheduled - toPaise(loan.interestPaid), 0) : null;
         let interest: number;
         if (body.interest === undefined || body.interest === null || body.interest === '') {
             interest = Math.min(flatInterest ?? Math.round((owed * rate) / 12 / 100), amount);
@@ -379,6 +455,7 @@ export async function closeLoan(pool: Pool, userId: number, id: string, body: Bo
             [{ accountId: loan.accountId, paise: owed }, { accountId: await interestCategory(client, userId), paise: interest + charge }, { accountId: account.id, paise: -(owed + interest + charge) }],
             { principal: owed, interest, charges: charge });
         await client.query('UPDATE loans SET closed_on = $1 WHERE id = $2 AND user_id = $3', [date, loan.id, userId]);
+        await client.query('UPDATE pledges SET released_on = $1 WHERE loan_id = $2 AND user_id = $3', [date, loan.id, userId]);
         await logActivity(client, userId, 'updated', 'loan', loan.id, `Closed ${loan.name}`, fromPaise(owed + interest + charge), null,
             { name: loan.name, principal: fromPaise(owed), interest: fromPaise(interest), charge: fromPaise(charge), date });
         return (await loadLoans(client, userId, loan.id))[0]!;
@@ -394,7 +471,10 @@ export async function deleteLoanPayment(pool: Pool, userId: number, id: string, 
         const row = await client.query('SELECT entry_id FROM loan_payments WHERE id = $1 AND user_id = $2', [payment.id, userId]);
         if (row.rows[0]?.entry_id) await voidEntry(client, userId, Number(row.rows[0].entry_id));
         await client.query('UPDATE loan_payments SET deleted_at = now() WHERE id = $1 AND user_id = $2', [payment.id, userId]);
-        if (payment.kind === 'closure') await client.query('UPDATE loans SET closed_on = NULL WHERE id = $1 AND user_id = $2', [loan.id, userId]);
+        if (payment.kind === 'closure') {
+            await client.query('UPDATE loans SET closed_on = NULL WHERE id = $1 AND user_id = $2', [loan.id, userId]);
+            await client.query('UPDATE pledges SET released_on = NULL WHERE loan_id = $1 AND user_id = $2', [loan.id, userId]);
+        }
         await logActivity(client, userId, 'deleted', 'loan', loan.id, `Removed a payment on ${loan.name}`, payment.total, { kind: payment.kind, amount: payment.total, date: payment.date }, null);
         return (await loadLoans(client, userId, loan.id))[0]!;
     });
@@ -409,5 +489,24 @@ export async function deleteLoan(pool: Pool, userId: number, id: string): Promis
         await client.query('UPDATE loans SET deleted_at = now() WHERE id = $1 AND user_id = $2', [loan.id, userId]);
         await client.query('UPDATE ledger_accounts SET archived_at = now() WHERE id = $1 AND user_id = $2', [loan.accountId, userId]);
         await logActivity(client, userId, 'deleted', 'loan', loan.id, `Removed loan: ${loan.name}`, loan.principal, { name: loan.name }, null);
+    });
+}
+
+/** { goldRate?, value?, ltvLimit?, description? }: value the pledged asset again (gold at today's rate) */
+export async function revaluePledge(pool: Pool, userId: number, id: string, body: Body): Promise<Loan> {
+    return withTransaction(pool, async (client) => {
+        const loan = await lockedLoan(client, userId, id);
+        if (!loan.pledge) throw new RequestError(400, t('errors.loans.noPledge'));
+        const current = loan.pledge;
+        const next = readPledge({
+            description: body.description ?? current.description, ltvLimit: body.ltvLimit ?? current.ltvLimit,
+            weightGrams: current.weightGrams, purityKarat: current.purityKarat, goldRate: body.goldRate ?? current.goldRate, value: body.value ?? current.value,
+        }, current.assetKind);
+        await client.query(
+            'UPDATE pledges SET description = $1, value_paise = $2, valued_on = $3, gold_rate_paise = $4, ltv_limit = $5 WHERE loan_id = $6 AND user_id = $7',
+            [next.description, next.value, todayInIndia(), next.rate, next.limit, loan.id, userId]);
+        await logActivity(client, userId, 'updated', 'loan', loan.id, `Valued again: ${current.description}`, fromPaise(next.value),
+            { value: current.value, goldRate: current.goldRate }, { value: fromPaise(next.value), goldRate: next.rate === null ? null : fromPaise(next.rate) });
+        return (await loadLoans(client, userId, loan.id))[0]!;
     });
 }

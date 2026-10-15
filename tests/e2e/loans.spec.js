@@ -51,3 +51,37 @@ test('a running home loan: EMI, part payment, and the year\'s figures', async ({
     await loan.locator('details.loan-more summary', { hasText: 'Repayment schedule' }).click();
     await expect(loan.locator('.loan-schedule tbody tr').first()).toBeVisible();
 });
+
+test('a gold loan: the gold valued, then a lower gold rate brings a margin warning', async ({ page }) => {
+    await register(page, uniqueUser());
+    await chooseTracking(page, 'both');
+    await addBank(page, 'E2E Gold Bank', 50000);
+    expect((await page.request.put('/api/modules', { data: { modules: ['income', 'spending', 'credit_cards', 'debts'] } })).ok()).toBe(true);
+    await page.goto('/loans');
+    await page.locator('[data-status="new"]').click();
+    await page.locator('#loan-name').fill('Gold loan');
+    await page.locator('#loan-kind').selectOption('gold');
+    await page.locator('#loan-principal').fill('180000');
+    await page.locator('#loan-rate').fill('1');
+    await page.locator('#loan-unit').selectOption('per100month');
+    await page.locator('#loan-rate-type').selectOption('interest_only');
+    await page.locator('#loan-months').fill('12');
+    await page.locator('#loan-disbursed').fill(new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10));
+    await page.locator('#pledge-weight').fill('50');
+    await page.locator('#pledge-purity').selectOption('22');
+    await page.locator('#pledge-rate').fill('7200');
+    await page.locator('#pledge-description').fill('Two bangles');
+    await page.locator('[data-action="addLoan"]').click();
+    await expect(toast(page, 'Gold loan added')).toBeVisible();
+
+    const loan = page.locator('[data-loan="Gold loan"]');
+    await expect(loan.locator('.pledge-line')).toContainText('Two bangles: worth ₹3,30,000.00');
+    await expect(loan.locator('.pledge-ltv')).toHaveText('The loan is 54.55% of its value; the lender\'s limit is 75%');
+    await expect(loan.locator('[data-risk="ok"]')).toBeVisible();
+
+    await loan.locator('[data-action="revalue"]').click();
+    await page.locator('#act-revalue').fill('5400');
+    await page.locator('[data-action="saveLoanAction"]').click();
+    await expect(toast(page, 'Valued again: ₹2,47,500.00')).toBeVisible();
+    await expect(loan.locator('[data-risk="near"]')).toBeVisible();
+});

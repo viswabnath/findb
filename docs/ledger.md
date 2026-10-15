@@ -128,7 +128,7 @@ Since migration 0025 (`lib/services/people.ts`): each person has one ledger acco
 
 ## Loans
 
-Since migration 0028 (`lib/services/loans.ts`): a loan is a ledger account of subtype `loan` (a liability, negative while owed). A new loan is an entry from it into a money account; one already running starts with an opening balance of what is owed today. EMIs, prepayments, top-ups, fees and closing are `loan` entries, each with a `loan_payments` row holding its principal, interest and charges, so the per-year figures and the schedule (`src/core/loans.ts`, with `loan_rate_changes`) are worked out without reading entry lines.
+Since migration 0028 (`lib/services/loans.ts`): a loan is a ledger account of subtype `loan` (a liability, negative while owed). A new loan is an entry from it into a money account; one already running starts with an opening balance of what is owed today. EMIs, prepayments, top-ups, fees and closing are `loan` entries, each with a `loan_payments` row holding its principal, interest and charges, so the per-year figures and the schedule (`src/core/loans.ts`, with `loan_rate_changes`) are worked out without reading entry lines. Since migration 0029 a secured loan has one `pledges` row describing and valuing the asset (gold by weight, purity and rate); it is not a ledger account until assets arrive in later phases.
 
 ## Groups
 

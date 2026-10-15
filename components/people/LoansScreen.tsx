@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Landmark, Plus, X } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
-import { apiDelete, apiGet, apiPost, httpError, redirectIfUnauthorized } from '@/lib/api-client';
+import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { todayInIndiaClient } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
 import { t } from '@/lib/i18n';
@@ -18,23 +18,30 @@ import { t } from '@/lib/i18n';
 interface Account { id: number; type: string; name: string }
 interface Payment { id: number; kind: string; date: string; principal: string; interest: string; charges: string; total: string; status: 'full' | 'partial' | 'late' | null }
 interface Loan {
-    id: number; name: string; lender: string | null; kind: string; rateType: 'reducing' | 'flat'; rateKind: 'fixed' | 'floating'; principal: string;
+    id: number; name: string; lender: string | null; kind: string; rateType: 'reducing' | 'flat' | 'interest_only' | 'bullet'; rateKind: 'fixed' | 'floating'; principal: string;
     yearlyRate: string; perHundredMonthly: string; months: number; emi: string; effectiveRate: number; outstanding: string; interestPaid: string;
     nextDue: { date: string; amount: string } | null; missed: number; monthsLeft: number; endsOn: string | null;
     foreclosure: { interest: string; charge: string; total: string } | null; byYear: { year: string; principal: string; interest: string; fees: string }[];
     schedule: { number: number; date: string; emi: string; interest: string; principal: string; prepaid: string; closing: string }[];
-    payments: Payment[]; closed: boolean;
+    payments: Payment[]; closed: boolean; pledge: Pledge | null;
 }
-type Action = 'emi' | 'prepay' | 'topup' | 'rate' | 'close';
+type Action = 'emi' | 'prepay' | 'topup' | 'rate' | 'close' | 'revalue';
+interface Pledge {
+    assetKind: string; description: string; value: string; valuedOn: string; weightGrams: string | null; purityKarat: number | null; goldRate: string | null;
+    ltvLimit: string; ltv: number; risk: 'ok' | 'near' | 'margin'; headroom: string; available: string; released: boolean;
+}
 
 const MONEY = ['bank', 'cash', 'credit_card', 'wallet', 'meal_card'];
-const KINDS = ['home', 'vehicle', 'personal', 'education', 'business', 'consumer', 'other'] as const;
+const KINDS = ['home', 'vehicle', 'personal', 'education', 'business', 'consumer', 'gold', 'against_fd', 'against_policy', 'against_securities', 'against_property', 'other'] as const;
+const SECURED = ['gold', 'against_fd', 'against_policy', 'against_securities', 'against_property'];
+const RATE_TYPES = ['reducing', 'flat', 'interest_only', 'bullet'] as const;
 const shortDate = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-const ENDPOINT: Record<Action, string> = { emi: 'emi', prepay: 'prepay', topup: 'topup', rate: 'rate', close: 'close' };
+const ENDPOINT: Record<Action, string> = { emi: 'emi', prepay: 'prepay', topup: 'topup', rate: 'rate', close: 'close', revalue: 'pledge' };
 
 const EMPTY = {
     name: '', lender: '', kind: 'home', rateType: 'reducing', rateKind: 'floating', principal: '', interestRate: '', rateUnit: 'year', months: '',
     disbursedOn: '', firstDue: '', emi: '', processingFee: '', otherCharges: '', foreclosureCharge: '', status: 'existing', accountId: '', outstanding: '',
+    pledgeDescription: '', pledgeValue: '', weightGrams: '', purityKarat: '22', goldRate: '', ltvLimit: '75',
 };
 
 export function LoansScreen() {
@@ -69,8 +76,11 @@ export function LoansScreen() {
     const set = (key: keyof typeof EMPTY, value: string) => setForm(current => ({ ...current, [key]: value }));
 
     async function addLoan() {
-        const { status, accountId, outstanding, ...rest } = form;
-        const result = await apiPost<Loan>('/api/loans', { ...rest, months: Number(form.months), ...(status === 'existing' ? { outstanding } : { accountId: Number(accountId) }) });
+        const { status, accountId, outstanding, pledgeDescription, pledgeValue, weightGrams, purityKarat, goldRate, ltvLimit, ...rest } = form;
+        const pledge = SECURED.includes(form.kind)
+            ? { description: pledgeDescription, value: pledgeValue, weightGrams, purityKarat: Number(purityKarat), goldRate, ltvLimit }
+            : undefined;
+        const result = await apiPost<Loan>('/api/loans', { ...rest, months: Number(form.months), pledge, ...(status === 'existing' ? { outstanding } : { accountId: Number(accountId) }) });
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
         toast('success', t('loans.added', { name: result.data.name }));
@@ -86,16 +96,21 @@ export function LoansScreen() {
     async function act() {
         if (!acting) return;
         const { loan, action } = acting;
-        const body = action === 'rate'
-            ? { from: acting.date, interestRate: acting.rate, rateUnit: acting.unit, keep: acting.keep }
-            : { amount: acting.amount, accountId: Number(acting.accountId), date: acting.date, interest: acting.interest || undefined, keep: acting.keep, charges: acting.charges || undefined };
-        const result = await apiPost<Loan & { interestSaved?: string }>(`/api/loans/${loan.id}/${ENDPOINT[action]}`, body);
+        const body = action === 'revalue'
+            ? (loan.pledge?.assetKind === 'gold' ? { goldRate: acting.amount } : { value: acting.amount })
+            : action === 'rate'
+                ? { from: acting.date, interestRate: acting.rate, rateUnit: acting.unit, keep: acting.keep }
+                : { amount: acting.amount, accountId: Number(acting.accountId), date: acting.date, interest: acting.interest || undefined, keep: acting.keep, charges: acting.charges || undefined };
+        // Valuing again changes the pledge (PUT); everything else records a payment or change (POST)
+        const send = action === 'revalue' ? apiPut : apiPost;
+        const result = await send<Loan & { interestSaved?: string }>(`/api/loans/${loan.id}/${ENDPOINT[action]}`, body);
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
         const done = action === 'emi' ? t('loans.emiDone', { amount: formatRupees(acting.amount) })
             : action === 'prepay' ? `${t('loans.prepaid', { amount: formatRupees(acting.amount) })}. ${t('loans.saved', { amount: formatRupees(result.data.interestSaved ?? '0') })}`
                 : action === 'topup' ? t('loans.toppedUp', { amount: formatRupees(acting.amount) })
-                    : action === 'rate' ? t('loans.rateDone', { date: shortDate(acting.date) }) : t('loans.closedDone', { name: loan.name });
+                    : action === 'revalue' ? t('loans.revalued', { value: formatRupees(result.data.pledge?.value ?? '0') })
+                        : action === 'rate' ? t('loans.rateDone', { date: shortDate(acting.date) }) : t('loans.closedDone', { name: loan.name });
         toast('success', done);
         setActing(null);
         setLoans(current => (current ?? []).map(item => (item.id === result.data.id ? result.data : item)));
@@ -144,6 +159,29 @@ export function LoansScreen() {
                         {loan.missed > 0 ? <p className="notice warn loan-missed">{t('loans.missed', { count: loan.missed })}</p> : null}
                         {loan.endsOn && !loan.closed ? <p className="when">{t('loans.endsOn', { date: shortDate(loan.endsOn), count: loan.monthsLeft })}</p> : null}
                     </div>
+                    {loan.pledge ? (
+                        <div className={`card-pad loan-pledge pledge-${loan.pledge.risk}`}>
+                            <span className="label">{t('loans.pledge')} {loan.pledge.released ? <span className="tag">{t('loans.released')}</span> : null}</span>
+                            <p className="pledge-line">{t('loans.pledgeLine', { description: loan.pledge.description, value: formatRupees(loan.pledge.value), date: shortDate(loan.pledge.valuedOn) })}</p>
+                            {loan.pledge.weightGrams ? (
+                                <p className="when">{t('loans.goldLine', { weight: loan.pledge.weightGrams, karat: loan.pledge.purityKarat ?? '', rate: loan.pledge.goldRate ?? '' })}</p>
+                            ) : null}
+                            {!loan.pledge.released ? (
+                                <>
+                                    <p className="pledge-ltv">{t('loans.ltvLine', { ltv: loan.pledge.ltv, limit: loan.pledge.ltvLimit })}</p>
+                                    {loan.pledge.assetKind === 'gold'
+                                        ? <p className={loan.pledge.risk === 'ok' ? 'when' : 'notice warn'} data-risk={loan.pledge.risk}>{t(`loans.risk.${loan.pledge.risk}`, { headroom: formatRupees(loan.pledge.headroom) })}</p>
+                                        : <p className="when">{t('loans.available', { amount: formatRupees(loan.pledge.available) })}</p>}
+                                    <button type="button" className="btn-link" data-action="revalue" onClick={() => setActing({
+                                        loan, action: 'revalue', amount: loan.pledge?.assetKind === 'gold' ? loan.pledge.goldRate ?? '' : loan.pledge?.value ?? '', accountId: firstAccount,
+                                        date: todayInIndiaClient(), interest: '', keep: 'emi', rate: '', unit: 'year', charges: '',
+                                    })}>
+                                        {loan.pledge.assetKind === 'gold' ? t('loans.revalue') : t('loans.revalueAsset')}
+                                    </button>
+                                </>
+                            ) : null}
+                        </div>
+                    ) : null}
                     {!loan.closed ? (
                         <div className="settings-actions">
                             <button type="button" className="btn btn-primary btn-sm" data-action="payEmi" onClick={() => open(loan, 'emi')}>{t('loans.payEmi')}</button>
@@ -217,7 +255,7 @@ export function LoansScreen() {
                         </select></div>
                     <div className="field"><label htmlFor="loan-rate-type">{t('loans.rateType')}</label>
                         <select id="loan-rate-type" value={form.rateType} onChange={event => set('rateType', event.target.value)}>
-                            <option value="reducing">{t('loans.rateTypes.reducing')}</option><option value="flat">{t('loans.rateTypes.flat')}</option>
+                            {RATE_TYPES.map(type => <option key={type} value={type}>{t(`loans.rateTypes.${type}`)}</option>)}
                         </select></div>
                     <div className="field"><label htmlFor="loan-rate-kind">{t('loans.rateKind')}</label>
                         <select id="loan-rate-kind" value={form.rateKind} onChange={event => set('rateKind', event.target.value)}>
@@ -237,12 +275,30 @@ export function LoansScreen() {
                             <div className="field"><label htmlFor="loan-charges">{t('loans.otherCharges')}</label><input id="loan-charges" type="number" inputMode="decimal" min="0" step="0.01" value={form.otherCharges} onChange={event => set('otherCharges', event.target.value)} /></div>
                         </>
                     )}
+                    {form.kind === 'gold' ? (
+                        <>
+                            <div className="field"><label htmlFor="pledge-weight">{t('loans.weight')}</label><input id="pledge-weight" type="number" inputMode="decimal" min="0" step="0.001" value={form.weightGrams} onChange={event => set('weightGrams', event.target.value)} /></div>
+                            <div className="field"><label htmlFor="pledge-purity">{t('loans.purity')}</label>
+                                <select id="pledge-purity" value={form.purityKarat} onChange={event => set('purityKarat', event.target.value)}>
+                                    {[24, 22, 18, 14].map(karat => <option key={karat} value={karat}>{t('loans.karat', { karat })}</option>)}
+                                </select></div>
+                            <div className="field"><label htmlFor="pledge-rate">{t('loans.goldRate')}</label><input id="pledge-rate" type="number" inputMode="decimal" min="0" step="0.01" value={form.goldRate} onChange={event => set('goldRate', event.target.value)} /></div>
+                        </>
+                    ) : SECURED.includes(form.kind) ? (
+                        <div className="field"><label htmlFor="pledge-value">{t('loans.pledgeValue')}</label><input id="pledge-value" type="number" inputMode="decimal" min="0" step="0.01" value={form.pledgeValue} onChange={event => set('pledgeValue', event.target.value)} /></div>
+                    ) : null}
+                    {SECURED.includes(form.kind) ? (
+                        <>
+                            <div className="field"><label htmlFor="pledge-description">{t('loans.pledgeDescription')}</label><input id="pledge-description" type="text" maxLength={200} value={form.pledgeDescription} onChange={event => set('pledgeDescription', event.target.value)} /></div>
+                            <div className="field"><label htmlFor="pledge-ltv">{t('loans.ltvLimit')}</label><input id="pledge-ltv" type="number" inputMode="decimal" min="1" max="100" step="0.01" value={form.ltvLimit} onChange={event => set('ltvLimit', event.target.value)} /></div>
+                        </>
+                    ) : null}
                     <div className="field"><label htmlFor="loan-foreclosure">{t('loans.foreclosureCharge')}</label><input id="loan-foreclosure" type="number" inputMode="decimal" min="0" max="10" step="0.01" value={form.foreclosureCharge} onChange={event => set('foreclosureCharge', event.target.value)} /></div>
                 </div>
                 <button type="submit" className="btn btn-primary" data-action="addLoan"><Plus aria-hidden="true" /> {t('loans.save')}</button>
             </form>
 
-            <Modal id="loan-action-modal" title={acting ? `${t(`loans.${acting.action === 'emi' ? 'payEmi' : acting.action === 'prepay' ? 'prepay' : acting.action === 'topup' ? 'topUp' : acting.action === 'rate' ? 'rateChange' : 'closeLoan'}`)}: ${acting.loan.name}` : ''}
+            <Modal id="loan-action-modal" title={acting ? `${t(`loans.${acting.action === 'emi' ? 'payEmi' : acting.action === 'prepay' ? 'prepay' : acting.action === 'topup' ? 'topUp' : acting.action === 'rate' ? 'rateChange' : acting.action === 'revalue' ? 'revalueAsset' : 'closeLoan'}`)}: ${acting.loan.name}` : ''}
                 open={acting !== null} closeAction="close-loan-action" onClose={() => setActing(null)}
                 footer={(
                     <>
@@ -259,7 +315,10 @@ export function LoansScreen() {
                                 total: formatRupees(acting.loan.foreclosure.total), interest: formatRupees(acting.loan.foreclosure.interest), charge: formatRupees(acting.loan.foreclosure.charge),
                             })}</p>
                         ) : null}
-                        {acting.action === 'rate' ? (
+                        {acting.action === 'revalue' ? (
+                            <div className="field full"><label htmlFor="act-revalue">{acting.loan.pledge?.assetKind === 'gold' ? t('loans.goldRate') : t('loans.pledgeValue')}</label>
+                                <input id="act-revalue" type="number" inputMode="decimal" min="0" step="0.01" value={acting.amount} onChange={event => setActing({ ...acting, amount: event.target.value })} /></div>
+                        ) : acting.action === 'rate' ? (
                             <>
                                 <div className="field"><label htmlFor="act-rate">{t('loans.newRate')}</label><input id="act-rate" type="number" inputMode="decimal" min="0" step="0.001" value={acting.rate} onChange={event => setActing({ ...acting, rate: event.target.value })} /></div>
                                 <div className="field"><label htmlFor="act-unit">{t('loans.rateUnit')}</label>
@@ -270,11 +329,11 @@ export function LoansScreen() {
                         ) : acting.action !== 'close' ? (
                             <div className="field"><label htmlFor="act-amount">{t('loans.amount')}</label><input id="act-amount" type="number" inputMode="decimal" min="0.01" step="0.01" value={acting.amount} onChange={event => setActing({ ...acting, amount: event.target.value })} /></div>
                         ) : null}
-                        {acting.action !== 'rate' ? (
+                        {acting.action !== 'rate' && acting.action !== 'revalue' ? (
                             <div className="field"><label htmlFor="act-account">{acting.action === 'topup' ? t('loans.into') : t('loans.fromAccount')}</label>
                                 <select id="act-account" value={acting.accountId} onChange={event => setActing({ ...acting, accountId: event.target.value })}>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></div>
                         ) : null}
-                        <div className="field"><label htmlFor="act-date">{acting.action === 'rate' ? t('loans.from') : t('loans.date')}</label><input id="act-date" type="date" value={acting.date} onChange={event => setActing({ ...acting, date: event.target.value })} /></div>
+                        {acting.action !== 'revalue' ? <div className="field"><label htmlFor="act-date">{acting.action === 'rate' ? t('loans.from') : t('loans.date')}</label><input id="act-date" type="date" value={acting.date} onChange={event => setActing({ ...acting, date: event.target.value })} /></div> : null}
                         {acting.action === 'emi' ? (
                             <div className="field"><label htmlFor="act-interest">{t('loans.interestPart')}</label><input id="act-interest" type="number" inputMode="decimal" min="0" step="0.01" value={acting.interest} onChange={event => setActing({ ...acting, interest: event.target.value })} /></div>
                         ) : null}
