@@ -290,6 +290,21 @@ A loan: `{ "id", "name", "lender", "kind", "rateType", "rateKind", "principal", 
 
 Secured loans (`kind` gold, against_fd, against_policy, against_securities, against_property) take a `pledge`: `{ "description"?, "ltvLimit"? (75), "value" }`, or for gold `{ "weightGrams", "purityKarat": 24 | 22 | 18 | 14, "goldRate" (Rs a gram of 24 karat) }`, its value worked out from them. The loan's `pledge`: `{ "assetKind", "description", "value", "valuedOn", "weightGrams", "purityKarat", "goldRate", "ltvLimit", "ltv", "risk": "ok \| near \| margin", "headroom", "available", "released" }`; `ltv` is what is owed (with interest built up on a bullet loan) as % of the value, `near` within 5 points of the limit; closing the loan releases the pledge. `interest_only` loans pay a month's interest each month and the principal at the end; `bullet` loans pay everything at the end, with simple interest.
 
+## Chit funds
+
+Chits (`lib/services/chits.ts`, `src/core/chit.ts`). Each is a ledger account: payments are savings in it until the user wins; dividends are income (Dividends); winning brings the net prize in and turns what is left to pay into what is owed, the discount and deductions given up being spending (Loan interest and fees).
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/chits` | – | chits (see below) |
+| POST | `/api/chits` | `{ "name", "organiserKind": "registered \| informal", "organiser"?, "registration"?, "value", "members", "months"? (members), "contribution"? (value / members), "commissionPercent"? (5), "startedOn", "auctionDay"?, "notes"? }` | the chit |
+| POST | `/api/chits/:id/instalments` | `{ "month"? (the next unpaid), "accountId", "date", "dividend"? }` | the chit; the dividend defaults to that month's auction's |
+| POST | `/api/chits/:id/auctions` | `{ "month", "heldOn", "discount", "wonByUser"?, "deductions"?, "accountId" (when won) }` | the chit |
+| DELETE | `/api/chits/:id/instalments/:recordId`, `/api/chits/:id/auctions/:recordId` | – | the chit, that record's entry voided |
+| DELETE | `/api/chits/:id` | – | every entry voided, the account archived |
+
+A chit: `{ "id", "name", "organiserKind", "organiser", "registration", "value", "members", "months", "contribution", "commissionPercent", "commission", "startedOn", "auctionDay", "balance" (positive saved, negative owed), "paid", "dividends", "monthsPaid", "next": { "month", "date", "amount", "dividendKnown" } \| null, "missed", "won", "outcome": { "role": "saver \| borrower", "yearlyRate", "gain", "assumedMonth" }, "instalments", "auctions", "finished", "notes" }`. A dividend is the winning discount less the commission (a % of the value), shared by all members; what is due is the contribution less it. `outcome` is the true yearly return or cost from the actual payments and prize (for a chit not yet won, as if won last; months with no auction yet assume no dividend). `GET /api/next-step` returns `{ "kind": "chit" }` for a payment whose date has passed.
+
 ## Groups
 
 Shared expenses in trips and flats (`lib/services/groups.ts`, `src/core/split.ts`). Members are named `you` and `p<person id>`.
