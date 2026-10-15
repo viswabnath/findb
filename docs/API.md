@@ -269,6 +269,24 @@ Money lent to and borrowed from people (`lib/services/people.ts`, `src/core/inte
 
 A loan: `{ "id", "personId", "direction", "principal", "startedOn", "dueOn", "interestRate", "perHundredMonthly", "notes", "outstanding", "principalRepaid", "interestPaid", "interestDue", "status": "open \| overdue \| settled", "closed", "history": [{ "entryId", "date", "type", "amount", "principal", "interest", "account" }] }`. Interest is simple, on what is still owed, day by day (365-day year); rates are stored % a year and also shown as ₹ per ₹100 a month. `GET /api/next-step` returns `{ "kind": "overdue" }` for money past its due date.
 
+## Loans
+
+Loans from banks and lenders (`lib/services/loans.ts`, `src/core/loans.ts`). A loan is a liability account; an EMI's principal reduces it and its interest is spending in Loan interest and fees, as are fees and charges.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/loans` | – | loans (see below), open ones first |
+| POST | `/api/loans` | `{ "name", "lender"?, "kind", "rateType": "reducing \| flat", "rateKind": "fixed \| floating", "principal", "interestRate", "rateUnit"?, "months", "disbursedOn", "firstDue"?, "emi"?, "processingFee"?, "otherCharges"?, "foreclosureCharge"?, "notes"?, "accountId" (a new loan) \| "outstanding" (one already running) }` | the loan |
+| POST | `/api/loans/:id/emi` | `{ "amount", "accountId", "date", "interest"? }` | the loan; interest defaults to a month's on what is owed (a flat loan's from its schedule) |
+| POST | `/api/loans/:id/prepay` | `{ "amount", "accountId", "date", "keep": "emi \| tenure", "charges"? }` | the loan, with `interestSaved` |
+| POST | `/api/loans/:id/topup` | `{ "amount", "accountId", "date" }` | the loan |
+| POST | `/api/loans/:id/rate` | `{ "from", "interestRate", "rateUnit"?, "keep": "tenure \| emi" }` | the loan |
+| POST | `/api/loans/:id/close` | `{ "accountId", "date"? }` | the loan, closed for its foreclosure amount |
+| DELETE | `/api/loans/:id/payments/:paymentId` | – | the loan, with that payment voided (a closure reopens it) |
+| DELETE | `/api/loans/:id` | – | every entry voided, the account archived |
+
+A loan: `{ "id", "name", "lender", "kind", "rateType", "rateKind", "principal", "yearlyRate", "startRate", "perHundredMonthly", "months", "disbursedOn", "firstDue", "emi", "effectiveRate", "outstanding", "principalRepaid", "interestPaid", "feesPaid", "nextDue": { "date", "amount" } \| null, "missed", "monthsLeft", "endsOn", "foreclosure": { "interest", "charge", "total" } \| null, "byYear": [{ "year", "principal", "interest", "fees" }], "schedule": [...], "rateChanges", "payments", "closed", "notes" }`. `keep` names what stays the same: `emi` (the loan ends sooner, or later after a top-up) or `tenure` (the EMI changes). `effectiveRate` is the true yearly cost from the schedule and the fees (a flat rate's is far above the rate quoted). `missed` counts EMIs whose date has passed, since the loan was tracked, with no payment. `GET /api/next-step` returns `{ "kind": "emi" }` for a missed EMI.
+
 ## Groups
 
 Shared expenses in trips and flats (`lib/services/groups.ts`, `src/core/split.ts`). Members are named `you` and `p<person id>`.

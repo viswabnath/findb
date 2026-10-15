@@ -126,6 +126,10 @@ Since migration 0020 (`lib/services/statement-import.ts`, the `/import` screen):
 
 Since migration 0025 (`lib/services/people.ts`): each person has one ledger account of subtype `person` (an asset; positive while they owe the user, negative while the user owes them). A loan (`person_loans`) records the amount, dates and rate; its entries carry `person_loan_id`: `person_loan` (the money given or received), `person_repayment` (the money back, its interest line in Interest or Loan interest and fees) and `person_settlement` (what was left, as a gift). None of these entries touch income or expense accounts except for interest and gifts, so lending and borrowing are never income or spending. They are not in the Transactions list (which shows income, expenses and transfers); the People screen shows them.
 
+## Loans
+
+Since migration 0028 (`lib/services/loans.ts`): a loan is a ledger account of subtype `loan` (a liability, negative while owed). A new loan is an entry from it into a money account; one already running starts with an opening balance of what is owed today. EMIs, prepayments, top-ups, fees and closing are `loan` entries, each with a `loan_payments` row holding its principal, interest and charges, so the per-year figures and the schedule (`src/core/loans.ts`, with `loan_rate_changes`) are worked out without reading entry lines.
+
 ## Groups
 
 Since migrations 0026 and 0027 (`lib/services/groups.ts`): a group's costs (`shared_expenses`, with `shared_expense_shares`) and payments (`settlements`) are kept in full for the group's balances, but only the user's part reaches the ledger. A cost is one `shared_expense` entry: when the user paid, their money account pays the whole amount, the category takes their share and each friend's person account their share; when a friend paid, the category takes the user's share against that friend's person account. A settlement with the user is a `group_settlement` between a money account and a person account. Person balances therefore include group debts. The Transactions list shows a `shared_expense` as an expense of the user's share, read-only.

@@ -107,6 +107,20 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         purpose: 'Knowing who owes what, and when', retention: 'Until you delete your account; removed ones are kept as history',
     },
     {
+        table: 'loans', category: 'money', exported: true,
+        holds: 'Your loans: lender, amount, rate, tenure, EMI, fees and charges', purpose: 'Knowing what you owe and what it costs',
+        retention: 'Until you delete your account; removed ones are kept as history',
+    },
+    {
+        table: 'loan_rate_changes', category: 'money', exported: true,
+        holds: 'Changes to a floating loan rate and when they started', purpose: 'Keeping the repayment schedule right', retention: 'With the loan',
+    },
+    {
+        table: 'loan_payments', category: 'money', exported: true,
+        holds: 'EMIs, part payments, top-ups and fees on your loans, split into principal, interest and charges',
+        purpose: 'What you repaid and the interest you paid each year', retention: 'Until you delete your account; removed ones are kept as history',
+    },
+    {
         table: 'groups', category: 'money', exported: true,
         holds: 'Your groups (trips, flats) and the event they count towards', purpose: 'Sharing costs', retention: 'Until you remove them or delete your account',
     },

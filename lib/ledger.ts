@@ -15,7 +15,7 @@ type Client = Pick<PoolClient, 'query'>;
 
 export type SystemAccount = 'cash' | 'income' | 'expense' | 'opening_balance' | 'adjustment' | 'reimbursements';
 export type EntryType = 'opening_balance' | 'income' | 'expense' | 'adjustment' | 'transfer' | 'reimbursable' | 'reimbursement'
-    | 'person_loan' | 'person_repayment' | 'person_settlement' | 'shared_expense' | 'group_settlement';
+    | 'person_loan' | 'person_repayment' | 'person_settlement' | 'shared_expense' | 'group_settlement' | 'loan';
 export type SourceTable = 'banks' | 'credit_cards' | 'cash_balance' | 'income_entries' | 'expenses';
 
 const SYSTEM_ACCOUNTS: Record<SystemAccount, { kind: string; subtype: string; name: string }> = {
