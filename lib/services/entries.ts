@@ -3,6 +3,7 @@ import { logActivity } from '../activity-log';
 import { fromPaise, postEntry, systemAccount, toPaise, voidEntry, type EntryLine } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
 import { lockedCategory } from './categories';
+import { moveEntryLinks } from './documents';
 import { lockedEvent } from './events';
 import { entryDate } from './transactions';
 import { t } from '../i18n';
@@ -597,6 +598,7 @@ export async function updateEntry(pool: Pool, userId: number, id: string, body: 
         };
         const { id: newId, account, toAccount, category } = await record(client, userId, kept, false);
         requireConfirmation(await carryCleared(client, userId, old.id, newId), body);
+        await moveEntryLinks(client, userId, old.id, newId);
         await logActivity(client, userId, 'updated', input.type, newId, `Updated ${input.type}: ${input.description}`, fromPaise(input.paise),
             oldValues(old), activityValues(kept, account, toAccount, category));
         return publicEntry(await lockedEntry(client, userId, newId));
@@ -644,8 +646,9 @@ export async function categoriseEntries(pool: Pool, userId: number, body: Body):
                 accountId: old.account.id, toAccountId: null, categoryId: category.id, tags: old.tags, eventId: old.event ? { keep: old.event.id } : null,
                 importBatchId: old.importBatchId,
             }, false);
-            // The money line is unchanged, so its reconciliation tick moves with it
+            // The money line is unchanged, so its reconciliation tick moves with it, and its documents follow
             await carryCleared(client, userId, old.id, newId);
+            await moveEntryLinks(client, userId, old.id, newId);
             changed++;
         }
         if (changed > 0) {

@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowLeftRight, ArrowRight, FileUp, Pencil, Rows3, Plus, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowLeftRight, ArrowRight, FileUp, FolderLock, Paperclip, Pencil, Rows3, Plus, Search, Trash2, TrendingDown, TrendingUp } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { useFormMessage } from '@/components/useFormMessage';
@@ -13,6 +13,7 @@ import { ReimbursementsCard } from './ReimbursementsCard';
 import { RepeatingCard } from './RepeatingCard';
 import { ENTRIES_CHANGED } from '@/components/app/QuickAdd';
 import { budgetWarning } from '@/lib/budget-alert';
+import { AttachDocuments } from '@/components/documents/AttachDocuments';
 
 /**
  * Income, expenses and transfers, recorded in the ledger (/api/entries) on any money account
@@ -137,6 +138,8 @@ export function TransactionsScreen() {
 
     const [edit, setEdit] = useState<Draft | null>(null);
     const [pendingDelete, setPendingDelete] = useState<Entry | null>(null);
+    // The entry whose documents are open (receipts and invoices)
+    const [attaching, setAttaching] = useState<Entry | null>(null);
     const [deleteWarning, setDeleteWarning] = useState<{ text: string; confirmed: boolean } | null>(null);
     // A switched-off module a new entry's title suggests (lib/modules.ts), offered once
     const [suggestion, setSuggestion] = useState<{ key: string; name: string; line: string } | null>(null);
@@ -391,6 +394,9 @@ export function TransactionsScreen() {
             <button type="button" className="icon-btn" data-action={`edit-${entry.type}`} data-id={entry.id} onClick={() => startEdit(entry)}>
                 <Pencil aria-hidden="true" /> {t('common.edit')}
             </button>
+            <button type="button" className="icon-btn" data-action="entryDocuments" data-id={entry.id} onClick={() => setAttaching(entry)}>
+                <Paperclip aria-hidden="true" /> {t('documents.files')}
+            </button>
             <button type="button" className="icon-btn danger" data-action={`delete-${entry.type}`} data-id={entry.id} onClick={() => setPendingDelete(entry)}>
                 <Trash2 aria-hidden="true" /> {t('common.delete')}
             </button>
@@ -439,6 +445,9 @@ export function TransactionsScreen() {
                         </a>
                         <a className="btn btn-secondary btn-sm" id="add-many-link" href="/add-many">
                             <Rows3 aria-hidden="true" /> {t('addMany.link')}
+                        </a>
+                        <a className="btn btn-secondary btn-sm" id="documents-link" href="/documents">
+                            <FolderLock aria-hidden="true" /> {t('documents.link')}
                         </a>
                     </span>
                 </div>
@@ -811,6 +820,8 @@ export function TransactionsScreen() {
                     </div>
                 ) : null}
             </Modal>
+
+            <AttachDocuments entry={attaching} onClose={() => setAttaching(null)} />
         </div>
     );
 }

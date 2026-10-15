@@ -11,13 +11,13 @@ import { hasSampleData } from './sample-data';
  * The one clear next step shown at the top of the Accounts screen (v2 plan, Phase 1): the most
  * useful thing to do now, in this order:
  *   sample data loaded > nothing set up yet > repeating entries to confirm > a budget near or over
- *   its limit this month > spending with no
+ *   its limit this month > a document expiring within 30 days > spending with no
  *   category this month > money owed back for over a month > an account not checked against a
  *   statement for a month > the everyday step.
  */
 
 export interface NextStep {
-    kind: 'sample' | 'start' | 'confirm' | 'budget' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
+    kind: 'sample' | 'start' | 'confirm' | 'budget' | 'expiring' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
     text: string;
     /** Where the step is done; absent when it is a button on the card (sample data) */
     href?: string;
@@ -59,6 +59,18 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
         return {
             kind: 'budget', href: '/insights#budgets-section', label: t('nextStep.budgetLabel'),
             text: fullest.state === 'over' ? t('nextStep.budgetOver', values) : t('nextStep.budgetNear', values),
+        };
+    }
+
+    // A warranty or policy running out soon (or in the last week)
+    const expiring = await pool.query(
+        `SELECT title, expires_on::text AS expires_on FROM documents
+         WHERE user_id = $1 AND expires_on BETWEEN ($2::date - 7) AND ($2::date + 30) ORDER BY expires_on LIMIT 1`, [userId, today]);
+    if (expiring.rows[0]) {
+        const { title, expires_on: date } = expiring.rows[0];
+        return {
+            kind: 'expiring', href: '/documents', label: t('nextStep.expiringLabel'),
+            text: date < today ? t('nextStep.expired', { title, date }) : t('nextStep.expiring', { title, date }),
         };
     }
 

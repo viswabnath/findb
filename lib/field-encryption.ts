@@ -52,3 +52,32 @@ export function decryptField(stored: string, context: string): string {
 export function needsReencryption(stored: string): boolean {
     return !stored.startsWith(`v${keys()[0]!.version}.`);
 }
+
+/** The header of an encrypted file: "FDB1", then the key version (2 bytes), the IV (12) and the tag (16) */
+const FILE_MAGIC = Buffer.from('FDB1');
+
+/**
+ * Encrypt a file (the document vault) with the current key, bound to a context such as the user and
+ * its storage path. Returns the bytes to store and the key version used.
+ */
+export function encryptBytes(plaintext: Buffer, context: string): Buffer {
+    const { version, key } = keys()[0]!;
+    const iv = randomBytes(12);
+    const cipher = createCipheriv('aes-256-gcm', key, iv);
+    cipher.setAAD(Buffer.from(context));
+    const ciphertext = Buffer.concat([cipher.update(plaintext), cipher.final()]);
+    const versionBytes = Buffer.alloc(2);
+    versionBytes.writeUInt16BE(Number(version));
+    return Buffer.concat([FILE_MAGIC, versionBytes, iv, cipher.getAuthTag(), ciphertext]);
+}
+
+export function decryptBytes(stored: Buffer, context: string): Buffer {
+    if (stored.length < 34 || !stored.subarray(0, 4).equals(FILE_MAGIC)) throw new Error('Cannot decrypt: not an encrypted file');
+    const version = String(stored.readUInt16BE(4));
+    const match = keys().find(entry => entry.version === version);
+    if (!match) throw new Error('Cannot decrypt: unknown key version');
+    const decipher = createDecipheriv('aes-256-gcm', match.key, stored.subarray(6, 18));
+    decipher.setAAD(Buffer.from(context));
+    decipher.setAuthTag(stored.subarray(18, 34));
+    return Buffer.concat([decipher.update(stored.subarray(34)), decipher.final()]);
+}
