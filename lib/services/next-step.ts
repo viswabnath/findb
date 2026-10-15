@@ -3,6 +3,7 @@ import { addDays } from '../../src/core/schedule';
 import { formatRupees } from '../format';
 import { t } from '../i18n';
 import { listBudgets } from './budgets';
+import { listLoans } from './loans';
 import { overdueLoans } from './people';
 import { dueItems, todayInIndia } from './recurring';
 import { listReimbursements } from './reimbursements';
@@ -11,14 +12,14 @@ import { hasSampleData } from './sample-data';
 /**
  * The one clear next step shown at the top of the Accounts screen (v2 plan, Phase 1): the most
  * useful thing to do now, in this order:
- *   sample data loaded > nothing set up yet > repeating entries to confirm > a budget near or over
+ *   sample data loaded > nothing set up yet > repeating entries to confirm > a missed EMI > a budget near or over
  *   its limit this month > a document expiring within 30 days > money from a person overdue > spending with no
  *   category this month > money owed back for over a month > an account not checked against a
  *   statement for a month > the everyday step.
  */
 
 export interface NextStep {
-    kind: 'sample' | 'start' | 'confirm' | 'budget' | 'expiring' | 'overdue' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
+    kind: 'sample' | 'start' | 'confirm' | 'emi' | 'budget' | 'expiring' | 'overdue' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
     text: string;
     /** Where the step is done; absent when it is a button on the card (sample data) */
     href?: string;
@@ -50,6 +51,15 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
             text: pending.length === 1
                 ? t('nextStep.confirmOne', { name: first.description, amount: formatRupees(first.amount), date: first.date })
                 : t('nextStep.confirmMany', { count: pending.length, name: first.description }),
+        };
+    }
+
+    // A loan with an EMI due and not recorded
+    const behind = (await listLoans(pool, userId)).find(loan => loan.missed > 0);
+    if (behind) {
+        return {
+            kind: 'emi', href: '/loans', label: t('nextStep.emiLabel'),
+            text: t('nextStep.emiMissed', { name: behind.name, count: behind.missed, amount: formatRupees(behind.nextDue?.amount ?? behind.emi) }),
         };
     }
 
