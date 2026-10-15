@@ -121,6 +121,11 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         purpose: 'What you repaid and the interest you paid each year', retention: 'Until you delete your account; removed ones are kept as history',
     },
     {
+        table: 'pledges', category: 'money', exported: true,
+        holds: 'What you pledged for a loan (gold, a deposit, a policy, shares or property): its description and value; for gold, its weight, purity and the rate used',
+        purpose: 'Showing what is pledged, and warning before a gold loan\'s margin call', retention: 'With the loan',
+    },
+    {
         table: 'groups', category: 'money', exported: true,
         holds: 'Your groups (trips, flats) and the event they count towards', purpose: 'Sharing costs', retention: 'Until you remove them or delete your account',
     },

@@ -119,6 +119,56 @@ describe('a new car loan', () => {
     });
 });
 
+describe('loans backed by an asset', () => {
+    let gold;
+
+    test('a gold loan: the gold valued from weight, purity and rate; the loan-to-value and its margin risk', async () => {
+        const response = await agent.post('/api/loans').send({
+            name: 'Gold loan', lender: 'Muthoot', kind: 'gold', rateType: 'interest_only', rateKind: 'fixed', principal: '180000', interestRate: '1', rateUnit: 'per100month',
+            months: 12, disbursedOn: daysAgo(5), accountId: bank.id,
+            pledge: { description: 'Two bangles', weightGrams: '50', purityKarat: 22, goldRate: '7200', ltvLimit: '75' },
+        });
+        expect(response.status).toBe(200);
+        gold = response.body;
+        expect(gold.pledge).toMatchObject({ assetKind: 'gold', description: 'Two bangles', value: '330000.00', weightGrams: '50', purityKarat: 22, goldRate: '7200.00',
+            ltvLimit: '75', ltv: 54.55, risk: 'ok', headroom: '90000.00', released: false });
+        expect(gold.schedule[0]).toMatchObject({ emi: '1800.00', principal: '0.00' });
+    });
+
+    test('a fall in the gold price brings it near the limit, then past it: the next step says so', async () => {
+        // At Rs 5,400 a gram the gold is worth 2,47,500, and the loan is 72.73% of it: within 5 points of 75
+        gold = (await agent.put(`/api/loans/${gold.id}/pledge`).send({ goldRate: '5400' })).body;
+        expect(gold.pledge).toMatchObject({ value: '247500.00', ltv: 72.73, risk: 'near' });
+        gold = (await agent.put(`/api/loans/${gold.id}/pledge`).send({ goldRate: '4500' })).body;
+        expect(gold.pledge.risk).toBe('margin');
+        const step = (await agent.get('/api/next-step')).body;
+        expect(['emi', 'margin']).toContain(step.kind);
+    });
+
+    test('an EMI on an interest-only loan is the month\'s interest; closing releases the gold', async () => {
+        gold = (await agent.post(`/api/loans/${gold.id}/emi`).send({ amount: '1800', accountId: bank.id, date: TODAY })).body;
+        expect(gold.payments.at(-1)).toMatchObject({ interest: '1800.00', principal: '0.00' });
+        expect(gold.outstanding).toBe('180000.00');
+        gold = (await agent.post(`/api/loans/${gold.id}/close`).send({ accountId: bank.id, date: TODAY })).body;
+        expect(gold.pledge).toMatchObject({ released: true, risk: 'ok' });
+    });
+
+    test('a loan against an FD: its value less the loan is what is free; mistakes refused', async () => {
+        const fd = (await agent.post('/api/loans').send({
+            name: 'FD loan', kind: 'against_fd', rateType: 'bullet', rateKind: 'fixed', principal: '90000', interestRate: '8', months: 12, disbursedOn: daysAgo(5), accountId: bank.id,
+            pledge: { description: 'SBI FD 1234', value: '100000', ltvLimit: '90' },
+        })).body;
+        expect(fd.pledge).toMatchObject({ assetKind: 'fd', value: '100000.00', available: expect.any(String) });
+        expect(Number(fd.pledge.available)).toBeLessThan(10000);
+        expect(fd.schedule).toHaveLength(1);
+        expect(fd.schedule[0]).toMatchObject({ emi: '97200.00', interest: '7200.00' });
+        const bad = pledge => agent.post('/api/loans').send({ name: 'x', kind: 'gold', principal: '1000', interestRate: '9', months: 12, disbursedOn: daysAgo(5), accountId: bank.id, pledge });
+        expect((await bad({ weightGrams: '10', purityKarat: 20, goldRate: '7000' })).body.error).toBe('Choose the gold\'s purity: 24, 22, 18 or 14 karat');
+        expect((await bad({ weightGrams: '0', purityKarat: 22, goldRate: '7000' })).body.error).toBe('Enter the gold\'s weight in grams');
+        expect((await agent.put(`/api/loans/${home.id}/pledge`).send({ value: '1' })).body.error).toBe('This loan has no pledged asset');
+    });
+});
+
 describe('the rest', () => {
     test('a flat rate costs far more than it says', async () => {
         const flat = (await agent.post('/api/loans').send({

@@ -508,6 +508,17 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .loan-history .amount { margin-left: auto; font-family: var(--font-num); font-variant-numeric: tabular-nums; }
 .form-grid .field.full { grid-column: 1 / -1; }
 
+/* Loans (components/people/LoansScreen.tsx) */
+.loan-facts { display: grid; gap: 6px; padding-top: 0; }
+.loan-facts p { margin: 0; }
+.loan-pledge { display: grid; gap: 4px; border-top: 1px solid var(--line); }
+.loan-pledge p { margin: 0; }
+.loan-pledge .btn-link { justify-self: start; }
+.loan-years ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.loan-more summary { cursor: pointer; font-weight: 600; padding-top: 12px; padding-bottom: 12px; border-top: 1px solid var(--line); }
+.loan-schedule { overflow-x: auto; padding: 0 clamp(16px, 2.5vw, 24px); max-height: 420px; overflow-y: auto; }
+.loan-form { display: grid; gap: 14px; }
+
 /* Groups (components/people/GroupsScreen.tsx) */
 .group-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 12px; }
 .group-card { margin: 0; }

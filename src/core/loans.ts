@@ -9,7 +9,8 @@
  */
 import { irr } from './calculators';
 
-export type LoanType = 'reducing' | 'flat';
+/** reducing: EMIs on the balance; flat: interest on the whole amount; interest_only: monthly interest, the principal at the end; bullet: everything at the end (gold loans) */
+export type LoanType = 'reducing' | 'flat' | 'interest_only' | 'bullet';
 /** After a rate change or a prepayment: keep the tenure (the EMI changes) or keep the EMI (the tenure changes) */
 export type Keep = 'tenure' | 'emi';
 
@@ -74,6 +75,8 @@ export function monthsFor(balance: number, yearlyRate: number, emi: number): num
  */
 export function schedule(terms: LoanTerms, changes: RateChange[] = [], prepayments: Prepayment[] = []): Instalment[] {
     if (terms.type === 'flat') return flatSchedule(terms);
+    if (terms.type === 'bullet') return bulletSchedule(terms);
+    if (terms.type === 'interest_only') return interestOnlySchedule(terms, prepayments);
     const rateChanges = [...changes].sort((a, b) => a.from.localeCompare(b.from));
     const pending = [...prepayments].sort((a, b) => a.date.localeCompare(b.date));
     let rate = terms.yearlyRate;
@@ -135,6 +138,36 @@ function flatSchedule(terms: LoanTerms): Instalment[] {
             number, date: addMonths(terms.firstDue, number - 1), opening: balance, emi: principal + interest, interest, principal, prepaid: 0,
             closing: balance - principal, yearlyRate: terms.yearlyRate,
         });
+        balance -= principal;
+    }
+    return rows;
+}
+
+/** Bullet repayment: nothing until the end, then the principal and simple interest for the whole term */
+function bulletSchedule(terms: LoanTerms): Instalment[] {
+    const interest = Math.round((terms.principal * terms.yearlyRate * terms.months) / 12 / 100);
+    return [{
+        number: 1, date: addMonths(terms.firstDue, terms.months - 1), opening: terms.principal, emi: terms.principal + interest, interest,
+        principal: terms.principal, prepaid: 0, closing: 0, yearlyRate: terms.yearlyRate,
+    }];
+}
+
+/** Interest only: each month's interest on what is owed, and the principal with the last one */
+function interestOnlySchedule(terms: LoanTerms, prepayments: Prepayment[]): Instalment[] {
+    const pending = [...prepayments].sort((a, b) => a.date.localeCompare(b.date));
+    const rows: Instalment[] = [];
+    let balance = terms.principal;
+    for (let number = 1; number <= terms.months && balance > 0; number++) {
+        const date = addMonths(terms.firstDue, number - 1);
+        let prepaid = 0;
+        while (pending.length > 0 && pending[0]!.date <= date) {
+            const paid = Math.min(pending.shift()!.paise, balance);
+            balance -= paid;
+            prepaid += paid;
+        }
+        const interest = Math.round((balance * terms.yearlyRate) / 12 / 100);
+        const principal = number === terms.months ? balance : 0;
+        rows.push({ number, date, opening: balance + prepaid, emi: interest + principal, interest, principal, prepaid, closing: balance - principal, yearlyRate: terms.yearlyRate });
         balance -= principal;
     }
     return rows;
