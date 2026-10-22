@@ -305,6 +305,16 @@ Chits (`lib/services/chits.ts`, `src/core/chit.ts`). Each is a ledger account: p
 
 A chit: `{ "id", "name", "organiserKind", "organiser", "registration", "value", "members", "months", "contribution", "commissionPercent", "commission", "startedOn", "auctionDay", "balance" (positive saved, negative owed), "paid", "dividends", "monthsPaid", "next": { "month", "date", "amount", "dividendKnown" } \| null, "missed", "won", "outcome": { "role": "saver \| borrower", "yearlyRate", "gain", "assumedMonth" }, "instalments", "auctions", "finished", "notes" }`. A dividend is the winning discount less the commission (a % of the value), shared by all members; what is due is the contribution less it. `outcome` is the true yearly return or cost from the actual payments and prize (for a chit not yet won, as if won last; months with no auction yet assume no dividend). `GET /api/next-step` returns `{ "kind": "chit" }` for a payment whose date has passed.
 
+## Debt review
+
+Every debt ranked by its true yearly cost (`lib/services/debts.ts`, `src/core/debts.ts`). Information on the user's own figures, not advice.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/debts` | – | `{ "debts", "total", "dangerousTotal", "monthlyPayments", "monthlyIncome" \| null, "emiRatio" \| null, "warnings", "limits" }` |
+
+A debt: `{ "key", "name", "kind": "credit_card \| personal \| consumer \| gold \| vehicle \| home \| education \| business \| secured \| person \| chit \| other", "balance", "yearlyRate", "monthly", "assumedRate", "dangerous", "href" }`, most expensive first. Debts are open loans (the true yearly cost with fees, the EMI), card balances owed (a typical 3.5% a month, about 51% a year, marked `assumedRate` until card statements record the card's own; the monthly amount is the minimum due, 5% or at least ₹200), money borrowed from people (their rate, no fixed payment) and chits already won (the cost by IRR, the contribution). `dangerous` is 24% a year or more. `monthlyPayments` is the EMIs and chit contributions; `monthlyIncome` is the average of the last three full months; `emiRatio` is one as a % of the other. A warning: `{ "kind": "emi_ratio \| missed \| minimum_only \| margin \| overdue \| informal_chit", "level": "warn \| danger", "text", "href" }`: EMIs over 40% of income (danger over 50%), EMIs due and not recorded, what paying only a card's minimum costs, a pledge near or past the lender's limit, money from a person overdue, and an informal chit. The payoff simulator on the screen runs `simulatePayoff` from `src/core/debts.ts` on these figures.
+
 ## Groups
 
 Shared expenses in trips and flats (`lib/services/groups.ts`, `src/core/split.ts`). Members are named `you` and `p<person id>`.

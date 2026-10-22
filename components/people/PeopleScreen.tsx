@@ -133,7 +133,12 @@ export function PeopleScreen() {
                 <div>
                     <h2>{t('people.title')}</h2>
                     <p>{t('people.subtitle')}</p>
-                    <span className="page-header-links"><a className="btn btn-secondary btn-sm" id="groups-link" href="/groups">{t('groups.link')}</a></span>
+                    <span className="page-header-links">
+                        <a className="btn btn-secondary btn-sm" id="groups-link" href="/groups">{t('groups.link')}</a>
+                        <a className="btn btn-secondary btn-sm" id="loans-link" href="/loans">{t('loans.link')}</a>
+                        <a className="btn btn-secondary btn-sm" id="chits-link" href="/chits">{t('chits.link')}</a>
+                        <a className="btn btn-secondary btn-sm" id="debts-link" href="/debts">{t('debts.link')}</a>
+                    </span>
                 </div>
             </div>
 

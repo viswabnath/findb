@@ -17,6 +17,7 @@ export default [
       "next-env.d.ts",
       "test-results/",
       "playwright-report/",
+      "public/ocr/",
       "dist/",
       "build/",
       "check-schema.js",

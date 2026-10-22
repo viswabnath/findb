@@ -250,7 +250,7 @@ export const FEATURES: Feature[] = [
         group: 'borrow',
         name: 'Loans and chit funds',
         icon: 'loan',
-        status: 'building',
+        status: 'available',
         short: 'Every loan and chit in one place, with the dangerous ones flagged first.',
         summary:
             'Home, car, personal, education and gold loans, and the chit funds many Indian families run. FinDB shows how much of each EMI is interest, which debt hurts most, and how to clear it faster.',
