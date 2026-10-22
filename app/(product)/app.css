@@ -519,6 +519,27 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .loan-schedule { overflow-x: auto; padding: 0 clamp(16px, 2.5vw, 24px); max-height: 420px; overflow-y: auto; }
 .loan-form { display: grid; gap: 14px; }
 
+/* Debt review (components/people/DebtsScreen.tsx) */
+.debt-totals { margin-bottom: 6px; }
+.debt-totals .amount.danger { color: var(--danger); }
+.debt-note { margin: 0 0 16px; }
+.notice.danger { background: var(--danger-soft); color: var(--fg); border-color: transparent; }
+.debt-warnings { list-style: none; margin: 0; padding: 0 clamp(16px, 2.5vw, 24px) clamp(16px, 2.5vw, 24px); display: grid; gap: 8px; }
+.debt-warnings li { margin: 0; }
+.debt-rank { list-style: none; margin: 0; padding: 0; }
+.debt-rank li { display: grid; gap: 4px; padding: 12px clamp(16px, 2.5vw, 24px); border-top: 1px solid var(--line); }
+.debt-line { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px; }
+.debt-line .what { font-weight: 700; }
+.debt-line .tag { margin-left: 8px; }
+.debt-line .amount { font-family: var(--font-num); font-variant-numeric: tabular-nums; }
+.debt-simulator { display: grid; gap: 12px; }
+.debt-simulator h3, .debt-simulator p { margin: 0; }
+.debt-plans { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.debt-plan { display: grid; gap: 4px; margin: 0; align-content: start; }
+.debt-free { font-size: 1.15rem; }
+.debt-saved { font-weight: 600; }
+@media (max-width: 560px) { .debt-plans { grid-template-columns: 1fr; } }
+
 /* Groups (components/people/GroupsScreen.tsx) */
 .group-list { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 12px; }
 .group-card { margin: 0; }
