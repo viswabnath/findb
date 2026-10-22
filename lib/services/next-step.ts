@@ -3,6 +3,7 @@ import { addDays } from '../../src/core/schedule';
 import { formatRupees } from '../format';
 import { t } from '../i18n';
 import { listBudgets } from './budgets';
+import { listChits } from './chits';
 import { listLoans } from './loans';
 import { overdueLoans } from './people';
 import { dueItems, todayInIndia } from './recurring';
@@ -12,14 +13,14 @@ import { hasSampleData } from './sample-data';
 /**
  * The one clear next step shown at the top of the Accounts screen (v2 plan, Phase 1): the most
  * useful thing to do now, in this order:
- *   sample data loaded > nothing set up yet > repeating entries to confirm > a missed EMI > a gold loan near its margin limit > a budget near or over
+ *   sample data loaded > nothing set up yet > repeating entries to confirm > a missed EMI > a missed chit payment > a gold loan near its margin limit > a budget near or over
  *   its limit this month > a document expiring within 30 days > money from a person overdue > spending with no
  *   category this month > money owed back for over a month > an account not checked against a
  *   statement for a month > the everyday step.
  */
 
 export interface NextStep {
-    kind: 'sample' | 'start' | 'confirm' | 'emi' | 'margin' | 'budget' | 'expiring' | 'overdue' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
+    kind: 'sample' | 'start' | 'confirm' | 'emi' | 'chit' | 'margin' | 'budget' | 'expiring' | 'overdue' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
     text: string;
     /** Where the step is done; absent when it is a button on the card (sample data) */
     href?: string;
@@ -61,6 +62,13 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
         return {
             kind: 'emi', href: '/loans', label: t('nextStep.emiLabel'),
             text: t('nextStep.emiMissed', { name: behind.name, count: behind.missed, amount: formatRupees(behind.nextDue?.amount ?? behind.emi) }),
+        };
+    }
+    const lateChit = (await listChits(pool, userId)).find(chit => chit.missed > 0 && chit.next);
+    if (lateChit) {
+        return {
+            kind: 'chit', href: '/chits', label: t('nextStep.chitLabel'),
+            text: t('nextStep.chitMissed', { name: lateChit.name, month: lateChit.next!.month, amount: formatRupees(lateChit.next!.amount), date: lateChit.next!.date }),
         };
     }
     const risky = loans.filter(loan => loan.pledge && loan.pledge.risk !== 'ok').sort((a, b) => b.pledge!.ltv - a.pledge!.ltv)[0];

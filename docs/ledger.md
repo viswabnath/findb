@@ -130,6 +130,10 @@ Since migration 0025 (`lib/services/people.ts`): each person has one ledger acco
 
 Since migration 0028 (`lib/services/loans.ts`): a loan is a ledger account of subtype `loan` (a liability, negative while owed). A new loan is an entry from it into a money account; one already running starts with an opening balance of what is owed today. EMIs, prepayments, top-ups, fees and closing are `loan` entries, each with a `loan_payments` row holding its principal, interest and charges, so the per-year figures and the schedule (`src/core/loans.ts`, with `loan_rate_changes`) are worked out without reading entry lines. Since migration 0029 a secured loan has one `pledges` row describing and valuing the asset (gold by weight, purity and rate); it is not a ledger account until assets arrive in later phases.
 
+## Chit funds
+
+Since migration 0030 (`lib/services/chits.ts`): a chit is a ledger account of subtype `chit`. A month's payment is a `chit` entry: the chit takes the whole contribution, the money account pays it less the dividend, and the dividend is income. Winning is a `chit` entry: the net prize into a money account, the chit charged the whole commitment (contribution times months, so what was saved turns into what is still to pay), and the difference is spending. Auctions others win have no entry; they set the dividends.
+
 ## Groups
 
 Since migrations 0026 and 0027 (`lib/services/groups.ts`): a group's costs (`shared_expenses`, with `shared_expense_shares`) and payments (`settlements`) are kept in full for the group's balances, but only the user's part reaches the ledger. A cost is one `shared_expense` entry: when the user paid, their money account pays the whole amount, the category takes their share and each friend's person account their share; when a friend paid, the category takes the user's share against that friend's person account. A settlement with the user is a `group_settlement` between a money account and a person account. Person balances therefore include group debts. The Transactions list shows a `shared_expense` as an expense of the user's share, read-only.

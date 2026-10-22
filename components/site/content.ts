@@ -258,7 +258,7 @@ export const FEATURES: Feature[] = [
             'Each EMI split into interest and the amount that reduces your loan',
             'Every rate shown as % a year and as rupees per ₹100 a month',
             'Gold loans and loans against FDs, insurance or property: what is pledged, and a warning before a gold loan\'s margin call',
-            'Chit funds: monthly contribution, dividend, auction bids and the money you receive',
+            'Chit funds: what to pay each month after the dividend, the auctions, the prize, and what the chit really earns or costs you each year',
             'Debts ranked from most to least dangerous, with the reason',
             'A payoff planner: see how an extra ₹5,000 a month changes the finish date',
         ],
