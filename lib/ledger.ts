@@ -185,7 +185,7 @@ export async function accountBalance(client: Client, accountId: number): Promise
 
 /**
  * The room left on the credit line a card shares, in paise (the line's limit less what all its
- * cards owe), with the line locked so two cards on it cannot both pass a check; null when the card
+ * cards owe and what loans on them block), with the line locked so two cards on it cannot both pass a check; null when the card
  * is on no line (migration 0032).
  */
 export async function creditLineRoom(client: Client, userId: number, cardAccountId: number): Promise<number | null> {
@@ -198,7 +198,11 @@ export async function creditLineRoom(client: Client, userId: number, cardAccount
          JOIN journal_entries e ON e.user_id = l.user_id AND e.id = l.entry_id
          JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
          WHERE l.user_id = $1 AND a.credit_line_id = $2 AND a.archived_at IS NULL AND e.voided_at IS NULL`, [userId, line.rows[0].id]);
-    return Number(line.rows[0].limit_paise) + Number(owed.rows[0].paise);
+    // Loans on the line's cards block their limit too (migration 0033)
+    const blocked = await client.query(
+        `SELECT COALESCE(SUM(k.blocked_paise), 0)::bigint AS paise FROM card_loan_blocked k JOIN ledger_accounts a ON a.user_id = k.user_id AND a.id = k.account_id
+         WHERE k.user_id = $1 AND a.credit_line_id = $2 AND a.archived_at IS NULL`, [userId, line.rows[0].id]);
+    return Number(line.rows[0].limit_paise) + Number(owed.rows[0].paise) - Number(blocked.rows[0].paise);
 }
 
 export interface Balances {

@@ -180,6 +180,49 @@ describe('a limit shared by two cards', () => {
     });
 });
 
+describe('loans on a card', () => {
+    let card;
+    let emiLoan;
+    const cardAvailable = async () => (await agent.get('/api/accounts')).body.find(account => account.id === card.id).available;
+
+    test('a purchase turned into EMIs: the card owes only the fee, and the rest blocks its limit', async () => {
+        card = await newCard('Emi Card');
+        expect((await spend(card, 60000, daysAgo(3))).status).toBe(200);
+        const base = { kind: 'card_emi', rateType: 'reducing', interestRate: '15', months: 6, disbursedOn: daysAgo(2) };
+        expect((await agent.post('/api/loans').send({ ...base, name: 'Too much', cardId: card.id, principal: '70000' })).body.error)
+            .toBe('EMI CARD owes ₹60,000.00, less than this. Record the purchase on the card first.');
+        expect((await agent.post('/api/loans').send({ ...base, name: 'Not a card', cardId: bank.id, principal: '100' })).body.error)
+            .toBe('Choose a credit card for a card loan or EMI');
+        const created = await agent.post('/api/loans').send({ ...base, name: 'Phone EMI', cardId: card.id, principal: '60000', processingFee: '199' });
+        expect(created.status).toBe(200);
+        emiLoan = created.body;
+        expect(emiLoan).toMatchObject({ kind: 'card_emi', cardId: card.id, outstanding: '60000.00' });
+        expect(await cardAvailable()).toBe('39801.00');
+        expect(await cardNamed('EMI CARD')).toMatchObject({ owed: '199.00', blocked: '60000.00', available: '39801.00' });
+    });
+
+    test('an EMI charged to the card: what it owes rises, but only the interest uses up limit', async () => {
+        const paid = await agent.post(`/api/loans/${emiLoan.id}/emi`).send({ amount: emiLoan.emi, date: TODAY });
+        expect(paid.status).toBe(200);
+        // A month's interest on 60,000 at 15% is 750
+        expect(paid.body.payments.at(-1)).toMatchObject({ kind: 'emi', interest: '750.00' });
+        expect(await cardAvailable()).toBe('39051.00');
+        expect((await cardNamed('EMI CARD')).owed).toBe((199 + Number(emiLoan.emi)).toFixed(2));
+    });
+
+    test('a loan on the card is paid into a bank and blocks the limit; spending past what is left is refused', async () => {
+        const loan = await agent.post('/api/loans').send({
+            name: 'Card loan', kind: 'card_loan', rateType: 'reducing', interestRate: '14', months: 12, disbursedOn: daysAgo(1), principal: '20000', cardId: card.id, accountId: bank.id,
+        });
+        expect(loan.status).toBe(200);
+        expect(await cardAvailable()).toBe('19051.00');
+        expect((await spend(card, 20000, TODAY)).body.error).toBe('Insufficient credit limit');
+        const debts = (await agent.get('/api/debts')).body.debts;
+        expect(debts.find(debt => debt.name === 'Card loan')).toMatchObject({ kind: 'personal' });
+        expect(debts.find(debt => debt.name === 'Phone EMI')).toMatchObject({ kind: 'consumer' });
+    });
+});
+
 test('a bill unpaid past its due date is the next step; others see none of it', async () => {
     const card = await newCard('Fuel Card');
     expect((await spend(card, 5000, daysAgo(16))).status).toBe(200);

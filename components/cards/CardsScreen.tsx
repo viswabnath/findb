@@ -23,7 +23,7 @@ interface Statement {
 interface Card {
     id: number; name: string; owed: string; creditLimit: string | null; available: string | null; interestRate: string | null; perHundredMonthly: string | null;
     trueRate: number | null; billingDay: number | null; dueDay: number | null; statement: Statement | null; sinceStatement: string;
-    line: { id: number; name: string; limit: string; available: string } | null;
+    line: { id: number; name: string; limit: string; available: string } | null; blocked: string;
     history: { id: number; date: string; dueOn: string; amountDue: string; minimumDue: string }[];
 }
 interface Line { id: number; name: string; limit: string; owed: string; available: string; cards: { id: number; name: string }[] }
@@ -177,6 +177,7 @@ export function CardsScreen() {
                         </div>
                         <div className="card-pad loan-facts">
                             {card.creditLimit !== null ? <p className="when">{t('cards.limitLine', { available: formatRupees(card.available!), limit: formatRupees(card.creditLimit) })}</p> : null}
+                            {amount(card.blocked) > 0 ? <p className="when card-blocked"><a href="/loans">{t('cards.blockedLine', { amount: formatRupees(card.blocked) })}</a></p> : null}
                             {card.line ? <p className="when card-line">{t('cards.lineLine', { line: card.line.name, available: formatRupees(card.line.available), limit: formatRupees(card.line.limit) })}</p> : null}
                             {card.interestRate !== null
                                 ? <p className="card-rate">{t('cards.rateLine', { rate: card.interestRate, perHundred: card.perHundredMonthly!, trueRate: card.trueRate! })}</p>

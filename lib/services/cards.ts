@@ -60,6 +60,8 @@ export interface Card {
     trueRate: number | null;
     billingDay: number | null;
     dueDay: number | null;
+    /** Still owed on loans and EMIs on the card, which block its limit (migration 0033) */
+    blocked: string;
     /** The credit line it shares (migration 0032); `available` above is already limited by it */
     line: { id: number; name: string; limit: string; available: string } | null;
     /** The latest statement, once the billing and due days are set */
@@ -73,7 +75,7 @@ export interface Card {
 interface CardRow {
     id: string; source_id: string | null; name: string; credit_limit_paise: string | null; interest_rate: string | null;
     billing_day: number | null; due_day: number | null; balance_paise: string;
-    line_id: string | null; line_name: string | null; line_limit_paise: string | null; line_owed_paise: string | null;
+    line_id: string | null; line_name: string | null; line_limit_paise: string | null; line_owed_paise: string | null; blocked_paise: string;
 }
 
 interface StatementRow {
@@ -129,8 +131,10 @@ async function loadCards(client: Client, userId: number, onlyId?: number): Promi
     const cards = await client.query(
         `SELECT a.id, a.source_id, a.name, a.credit_limit_paise, a.interest_rate::text AS interest_rate, a.billing_day, a.due_day,
                 COALESCE(b.balance_paise, 0)::bigint AS balance_paise, c.id AS line_id, c.name AS line_name, c.limit_paise AS line_limit_paise,
-                (SELECT -COALESCE(SUM(sb.balance_paise), 0) FROM ledger_accounts s JOIN ledger_account_balances sb ON sb.account_id = s.id
-                 WHERE s.user_id = a.user_id AND s.credit_line_id = c.id AND s.archived_at IS NULL)::bigint AS line_owed_paise
+                (SELECT COALESCE(SUM(COALESCE(sk.blocked_paise, 0) - COALESCE(sb.balance_paise, 0)), 0) FROM ledger_accounts s
+                 LEFT JOIN ledger_account_balances sb ON sb.account_id = s.id LEFT JOIN card_loan_blocked sk ON sk.user_id = s.user_id AND sk.account_id = s.id
+                 WHERE s.user_id = a.user_id AND s.credit_line_id = c.id AND s.archived_at IS NULL)::bigint AS line_owed_paise,
+                COALESCE((SELECT k.blocked_paise FROM card_loan_blocked k WHERE k.user_id = a.user_id AND k.account_id = a.id), 0)::bigint AS blocked_paise
          FROM ledger_accounts a LEFT JOIN ledger_account_balances b ON b.account_id = a.id
          LEFT JOIN credit_lines c ON c.user_id = a.user_id AND c.id = a.credit_line_id AND c.deleted_at IS NULL
          WHERE a.user_id = $1 AND a.subtype = 'credit_card' AND a.archived_at IS NULL AND ($2::bigint IS NULL OR a.id = $2)
@@ -147,7 +151,8 @@ async function loadCards(client: Client, userId: number, onlyId?: number): Promi
         const owed = Math.max(-Number(row.balance_paise), 0);
         const limit = row.credit_limit_paise === null ? null : Number(row.credit_limit_paise);
         const lineRoom = row.line_id === null ? null : Number(row.line_limit_paise) - Number(row.line_owed_paise);
-        const room = limit === null ? null : lineRoom === null ? limit - owed : Math.min(limit - owed, lineRoom);
+        const blocked = Number(row.blocked_paise);
+        const room = limit === null ? null : lineRoom === null ? limit - owed - blocked : Math.min(limit - owed - blocked, lineRoom);
         const rate = row.interest_rate === null ? null : String(Number(row.interest_rate));
         const recorded = statements.filter(item => Number(item.account_id) === id);
         let statement: CardStatement | null = null;
@@ -178,6 +183,7 @@ async function loadCards(client: Client, userId: number, onlyId?: number): Promi
         result.push({
             id, sourceId: row.source_id === null ? null : Number(row.source_id), name: row.name, owed: fromPaise(owed),
             creditLimit: limit === null ? null : fromPaise(limit), available: room === null ? null : fromPaise(room),
+            blocked: fromPaise(blocked),
             line: row.line_id === null ? null : { id: Number(row.line_id), name: row.line_name!, limit: fromPaise(Number(row.line_limit_paise)), available: fromPaise(lineRoom!) },
             interestRate: rate, perHundredMonthly: rate === null ? null : perHundredMonthly(rate), trueRate: rate === null ? null : trueYearlyRate(Number(rate)),
             billingDay: row.billing_day, dueDay: row.due_day, statement, sinceStatement: fromPaise(sinceStatement),

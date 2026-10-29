@@ -74,3 +74,32 @@ test('two cards share a limit: what is left on one falls as the other is used', 
     await expect(page.locator('[data-card="E2E ADDON"] .card-line')).toContainText('Shares HDFC cards: ₹20,000.00 left of ₹50,000.00');
     await expect(page.locator('[data-card="E2E ADDON"] .loan-facts')).toContainText('₹20,000.00 left of ₹1,00,000.00');
 });
+
+test('a purchase on the card turned into EMIs blocks part of its limit', async ({ page }) => {
+    await register(page, uniqueUser());
+    await chooseTracking(page, 'both');
+    expect((await page.request.put('/api/modules', { data: { modules: ['income', 'spending', 'credit_cards', 'debts'] } })).ok()).toBe(true);
+    expect((await page.request.post('/api/credit-cards', { data: { name: 'E2E Emi Card', creditLimit: 100000 } })).ok()).toBe(true);
+    const card = (await (await page.request.get('/api/accounts')).json()).find(account => account.type === 'credit_card');
+    expect((await page.request.post('/api/entries', { data: { type: 'expense', description: 'Fridge', amount: 45000, accountId: card.id, date: daysAgo(2) } })).ok()).toBe(true);
+
+    await page.goto('/loans');
+    await page.locator('[data-status="new"]').click();
+    await page.locator('#loan-name').fill('Fridge EMI');
+    await page.locator('#loan-kind').selectOption('card_emi');
+    await expect(page.locator('#loan-into')).toHaveCount(0);
+    await page.locator('#loan-card').selectOption(String(card.id));
+    await page.locator('#loan-principal').fill('45000');
+    await page.locator('#loan-rate').fill('0');
+    await page.locator('#loan-months').fill('9');
+    await page.locator('#loan-disbursed').fill(daysAgo(1));
+    await page.locator('[data-action="addLoan"]').click();
+    await expect(toast(page, 'Fridge EMI added')).toBeVisible();
+    await expect(page.locator('.loan-on-card')).toContainText('On E2E EMI CARD: EMIs charged to the card, ₹45,000.00 of its limit blocked');
+
+    await page.goto('/cards');
+    const box = page.locator('[data-card="E2E EMI CARD"]');
+    await expect(box.locator('.card-owed')).toHaveText('Owed ₹0.00');
+    await expect(box.locator('.card-blocked')).toContainText('block ₹45,000.00 of its limit');
+    await expect(box.locator('.loan-facts')).toContainText('₹55,000.00 left of ₹1,00,000.00');
+});

@@ -56,6 +56,7 @@ const paise = (rupees: string) => Math.round(parseFloat(rupees) * 100);
 
 const LOAN_KINDS: Record<string, DebtKind> = {
     home: 'home', vehicle: 'vehicle', personal: 'personal', education: 'education', business: 'business', consumer: 'consumer', gold: 'gold',
+    card_emi: 'consumer', card_loan: 'personal',
 };
 
 /** The first and last days of the three full months before today's */

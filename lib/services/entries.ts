@@ -58,7 +58,10 @@ export interface MoneyAccount {
 
 const ACCOUNT_COLUMNS = `a.id, a.subtype, a.name, a.institution, a.account_type, a.interest_rate, a.notes, a.source_id,
     a.credit_limit_paise, COALESCE(b.balance_paise, 0)::bigint AS balance_paise,
-    (SELECT c.limit_paise + COALESCE((SELECT SUM(sb.balance_paise) FROM ledger_accounts s JOIN ledger_account_balances sb ON sb.account_id = s.id
+    COALESCE((SELECT k.blocked_paise FROM card_loan_blocked k WHERE k.user_id = a.user_id AND k.account_id = a.id), 0)::bigint AS blocked_paise,
+    (SELECT c.limit_paise + COALESCE((SELECT SUM(COALESCE(sb.balance_paise, 0) - COALESCE(sk.blocked_paise, 0)) FROM ledger_accounts s
+                                      LEFT JOIN ledger_account_balances sb ON sb.account_id = s.id
+                                      LEFT JOIN card_loan_blocked sk ON sk.user_id = s.user_id AND sk.account_id = s.id
                                       WHERE s.user_id = a.user_id AND s.credit_line_id = c.id AND s.archived_at IS NULL), 0)
      FROM credit_lines c WHERE c.user_id = a.user_id AND c.id = a.credit_line_id AND c.deleted_at IS NULL)::bigint AS line_room_paise`;
 
@@ -73,9 +76,12 @@ function toAccount(row: Record<string, unknown>): MoneyAccount {
         balance: fromPaise(balance),
         used: isCard ? fromPaise(-balance) : null,
         creditLimit: isCard && limit !== null ? fromPaise(limit) : null,
-        // The smaller of what is left on the card's limit and on the credit line it shares (migration 0032)
+        // The smaller of what is left on the card's limit (less what loans on it block, migration 0033)
+        // and on the credit line it shares (migration 0032)
         available: isCard && limit !== null
-            ? fromPaise(row.line_room_paise === null || row.line_room_paise === undefined ? limit + balance : Math.min(limit + balance, Number(row.line_room_paise)))
+            ? fromPaise(row.line_room_paise === null || row.line_room_paise === undefined
+                ? limit + balance - Number(row.blocked_paise ?? 0)
+                : Math.min(limit + balance - Number(row.blocked_paise ?? 0), Number(row.line_room_paise)))
             : null,
         institution: (row.institution as string | null) ?? null,
         accountType: (row.account_type as string | null) ?? null,
