@@ -5,7 +5,7 @@ import { Check, Pause, Play, Plus, Repeat, SkipForward, Trash2 } from 'lucide-re
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
-import { MONTH_NAMES, todayUtcIso } from '@/lib/dates';
+import { MONTH_NAMES, todayInIndiaClient } from '@/lib/dates';
 import { formatRupees } from '@/lib/format';
 import { t } from '@/lib/i18n';
 
@@ -69,7 +69,8 @@ export function RepeatingCard({ accounts, categories, onRecorded }: { accounts: 
     }, []);
 
     function startNew() {
-        const today = todayUtcIso();
+        // India's date (repeating entries are due by India's date): the UTC one is yesterday until 05:30
+        const today = todayInIndiaClient();
         const cash = accounts.find(account => account.type === 'cash') ?? accounts[0];
         setDraft({
             type: 'expense', description: '', amount: '', accountId: String(cash?.id ?? ''), toAccountId: '', categoryId: '',
