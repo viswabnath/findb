@@ -71,7 +71,7 @@ test('debts ranked by true yearly cost, with the EMI-to-income ratio and the war
     expect(review.debts.map(debt => [debt.name, debt.kind])).toEqual([
         ['REWARDS CARD', 'credit_card'], ['Personal loan', 'personal'], ['Home loan', 'home'], ['Sneha', 'person'],
     ]);
-    expect(review.debts[0]).toMatchObject({ balance: '50000.00', yearlyRate: 51.11, assumedRate: true, dangerous: true, monthly: '2500.00', href: '/setup' });
+    expect(review.debts[0]).toMatchObject({ balance: '50000.00', yearlyRate: 51.11, assumedRate: true, dangerous: true, monthly: '2500.00', href: '/cards' });
     expect(review.debts[1].yearlyRate).toBeCloseTo(14.93, 1);
     expect(review.debts[3]).toMatchObject({ balance: '20000.00', yearlyRate: 0, monthly: '0.00', href: '/people' });
     expect(review).toMatchObject({ total: '1410000.00', dangerousTotal: '50000.00', monthlyIncome: '50000.00' });

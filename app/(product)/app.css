@@ -519,6 +519,17 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .loan-schedule { overflow-x: auto; padding: 0 clamp(16px, 2.5vw, 24px); max-height: 420px; overflow-y: auto; }
 .loan-form { display: grid; gap: 14px; }
 
+/* Credit cards (components/cards/CardsScreen.tsx) */
+.card-link { margin: 0; padding-top: 0; }
+.card-box { margin-bottom: 16px; }
+.card-statement { display: grid; gap: 6px; border-top: 1px solid var(--line); }
+.card-statement p { margin: 0; }
+.card-due { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-weight: 600; }
+.tag.status-paid, .tag.status-nothing_due { background: var(--tint); color: var(--tint-fg); }
+.tag.status-minimum_paid, .tag.status-part_paid { background: var(--gold-soft); color: var(--fg); }
+.tag.status-unpaid { background: var(--info-soft); color: var(--fg); }
+.card-terms { display: grid; gap: 12px; }
+
 /* Debt review (components/people/DebtsScreen.tsx) */
 .debt-totals { margin-bottom: 6px; }
 .debt-totals .amount.danger { color: var(--danger); }

@@ -1,10 +1,10 @@
 import type { Pool, PoolClient } from 'pg';
 import { logActivity } from '../activity-log';
-import { fromPaise, postEntry, systemAccount, toPaise, voidEntry } from '../ledger';
+import { fromPaise, postEntry, toPaise, voidEntry } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
 import { t } from '../i18n';
 import { perHundredMonthly, personLoanState, splitRepayment, yearlyRate, type RateUnit } from '../../src/core/interest';
-import { ensureCategories } from './categories';
+import { categoryByKey } from './categories';
 import { checkCanSpend, lockedMoneyAccount } from './entries';
 import { todayInIndia } from './recurring';
 import { entryDate } from './transactions';
@@ -275,13 +275,6 @@ async function lockedLoan(client: Client, userId: number, id: unknown): Promise<
          WHERE pl.id = $1 AND pl.user_id = $2 AND pl.deleted_at IS NULL FOR UPDATE OF pl`, [id, userId]);
     if (locked.rows.length === 0) throw new RequestError(404, t('errors.people.loanNotFound'));
     return { ...(await loanById(client, userId, Number(id))), personName: locked.rows[0].name, personAccountId: Number(locked.rows[0].account_id) };
-}
-
-/** The category for interest or a gift, by its default key, falling back to the built-in one */
-async function categoryByKey(client: Client, userId: number, key: string, kind: 'income' | 'expense'): Promise<number> {
-    await ensureCategories(client, userId);
-    const found = await client.query('SELECT id FROM ledger_accounts WHERE user_id = $1 AND category_key = $2 AND archived_at IS NULL', [userId, key]);
-    return found.rows[0] ? Number(found.rows[0].id) : systemAccount(client, userId, kind);
 }
 
 /** { dueOn?, interestRate?, rateUnit?, notes? }: change a loan's terms (its amounts and payments stay) */

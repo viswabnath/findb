@@ -305,6 +305,19 @@ Chits (`lib/services/chits.ts`, `src/core/chit.ts`). Each is a ledger account: p
 
 A chit: `{ "id", "name", "organiserKind", "organiser", "registration", "value", "members", "months", "contribution", "commissionPercent", "commission", "startedOn", "auctionDay", "balance" (positive saved, negative owed), "paid", "dividends", "monthsPaid", "next": { "month", "date", "amount", "dividendKnown" } \| null, "missed", "won", "outcome": { "role": "saver \| borrower", "yearlyRate", "gain", "assumedMonth" }, "instalments", "auctions", "finished", "notes" }`. A dividend is the winning discount less the commission (a % of the value), shared by all members; what is due is the contribution less it. `outcome` is the true yearly return or cost from the actual payments and prize (for a chit not yet won, as if won last; months with no auction yet assume no dividend). `GET /api/next-step` returns `{ "kind": "chit" }` for a payment whose date has passed.
 
+## Credit cards
+
+Statements and due dates (`lib/services/cards.ts`, `src/core/cards.ts`). `:id` is the card's ledger account id (as in `/api/accounts`).
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/cards` | – | cards (see below) |
+| PUT | `/api/cards/:id` | `{ "billingDay"?, "dueDay"? (both or neither, 1 to 31), "interestRate"?, "rateUnit"?: "year \| per100month" }` | the card |
+| POST | `/api/cards/:id/statements` | `{ "statementDate", "dueOn"? (from the due day), "amountDue", "minimumDue"? (5%, at least ₹200), "interest"?, "fees"? }` | the card; interest and fees are a `card_charges` entry on it |
+| DELETE | `/api/cards/:id/statements/:statementId` | – | the card, the charges entry voided |
+
+A card: `{ "id", "sourceId" (the /api/credit-cards id), "name", "owed", "creditLimit", "available", "interestRate" (% a year) \| null, "perHundredMonthly", "trueRate" (compounded monthly), "billingDay", "dueDay", "statement" \| null, "sinceStatement", "history" }`. `statement` is the latest one: the latest recorded, or the one the billing day gives if later, worked out from what the ledger owed on its date (`id` null). It carries `{ "id", "date", "dueOn", "amountDue", "minimumDue", "interest", "fees", "ledgerAmount", "paid", "paidByDue", "left", "status": "nothing_due \| paid \| minimum_paid \| part_paid \| unpaid", "overdue", "carried", "interestIfCarried", "dueSoon", "daysLeft" }`. Payments are transfers into the card after the statement date; `overdue` is less than the minimum paid by the due date, `carried` what was not paid by it, `interestIfCarried` about a month's interest on that (or on all but the minimum, before the due date), `dueSoon` within 5 days. `GET /api/next-step` returns `{ "kind": "card" }` for an overdue bill, then one due soon. The debt review uses the card's rate once entered.
+
 ## Debt review
 
 Every debt ranked by its true yearly cost (`lib/services/debts.ts`, `src/core/debts.ts`). Information on the user's own figures, not advice.

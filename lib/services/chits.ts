@@ -1,11 +1,11 @@
 import type { Pool, PoolClient } from 'pg';
 import { logActivity } from '../activity-log';
-import { fromPaise, postEntry, systemAccount, toPaise, voidEntry } from '../ledger';
+import { fromPaise, postEntry, toPaise, voidEntry } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
 import { t } from '../i18n';
 import { amountDue, chitOutcome, commissionOf, dividendFor, prize, type ChitTerms } from '../../src/core/chit';
 import { addMonths } from '../../src/core/loans';
-import { ensureCategories } from './categories';
+import { categoryByKey } from './categories';
 import { checkCanSpend, lockedMoneyAccount } from './entries';
 import { todayInIndia } from './recurring';
 import { entryDate } from './transactions';
@@ -149,12 +149,6 @@ async function lockedChit(client: Client, userId: number, id: unknown): Promise<
     const lock = await client.query('SELECT account_id FROM chit_funds WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL FOR UPDATE', [id, userId]);
     if (lock.rows.length === 0) throw new RequestError(404, t('errors.chits.notFound'));
     return { ...(await loadChits(client, userId, Number(id)))[0]!, accountId: Number(lock.rows[0].account_id) };
-}
-
-async function categoryByKey(client: Client, userId: number, key: string, kind: 'income' | 'expense'): Promise<number> {
-    await ensureCategories(client, userId);
-    const found = await client.query('SELECT id FROM ledger_accounts WHERE user_id = $1 AND category_key = $2 AND archived_at IS NULL', [userId, key]);
-    return found.rows[0] ? Number(found.rows[0].id) : systemAccount(client, userId, kind);
 }
 
 // ----- Changes -----
