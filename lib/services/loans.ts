@@ -1,5 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { logActivity } from '../activity-log';
+import { formatRupees } from '../format';
 import { fromPaise, postEntry, systemAccount, toPaise, voidEntry, type EntryLine } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
 import { t } from '../i18n';
@@ -26,7 +27,10 @@ import { entryDate } from './transactions';
 type Client = Pick<PoolClient, 'query'>;
 type Body = Record<string, unknown>;
 
-const KINDS = ['home', 'vehicle', 'personal', 'education', 'business', 'consumer', 'other', 'gold', 'against_fd', 'against_policy', 'against_securities', 'against_property'];
+const KINDS = ['home', 'vehicle', 'personal', 'education', 'business', 'consumer', 'other', 'gold', 'against_fd', 'against_policy', 'against_securities', 'against_property',
+    'card_emi', 'card_loan'];
+/** Loans on a credit card (migration 0033): EMIs charged to the card, what is owed blocking its limit */
+const ON_CARD = ['card_emi', 'card_loan'];
 /** Loans that are backed by an asset, and the kind of asset each pledges */
 const SECURED: Record<string, string> = { gold: 'gold', against_fd: 'fd', against_policy: 'policy', against_securities: 'securities', against_property: 'property' };
 const RATE_TYPES = ['reducing', 'flat', 'interest_only', 'bullet'];
@@ -93,6 +97,8 @@ export interface Loan {
     closed: boolean;
     notes: string | null;
     pledge: Pledge | null;
+    /** The card a card EMI or card loan is on (its ledger account id) */
+    cardId: number | null;
 }
 
 const text = (value: unknown) => (typeof value === 'string' ? value.trim() : '');
@@ -132,13 +138,14 @@ interface LoanRow {
     id: string; account_id: string; name: string; lender: string | null; loan_kind: string; rate_type: 'reducing' | 'flat'; rate_kind: 'fixed' | 'floating';
     principal_paise: string; yearly_rate: string; months: number; disbursed_on: string; first_due: string; tracked_from: string; emi_paise: string;
     processing_fee_paise: string; other_charges_paise: string; foreclosure_charge: string; notes: string | null; closed_on: string | null; balance_paise: string;
+    card_account_id: string | null;
 }
 
 async function loadLoans(client: Client, userId: number, onlyId?: number): Promise<Loan[]> {
     const loans = await client.query(
         `SELECT l.id, l.account_id, l.name, l.lender, l.loan_kind, l.rate_type, l.rate_kind, l.principal_paise, l.yearly_rate::text AS yearly_rate, l.months,
                 l.disbursed_on::text AS disbursed_on, l.first_due::text AS first_due, l.tracked_from::text AS tracked_from, l.emi_paise,
-                l.processing_fee_paise, l.other_charges_paise, l.foreclosure_charge::text AS foreclosure_charge, l.notes, l.closed_on::text AS closed_on,
+                l.processing_fee_paise, l.other_charges_paise, l.foreclosure_charge::text AS foreclosure_charge, l.notes, l.closed_on::text AS closed_on, l.card_account_id,
                 COALESCE(b.balance_paise, 0)::bigint AS balance_paise
          FROM loans l LEFT JOIN ledger_account_balances b ON b.account_id = l.account_id
          WHERE l.user_id = $1 AND l.deleted_at IS NULL AND ($2::bigint IS NULL OR l.id = $2)
@@ -246,7 +253,7 @@ function toLoan(row: LoanRow, changeRows: Record<string, unknown>[], paymentRows
             prepaid: fromPaise(item.prepaid), closing: fromPaise(item.closing), yearlyRate: item.yearlyRate,
         })),
         rateChanges: changes.map(change => ({ from: change.from, yearlyRate: String(change.yearlyRate), keep: change.keep })),
-        payments, closed, notes: row.notes,
+        payments, closed, notes: row.notes, cardId: row.card_account_id === null ? null : Number(row.card_account_id),
     };
 }
 
@@ -310,30 +317,40 @@ export async function createLoan(pool: Pool, userId: number, body: Body): Promis
     const outstanding = existing ? paiseOf(body.outstanding, true) : 0;
     if (existing && outstanding > principal) throw new RequestError(400, t('errors.loans.outstandingAbovePrincipal'));
     const today = todayInIndia();
+    const onCard = ON_CARD.includes(kind);
     return withTransaction(pool, async (client) => {
+        const card = onCard ? await lockedMoneyAccount(client, userId, body.cardId, t('errors.loans.cardField')) : null;
+        if (card && card.type !== 'credit_card') throw new RequestError(400, t('errors.loans.notACard'));
         const account = await client.query('INSERT INTO ledger_accounts (user_id, kind, subtype, name, institution) VALUES ($1, \'liability\', \'loan\', $2, $3) RETURNING id',
             [userId, name, lender]);
         const accountId = Number(account.rows[0].id);
         const created = await client.query(
             `INSERT INTO loans (user_id, account_id, name, lender, loan_kind, rate_type, rate_kind, principal_paise, yearly_rate, months, disbursed_on, first_due,
-                                tracked_from, emi_paise, processing_fee_paise, other_charges_paise, foreclosure_charge, notes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18) RETURNING id`,
+                                tracked_from, emi_paise, processing_fee_paise, other_charges_paise, foreclosure_charge, notes, card_account_id)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19) RETURNING id`,
             [userId, accountId, name, lender, kind, rateType, rateKind, principal, rate, months, disbursedOn, firstDue,
-                existing ? (today > firstDue ? today : firstDue) : firstDue, emi, fee, charges, foreclosure, notes]);
+                existing ? (today > firstDue ? today : firstDue) : firstDue, emi, fee, charges, foreclosure, notes, card?.id ?? null]);
         const loanId = Number(created.rows[0].id);
         if (existing) {
             // Already running: what is owed today, from an opening balance; the earlier payments happened before FinDB
             const openingBalance = await systemAccount(client, userId, 'opening_balance');
             await record(client, userId, loanId, 'opening', today, t('loans.entry.opening', { name }),
                 [{ accountId, paise: -outstanding }, { accountId: openingBalance, paise: outstanding }], { principal: principal - outstanding });
+        } else if (kind === 'card_emi') {
+            // A purchase on the card turned into EMIs: what the card owes for it moves to the loan
+            if (-toPaise(card!.balance) < principal) throw new RequestError(400, t('errors.loans.cardOwesLess', { name: card!.name, owed: formatRupees(card!.used) }));
+            await record(client, userId, loanId, 'disbursal', disbursedOn, t('loans.entry.converted', { name }),
+                [{ accountId: card!.id, paise: principal }, { accountId, paise: -principal }], { principal: -principal });
         } else {
             const into = await lockedMoneyAccount(client, userId, body.accountId);
             await record(client, userId, loanId, 'disbursal', disbursedOn, t('loans.entry.received', { name }),
                 [{ accountId: into.id, paise: principal }, { accountId, paise: -principal }], { principal: -principal });
-            if (fee + charges > 0) {
-                await record(client, userId, loanId, 'fee', disbursedOn, t('loans.entry.fees', { name }),
-                    [{ accountId: await interestCategory(client, userId), paise: fee + charges }, { accountId: into.id, paise: -(fee + charges) }], { charges: fee + charges });
-            }
+        }
+        if (!existing && fee + charges > 0) {
+            // Fees on a card loan or card EMI are charged to the card; on other loans they come out of the money received
+            const payer = card?.id ?? (await lockedMoneyAccount(client, userId, body.accountId)).id;
+            await record(client, userId, loanId, 'fee', disbursedOn, t('loans.entry.fees', { name }),
+                [{ accountId: await interestCategory(client, userId), paise: fee + charges }, { accountId: payer, paise: -(fee + charges) }], { charges: fee + charges });
         }
         if (pledge) {
             await client.query(
@@ -372,8 +389,9 @@ export async function payEmi(pool: Pool, userId: number, id: string, body: Body)
         }
         const principal = amount - interest;
         if (principal > owed) throw new RequestError(400, t('errors.loans.tooMuch', { most: fromPaise(owed + interest) }));
-        const account = await lockedMoneyAccount(client, userId, body.accountId);
-        await checkCanSpend(client, userId, account, amount);
+        const account = await lockedMoneyAccount(client, userId, body.accountId ?? loan.cardId);
+        // An EMI charged to the card the loan is on frees the principal it repays: only the interest uses up limit
+        await checkCanSpend(client, userId, account, account.id === loan.cardId ? interest : amount);
         const status = due && amount < toPaise(due.amount) ? 'partial' : due && date > due.date ? 'late' : 'full';
         await record(client, userId, loan.id, 'emi', date, t('loans.entry.emi', { name: loan.name }),
             [{ accountId: loan.accountId, paise: principal }, { accountId: await interestCategory(client, userId), paise: interest }, { accountId: account.id, paise: -amount }],

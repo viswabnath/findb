@@ -54,17 +54,19 @@ async function loadLines(client: Client, userId: number, onlyId?: number): Promi
         [userId, onlyId ?? null]);
     if (lines.rows.length === 0) return [];
     const cards = await client.query(
-        `SELECT a.id, a.name, a.credit_line_id, COALESCE(b.balance_paise, 0)::bigint AS balance_paise
+        `SELECT a.id, a.name, a.credit_line_id, COALESCE(b.balance_paise, 0)::bigint AS balance_paise, COALESCE(k.blocked_paise, 0)::bigint AS blocked_paise
          FROM ledger_accounts a LEFT JOIN ledger_account_balances b ON b.account_id = a.id
+         LEFT JOIN card_loan_blocked k ON k.user_id = a.user_id AND k.account_id = a.id
          WHERE a.user_id = $1 AND a.subtype = 'credit_card' AND a.archived_at IS NULL AND a.credit_line_id = ANY($2::bigint[]) ORDER BY lower(a.name)`,
         [userId, lines.rows.map(row => row.id)]);
     return lines.rows.map(row => {
         const mine = cards.rows.filter(card => Number(card.credit_line_id) === Number(row.id));
-        const owed = mine.reduce((sum, card) => sum - Number(card.balance_paise), 0);
+        // What the cards owe, and what loans on them block (migration 0033)
+        const owed = mine.reduce((sum, card) => sum - Number(card.balance_paise) + Number(card.blocked_paise), 0);
         const limit = Number(row.limit_paise);
         return {
             id: Number(row.id), name: row.name, limit: fromPaise(limit), owed: fromPaise(Math.max(owed, 0)), available: fromPaise(limit - owed),
-            cards: mine.map(card => ({ id: Number(card.id), name: card.name, owed: fromPaise(Math.max(-Number(card.balance_paise), 0)) })),
+            cards: mine.map(card => ({ id: Number(card.id), name: card.name, owed: fromPaise(Math.max(-Number(card.balance_paise), 0) + Number(card.blocked_paise)) })),
         };
     });
 }

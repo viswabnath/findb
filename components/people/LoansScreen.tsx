@@ -20,7 +20,7 @@ interface Payment { id: number; kind: string; date: string; principal: string; i
 interface Loan {
     id: number; name: string; lender: string | null; kind: string; rateType: 'reducing' | 'flat' | 'interest_only' | 'bullet'; rateKind: 'fixed' | 'floating'; principal: string;
     yearlyRate: string; perHundredMonthly: string; months: number; emi: string; effectiveRate: number; outstanding: string; interestPaid: string;
-    nextDue: { date: string; amount: string } | null; missed: number; monthsLeft: number; endsOn: string | null;
+    nextDue: { date: string; amount: string } | null; missed: number; monthsLeft: number; endsOn: string | null; cardId: number | null;
     foreclosure: { interest: string; charge: string; total: string } | null; byYear: { year: string; principal: string; interest: string; fees: string }[];
     schedule: { number: number; date: string; emi: string; interest: string; principal: string; prepaid: string; closing: string }[];
     payments: Payment[]; closed: boolean; pledge: Pledge | null;
@@ -32,7 +32,10 @@ interface Pledge {
 }
 
 const MONEY = ['bank', 'cash', 'credit_card', 'wallet', 'meal_card'];
-const KINDS = ['home', 'vehicle', 'personal', 'education', 'business', 'consumer', 'gold', 'against_fd', 'against_policy', 'against_securities', 'against_property', 'other'] as const;
+const KINDS = ['home', 'vehicle', 'personal', 'education', 'business', 'consumer', 'gold', 'against_fd', 'against_policy', 'against_securities', 'against_property',
+    'card_emi', 'card_loan', 'other'] as const;
+/** Loans on a credit card: EMIs charged to the card */
+const ON_CARD = ['card_emi', 'card_loan'];
 const SECURED = ['gold', 'against_fd', 'against_policy', 'against_securities', 'against_property'];
 const RATE_TYPES = ['reducing', 'flat', 'interest_only', 'bullet'] as const;
 const shortDate = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -40,7 +43,7 @@ const ENDPOINT: Record<Action, string> = { emi: 'emi', prepay: 'prepay', topup: 
 
 const EMPTY = {
     name: '', lender: '', kind: 'home', rateType: 'reducing', rateKind: 'floating', principal: '', interestRate: '', rateUnit: 'year', months: '',
-    disbursedOn: '', firstDue: '', emi: '', processingFee: '', otherCharges: '', foreclosureCharge: '', status: 'existing', accountId: '', outstanding: '',
+    disbursedOn: '', firstDue: '', emi: '', processingFee: '', otherCharges: '', foreclosureCharge: '', status: 'existing', accountId: '', outstanding: '', cardId: '',
     pledgeDescription: '', pledgeValue: '', weightGrams: '', purityKarat: '22', goldRate: '', ltvLimit: '75',
 };
 
@@ -63,7 +66,7 @@ export function LoansScreen() {
             if (!result.ok) return;
             const money = result.data.filter(account => MONEY.includes(account.type));
             setAccounts(money);
-            setForm(current => ({ ...current, accountId: String(money[0]?.id ?? '') }));
+            setForm(current => ({ ...current, accountId: String(money[0]?.id ?? ''), cardId: String(money.find(account => account.type === 'credit_card')?.id ?? '') }));
         });
         // Once on page load
     }, []);
@@ -76,20 +79,23 @@ export function LoansScreen() {
     const set = (key: keyof typeof EMPTY, value: string) => setForm(current => ({ ...current, [key]: value }));
 
     async function addLoan() {
-        const { status, accountId, outstanding, pledgeDescription, pledgeValue, weightGrams, purityKarat, goldRate, ltvLimit, ...rest } = form;
+        const { status, accountId, outstanding, cardId, pledgeDescription, pledgeValue, weightGrams, purityKarat, goldRate, ltvLimit, ...rest } = form;
         const pledge = SECURED.includes(form.kind)
             ? { description: pledgeDescription, value: pledgeValue, weightGrams, purityKarat: Number(purityKarat), goldRate, ltvLimit }
             : undefined;
-        const result = await apiPost<Loan>('/api/loans', { ...rest, months: Number(form.months), pledge, ...(status === 'existing' ? { outstanding } : { accountId: Number(accountId) }) });
+        const result = await apiPost<Loan>('/api/loans', {
+            ...rest, months: Number(form.months), pledge, cardId: ON_CARD.includes(form.kind) ? Number(cardId) : undefined,
+            ...(status === 'existing' ? { outstanding } : form.kind === 'card_emi' ? {} : { accountId: Number(accountId) }),
+        });
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
         toast('success', t('loans.added', { name: result.data.name }));
-        setForm({ ...EMPTY, accountId: firstAccount });
+        setForm({ ...EMPTY, accountId: firstAccount, cardId: form.cardId });
         await load();
     }
 
     const open = (loan: Loan, action: Action) => setActing({
-        loan, action, amount: action === 'emi' ? loan.nextDue?.amount ?? loan.emi : '', accountId: firstAccount, date: todayInIndiaClient(),
+        loan, action, amount: action === 'emi' ? loan.nextDue?.amount ?? loan.emi : '', accountId: action === 'emi' && loan.cardId ? String(loan.cardId) : firstAccount, date: todayInIndiaClient(),
         interest: '', keep: action === 'rate' ? 'tenure' : 'emi', rate: '', unit: 'year', charges: '',
     });
 
@@ -154,6 +160,9 @@ export function LoansScreen() {
                     <div className="card-pad loan-facts">
                         <p>{[loan.lender, t(`loans.kinds.${loan.kind as typeof KINDS[number]}`), t('loans.rateLine', { year: loan.yearlyRate, month: loan.perHundredMonthly })].filter(Boolean).join(' · ')}</p>
                         <p className="loan-effective">{t('loans.effective', { rate: loan.effectiveRate })}</p>
+                        {loan.cardId && !loan.closed ? (
+                            <p className="when loan-on-card">{t('loans.onCard', { card: accounts.find(account => account.id === loan.cardId)?.name ?? '', amount: formatRupees(loan.outstanding) })}</p>
+                        ) : null}
                         {loan.rateType === 'flat' ? <p className="notice warn">{t('loans.flatNote')}</p> : null}
                         {loan.nextDue ? <p className="loan-next">{t('loans.nextDue', { amount: formatRupees(loan.nextDue.amount), date: shortDate(loan.nextDue.date) })}</p> : null}
                         {loan.missed > 0 ? <p className="notice warn loan-missed">{t('loans.missed', { count: loan.missed })}</p> : null}
@@ -269,12 +278,19 @@ export function LoansScreen() {
                         <div className="field"><label htmlFor="loan-outstanding">{t('loans.outstanding')}</label><input id="loan-outstanding" type="number" inputMode="decimal" min="0" step="0.01" value={form.outstanding} onChange={event => set('outstanding', event.target.value)} /></div>
                     ) : (
                         <>
-                            <div className="field"><label htmlFor="loan-into">{t('loans.into')}</label>
-                                <select id="loan-into" value={form.accountId} onChange={event => set('accountId', event.target.value)}>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></div>
+                            {form.kind === 'card_emi' ? null : <div className="field"><label htmlFor="loan-into">{t('loans.into')}</label>
+                                <select id="loan-into" value={form.accountId} onChange={event => set('accountId', event.target.value)}>{accounts.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}</select></div>}
                             <div className="field"><label htmlFor="loan-fee">{t('loans.processingFee')}</label><input id="loan-fee" type="number" inputMode="decimal" min="0" step="0.01" value={form.processingFee} onChange={event => set('processingFee', event.target.value)} /></div>
                             <div className="field"><label htmlFor="loan-charges">{t('loans.otherCharges')}</label><input id="loan-charges" type="number" inputMode="decimal" min="0" step="0.01" value={form.otherCharges} onChange={event => set('otherCharges', event.target.value)} /></div>
                         </>
                     )}
+                    {ON_CARD.includes(form.kind) ? (
+                        <div className="field"><label htmlFor="loan-card">{t('loans.card')}</label>
+                            <select id="loan-card" value={form.cardId} onChange={event => set('cardId', event.target.value)}>
+                                {accounts.filter(account => account.type === 'credit_card').map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
+                            </select>
+                            <span className="form-note">{t('loans.cardNote')}</span></div>
+                    ) : null}
                     {form.kind === 'gold' ? (
                         <>
                             <div className="field"><label htmlFor="pledge-weight">{t('loans.weight')}</label><input id="pledge-weight" type="number" inputMode="decimal" min="0" step="0.001" value={form.weightGrams} onChange={event => set('weightGrams', event.target.value)} /></div>
