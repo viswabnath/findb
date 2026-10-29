@@ -58,6 +58,13 @@ function toCategory(row: Record<string, unknown>): Category {
 }
 
 /** The user's categories that are not removed: spending first, in the default order, then their own, the fallback last */
+/** A default category's account by its key (interest, dividends, gifts...), falling back to the built-in one */
+export async function categoryByKey(client: Client, userId: number, key: string, kind: CategoryKind): Promise<number> {
+    await ensureCategories(client, userId);
+    const found = await client.query('SELECT id FROM ledger_accounts WHERE user_id = $1 AND category_key = $2 AND archived_at IS NULL', [userId, key]);
+    return found.rows[0] ? Number(found.rows[0].id) : systemAccount(client, userId, kind);
+}
+
 export async function listCategories(pool: Pool, userId: number): Promise<Category[]> {
     await ensureCategories(pool, userId);
     const order = [...EXPENSE_CATEGORIES, ...INCOME_CATEGORIES].map(category => category.key);

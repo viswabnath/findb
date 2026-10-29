@@ -3,6 +3,7 @@ import { addDays } from '../../src/core/schedule';
 import { formatRupees } from '../format';
 import { t } from '../i18n';
 import { listBudgets } from './budgets';
+import { listCards } from './cards';
 import { listChits } from './chits';
 import { listLoans } from './loans';
 import { overdueLoans } from './people';
@@ -13,14 +14,14 @@ import { hasSampleData } from './sample-data';
 /**
  * The one clear next step shown at the top of the Accounts screen (v2 plan, Phase 1): the most
  * useful thing to do now, in this order:
- *   sample data loaded > nothing set up yet > repeating entries to confirm > a missed EMI > a missed chit payment > a gold loan near its margin limit > a budget near or over
+ *   sample data loaded > nothing set up yet > repeating entries to confirm > a missed EMI > a missed chit payment > a card bill overdue or due within 5 days > a gold loan near its margin limit > a budget near or over
  *   its limit this month > a document expiring within 30 days > money from a person overdue > spending with no
  *   category this month > money owed back for over a month > an account not checked against a
  *   statement for a month > the everyday step.
  */
 
 export interface NextStep {
-    kind: 'sample' | 'start' | 'confirm' | 'emi' | 'chit' | 'margin' | 'budget' | 'expiring' | 'overdue' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
+    kind: 'sample' | 'start' | 'confirm' | 'emi' | 'chit' | 'card' | 'margin' | 'budget' | 'expiring' | 'overdue' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
     text: string;
     /** Where the step is done; absent when it is a button on the card (sample data) */
     href?: string;
@@ -69,6 +70,25 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
         return {
             kind: 'chit', href: '/chits', label: t('nextStep.chitLabel'),
             text: t('nextStep.chitMissed', { name: lateChit.name, month: lateChit.next!.month, amount: formatRupees(lateChit.next!.amount), date: lateChit.next!.date }),
+        };
+    }
+    // A card bill paid with less than the minimum by its due date, then one due soon
+    const cards = (await listCards(pool, userId)).filter(card => card.statement);
+    const overdueCard = cards.find(card => card.statement!.overdue && parseFloat(card.statement!.left) > 0);
+    if (overdueCard) {
+        const statement = overdueCard.statement!;
+        return {
+            kind: 'card', href: '/cards', label: t('nextStep.cardLabel'),
+            text: t('nextStep.cardOverdue', { name: overdueCard.name, amount: formatRupees(statement.amountDue), date: statement.dueOn, minimum: formatRupees(statement.minimumDue) }),
+        };
+    }
+    const dueCard = cards.filter(card => card.statement!.dueSoon).sort((a, b) => a.statement!.daysLeft - b.statement!.daysLeft)[0];
+    if (dueCard) {
+        const statement = dueCard.statement!;
+        const values = { name: dueCard.name, left: formatRupees(statement.left), date: statement.dueOn, count: statement.daysLeft };
+        return {
+            kind: 'card', href: '/cards', label: t('nextStep.cardLabel'),
+            text: statement.daysLeft === 0 ? t('nextStep.cardDueToday', values) : t('nextStep.cardDue', values),
         };
     }
     const risky = loans.filter(loan => loan.pledge && loan.pledge.risk !== 'ok').sort((a, b) => b.pledge!.ltv - a.pledge!.ltv)[0];

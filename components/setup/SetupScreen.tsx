@@ -297,6 +297,7 @@ export function SetupScreen() {
                         <h3 id="card-setup-title"><span className="icon-tile t-card" aria-hidden="true"><CreditCard /></span>{t('accounts.cards.title')}</h3>
                         <span className="meta">{t('accounts.cards.count', { count: cards.length })}</span>
                     </div>
+                    {cards.length > 0 ? <p className="card-pad card-link"><a className="btn-link" id="cards-link" href="/cards">{t('cards.link')}</a></p> : null}
                     <AccountList id="credit-cards-list" empty={t('accounts.cards.empty')} emptyIcon={CreditCard}>
                         {cards.map(card => {
                             const limit = amountOf(card.credit_limit);

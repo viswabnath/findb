@@ -6,6 +6,7 @@ import {
 import { formatRupees } from '../format';
 import { t } from '../i18n';
 import { flows, fromPaise } from '../ledger';
+import { listCards } from './cards';
 import { listChits } from './chits';
 import { listLoans } from './loans';
 import { listPeople } from './people';
@@ -81,22 +82,15 @@ export async function debtReview(pool: Pool, userId: number, today = todayInIndi
         }, '/loans');
     }
 
-    // Card balances owed (a card account is negative while money is owed on it)
-    const cards = await pool.query(
-        `SELECT a.id, a.name, COALESCE(SUM(l.amount_paise) FILTER (WHERE e.voided_at IS NULL), 0)::bigint AS paise
-         FROM ledger_accounts a
-         LEFT JOIN journal_lines l ON l.user_id = a.user_id AND l.account_id = a.id
-         LEFT JOIN journal_entries e ON e.user_id = l.user_id AND e.id = l.entry_id
-         WHERE a.user_id = $1 AND a.subtype = 'credit_card' AND a.archived_at IS NULL
-         GROUP BY a.id, a.name ORDER BY a.name`,
-        [userId]);
+    // Card balances owed, at the card's own rate once entered, otherwise a typical one
     const cardDebts: Debt[] = [];
-    for (const card of cards.rows) {
-        const owed = -Number(card.paise);
+    for (const card of await listCards(pool, userId)) {
+        const owed = paise(card.owed);
         if (owed <= 0) continue;
-        const debt: Debt = { key: `card-${card.id}`, name: card.name, kind: 'credit_card', balance: owed, yearlyRate: TYPICAL_CARD_RATE, monthly: minimumOnly(owed, TYPICAL_CARD_RATE).firstMinimum, assumedRate: true };
+        const rate = card.trueRate ?? TYPICAL_CARD_RATE;
+        const debt: Debt = { key: `card-${card.id}`, name: card.name, kind: 'credit_card', balance: owed, yearlyRate: rate, monthly: minimumOnly(owed, rate).firstMinimum, assumedRate: card.trueRate === null };
         cardDebts.push(debt);
-        add(debt, '/setup');
+        add(debt, '/cards');
     }
 
     for (const person of people) {
@@ -132,7 +126,7 @@ export async function debtReview(pool: Pool, userId: number, today = todayInIndi
     for (const card of cardDebts) {
         const plan = minimumOnly(card.balance, card.yearlyRate);
         warnings.push({
-            kind: 'minimum_only', level: 'warn', href: '/setup',
+            kind: 'minimum_only', level: 'warn', href: '/cards',
             text: t('debts.warnings.minimumOnly', {
                 name: card.name, balance: formatRupees(fromPaise(card.balance)), minimum: formatRupees(fromPaise(plan.firstMinimum)),
                 years: Math.round(plan.months / 1.2) / 10, interest: formatRupees(fromPaise(plan.totalInterest)), rate: card.yearlyRate,

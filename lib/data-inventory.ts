@@ -134,6 +134,11 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         holds: 'Each month\'s auction: the winning bid, and whether you won with what deductions', purpose: 'Working out dividends and the prize', retention: 'With the chit',
     },
     {
+        table: 'card_statements', category: 'money', exported: true,
+        holds: 'Your card statements: the statement and due dates, the amount and minimum due, and interest and fees charged',
+        purpose: 'Reminding you before a card bill is due and showing what carrying a balance costs', retention: 'Until you delete your account; removed ones are kept as history',
+    },
+    {
         table: 'pledges', category: 'money', exported: true,
         holds: 'What you pledged for a loan (gold, a deposit, a policy, shares or property): its description and value; for gold, its weight, purity and the rate used',
         purpose: 'Showing what is pledged, and warning before a gold loan\'s margin call', retention: 'With the loan',

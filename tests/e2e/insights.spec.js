@@ -8,6 +8,8 @@ const { uniqueUser, register, chooseTracking, addBank } = require('./helpers');
 
 const pad = n => String(n).padStart(2, '0');
 const india = new Date(Date.now() + 330 * 60_000);
+// Netflix is charged a few days before today's date each month, so the last charge is about a month ago (still active)
+const NETFLIX_DAY = Math.min(Math.max(india.getUTCDate() - 3, 1), 28);
 const monthDay = (back, day) => {
     const date = new Date(Date.UTC(india.getUTCFullYear(), india.getUTCMonth() - back, day));
     return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
@@ -24,8 +26,8 @@ test('insights: unusual spend, averages and subscriptions', async ({ page }) => 
     const saved = await page.request.post('/api/entries/bulk', { data: { entries: [
         expense(monthDay(3, 1), 'Petrol', '2000', 'Fuel'), expense(monthDay(2, 1), 'Petrol', '2000', 'Fuel'),
         expense(monthDay(1, 1), 'Petrol', '2000', 'Fuel'), expense(monthDay(0, 1), 'Petrol', '5000', 'Fuel'),
-        expense(monthDay(4, 5), 'Netflix', '499', 'Subscriptions'), expense(monthDay(3, 5), 'Netflix', '499', 'Subscriptions'),
-        expense(monthDay(2, 5), 'Netflix', '499', 'Subscriptions'), expense(monthDay(1, 5), 'Netflix', '649', 'Subscriptions'),
+        expense(monthDay(4, NETFLIX_DAY), 'Netflix', '499', 'Subscriptions'), expense(monthDay(3, NETFLIX_DAY), 'Netflix', '499', 'Subscriptions'),
+        expense(monthDay(2, NETFLIX_DAY), 'Netflix', '499', 'Subscriptions'), expense(monthDay(1, NETFLIX_DAY), 'Netflix', '649', 'Subscriptions'),
     ] } });
     expect(saved.ok()).toBe(true);
 

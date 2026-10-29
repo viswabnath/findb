@@ -17,6 +17,8 @@ const PASSWORD = 'Insight_Pass9';
 
 const pad = n => String(n).padStart(2, '0');
 const india = new Date(Date.now() + 330 * 60_000);
+// Netflix is charged a few days before today's date each month, so the last charge is about a month ago (still active)
+const NETFLIX_DAY = Math.min(Math.max(india.getUTCDate() - 3, 1), 28);
 /** The first or fifth of the month n months before this one, YYYY-MM-DD */
 const monthDay = (back, day) => {
     const date = new Date(Date.UTC(india.getUTCFullYear(), india.getUTCMonth() - back, day));
@@ -45,10 +47,10 @@ beforeAll(async () => {
         expense(monthDay(1, 1), 'Petrol', '2000', 'Fuel'),
         expense(monthDay(0, 1), 'Petrol', '5000', 'Fuel'),
         expense(monthDay(0, 1), 'Wedding gift', '10000', 'Gifts', { eventId: wedding.id }),
-        expense(monthDay(4, 5), 'Netflix', '499', 'Subscriptions'),
-        expense(monthDay(3, 5), 'Netflix', '499', 'Subscriptions'),
-        expense(monthDay(2, 5), 'Netflix', '499', 'Subscriptions'),
-        expense(monthDay(1, 5), 'Netflix', '649', 'Subscriptions'),
+        expense(monthDay(4, NETFLIX_DAY), 'Netflix', '499', 'Subscriptions'),
+        expense(monthDay(3, NETFLIX_DAY), 'Netflix', '499', 'Subscriptions'),
+        expense(monthDay(2, NETFLIX_DAY), 'Netflix', '499', 'Subscriptions'),
+        expense(monthDay(1, NETFLIX_DAY), 'Netflix', '649', 'Subscriptions'),
     ] });
     expect(saved.status).toBe(200);
 });
