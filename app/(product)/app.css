@@ -531,6 +531,9 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .card-terms { display: grid; gap: 12px; }
 .card-terms h4 { margin: 0; }
 .card-terms fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
+.reward-value { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.reward-value .field { max-width: 220px; }
+.card-rewards details summary { cursor: pointer; font-weight: 600; }
 
 /* Debt review (components/people/DebtsScreen.tsx) */
 .debt-totals { margin-bottom: 6px; }

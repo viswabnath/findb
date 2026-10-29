@@ -103,6 +103,7 @@
           "<rootDir>/tests/chits.test.js",
           "<rootDir>/tests/debts.test.js",
           "<rootDir>/tests/cards.test.js",
+          "<rootDir>/tests/rewards.test.js",
           "<rootDir>/tests/categories.test.js",
           "<rootDir>/tests/events.test.js",
           "<rootDir>/tests/recurring.test.js",

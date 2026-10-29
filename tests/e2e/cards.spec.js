@@ -103,3 +103,42 @@ test('a purchase on the card turned into EMIs blocks part of its limit', async (
     await expect(box.locator('.card-blocked')).toContainText('block ₹45,000.00 of its limit');
     await expect(box.locator('.loan-facts')).toContainText('₹55,000.00 left of ₹1,00,000.00');
 });
+
+test('rewards: points earned with their value and expiry, cashback, and which card gives back most', async ({ page }) => {
+    await register(page, uniqueUser());
+    await chooseTracking(page, 'both');
+    for (const name of ['E2E Travel', 'E2E Shop']) {
+        expect((await page.request.post('/api/credit-cards', { data: { name, creditLimit: 100000 } })).ok()).toBe(true);
+    }
+    const accounts = await (await page.request.get('/api/accounts')).json();
+    for (const [name, amount] of [['E2E TRAVEL', 10000], ['E2E SHOP', 20000]]) {
+        const card = accounts.find(account => account.name === name);
+        expect((await page.request.post('/api/entries', { data: { type: 'expense', description: 'Spend', amount, accountId: card.id, date: daysAgo(3) } })).ok()).toBe(true);
+    }
+
+    await page.goto('/cards');
+    const travel = page.locator('[data-card="E2E TRAVEL"]');
+    await travel.locator('.point-value').fill('0.5');
+    await travel.locator('[data-action="savePointValue"]').click();
+    await expect(toast(page, 'E2E TRAVEL updated')).toBeVisible();
+    await travel.locator('[data-action="recordReward"]').click();
+    await page.locator('#reward-points').fill('1000');
+    await page.locator('#reward-expires').fill(new Date(india.getTime() + 40 * 86_400_000).toISOString().slice(0, 10));
+    await page.locator('[data-action="saveReward"]').click();
+    await expect(toast(page, 'Recorded on E2E TRAVEL')).toBeVisible();
+    await expect(travel.locator('.reward-points')).toHaveText('1000 points, worth about ₹500.00');
+    await expect(travel.locator('[data-warning="points"]')).toContainText('1000 points expire on');
+
+    const shop = page.locator('[data-card="E2E SHOP"]');
+    await shop.locator('[data-action="recordReward"]').click();
+    await page.locator('#reward-kind').selectOption('cashback');
+    await page.locator('#reward-amount').fill('200');
+    await page.locator('[data-action="saveReward"]').click();
+    await expect(toast(page, 'Recorded on E2E SHOP')).toBeVisible();
+    await expect(shop.locator('.reward-cashback')).toContainText('₹200.00');
+
+    // 500 back on 10,000 (5%), 200 back on 20,000 (1%)
+    await expect(page.locator('#card-compare li').first()).toHaveAttribute('data-compare', 'E2E TRAVEL');
+    await expect(page.locator('[data-compare="E2E TRAVEL"]')).toContainText('5% back: ₹500.00 on ₹10,000.00 spent');
+    await expect(page.locator('[data-compare="E2E SHOP"]')).toContainText('1% back: ₹200.00 on ₹20,000.00 spent');
+});

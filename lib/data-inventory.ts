@@ -144,6 +144,12 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         retention: 'Until you delete your account; removed ones are kept as history',
     },
     {
+        table: 'card_rewards', category: 'money', exported: true,
+        holds: 'Reward points earned, redeemed and expired on your cards, with expiry dates, and cashback',
+        purpose: 'Showing points left and expiring, cashback per card and year, and which card gives back most',
+        retention: 'Until you delete your account; removed ones are kept as history',
+    },
+    {
         table: 'pledges', category: 'money', exported: true,
         holds: 'What you pledged for a loan (gold, a deposit, a policy, shares or property): its description and value; for gold, its weight, purity and the rate used',
         purpose: 'Showing what is pledged, and warning before a gold loan\'s margin call', retention: 'With the loan',
