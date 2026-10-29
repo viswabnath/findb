@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CreditCard, X } from 'lucide-react';
+import { CreditCard, Layers, Plus, X } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
@@ -23,8 +23,11 @@ interface Statement {
 interface Card {
     id: number; name: string; owed: string; creditLimit: string | null; available: string | null; interestRate: string | null; perHundredMonthly: string | null;
     trueRate: number | null; billingDay: number | null; dueDay: number | null; statement: Statement | null; sinceStatement: string;
+    line: { id: number; name: string; limit: string; available: string } | null;
     history: { id: number; date: string; dueOn: string; amountDue: string; minimumDue: string }[];
 }
+interface Line { id: number; name: string; limit: string; owed: string; available: string; cards: { id: number; name: string }[] }
+const EMPTY_LINE = { name: '', limit: '', cardIds: [] as number[] };
 type Terms = { billingDay: string; dueDay: string; interestRate: string; rateUnit: 'year' | 'per100month' };
 type Recording = { card: Card; statementDate: string; dueOn: string; amountDue: string; minimumDue: string; interest: string; fees: string };
 
@@ -71,6 +74,8 @@ export function CardsScreen() {
     const [cards, setCards] = useState<Card[] | null>(null);
     const [terms, setTerms] = useState<Record<number, Terms>>({});
     const [recording, setRecording] = useState<Recording | null>(null);
+    const [lines, setLines] = useState<Line[]>([]);
+    const [newLine, setNewLine] = useState(EMPTY_LINE);
 
     const termsOf = (card: Card): Terms => ({
         billingDay: card.billingDay ? String(card.billingDay) : '', dueDay: card.dueDay ? String(card.dueDay) : '', interestRate: card.interestRate ?? '', rateUnit: 'year',
@@ -82,6 +87,7 @@ export function CardsScreen() {
             setCards(result.data);
             setTerms(Object.fromEntries(result.data.map(card => [card.id, termsOf(card)])));
         });
+        apiGet<Line[]>('/api/cards/lines').then(result => { if (result.ok) setLines(result.data); });
         // Once on page load
     }, []);
 
@@ -110,6 +116,33 @@ export function CardsScreen() {
         toast('success', t('cards.recorded', { date: shortDate(recording.statementDate), name: card.name }));
         setRecording(null);
     }
+
+    async function reload() {
+        const [cardList, lineList] = await Promise.all([apiGet<Card[]>('/api/cards'), apiGet<Line[]>('/api/cards/lines')]);
+        if (cardList.ok) setCards(cardList.data);
+        if (lineList.ok) setLines(lineList.data);
+    }
+
+    async function addLine() {
+        const result = await apiPost<Line>('/api/cards/lines', newLine);
+        if (redirectIfUnauthorized(result)) return;
+        if (!result.ok) return toast('error', httpError(result));
+        toast('success', t('cards.lines.added', { name: result.data.name }));
+        setNewLine(EMPTY_LINE);
+        await reload();
+    }
+
+    async function removeLine(line: Line) {
+        const result = await apiDelete(`/api/cards/lines/${line.id}`);
+        if (redirectIfUnauthorized(result)) return;
+        if (!result.ok) return toast('error', httpError(result));
+        toast('success', t('cards.lines.removed', { name: line.name }));
+        await reload();
+    }
+
+    const toggleLineCard = (id: number) => setNewLine(current => ({
+        ...current, cardIds: current.cardIds.includes(id) ? current.cardIds.filter(item => item !== id) : [...current.cardIds, id],
+    }));
 
     async function removeStatement(card: Card, id: number) {
         const result = await apiDelete<Card>(`/api/cards/${card.id}/statements/${id}`);
@@ -144,6 +177,7 @@ export function CardsScreen() {
                         </div>
                         <div className="card-pad loan-facts">
                             {card.creditLimit !== null ? <p className="when">{t('cards.limitLine', { available: formatRupees(card.available!), limit: formatRupees(card.creditLimit) })}</p> : null}
+                            {card.line ? <p className="when card-line">{t('cards.lineLine', { line: card.line.name, available: formatRupees(card.line.available), limit: formatRupees(card.line.limit) })}</p> : null}
                             {card.interestRate !== null
                                 ? <p className="card-rate">{t('cards.rateLine', { rate: card.interestRate, perHundred: card.perHundredMonthly!, trueRate: card.trueRate! })}</p>
                                 : <p className="form-note">{t('cards.noRate')}</p>}
@@ -187,6 +221,43 @@ export function CardsScreen() {
                     </section>
                 );
             })}
+
+            {cards.length > 1 ? (
+                <section className="card" id="credit-lines" aria-labelledby="credit-lines-title">
+                    <div className="card-head"><h3 id="credit-lines-title"><span className="icon-tile t-card" aria-hidden="true"><Layers /></span>{t('cards.lines.title')}</h3></div>
+                    <p className="card-pad form-note card-link">{t('cards.lines.note')}</p>
+                    {lines.length === 0 ? <p className="card-pad empty-note card-link">{t('cards.lines.none')}</p> : (
+                        <ul className="loan-history card-pad credit-line-list">
+                            {lines.map(line => (
+                                <li key={line.id} data-line={line.name}>
+                                    <span><b>{line.name}</b> · {t('cards.lines.facts', { owed: formatRupees(line.owed), limit: formatRupees(line.limit), available: formatRupees(line.available) })}
+                                        {' · '}{t('cards.lines.cards', { names: line.cards.map(card => card.name).join(', ') })}</span>
+                                    <button type="button" className="chip-remove" aria-label={t('cards.lines.remove')} onClick={() => removeLine(line)}><X aria-hidden="true" /></button>
+                                </li>
+                            ))}
+                        </ul>
+                    )}
+                    <form className="card-pad card-terms" onSubmit={event => { event.preventDefault(); addLine(); }}>
+                        <h4>{t('cards.lines.add')}</h4>
+                        <div className="form-grid two">
+                            <div className="field"><label htmlFor="line-name">{t('cards.lines.name')}</label>
+                                <input id="line-name" type="text" maxLength={80} placeholder={t('cards.lines.namePlaceholder')} value={newLine.name} onChange={event => setNewLine(current => ({ ...current, name: event.target.value }))} /></div>
+                            <div className="field"><label htmlFor="line-limit">{t('cards.lines.limit')}</label>
+                                <input id="line-limit" type="number" inputMode="decimal" min="1" step="0.01" value={newLine.limit} onChange={event => setNewLine(current => ({ ...current, limit: event.target.value }))} /></div>
+                        </div>
+                        <fieldset className="field">
+                            <legend className="label">{t('cards.lines.choose')}</legend>
+                            <div className="chips">
+                                {cards.filter(card => !card.line).map(card => (
+                                    <button key={card.id} type="button" className="chip" aria-pressed={newLine.cardIds.includes(card.id)} data-line-card={card.name}
+                                        onClick={() => toggleLineCard(card.id)}>{card.name}</button>
+                                ))}
+                            </div>
+                        </fieldset>
+                        <button type="submit" className="btn btn-primary btn-sm" data-action="addLine"><Plus aria-hidden="true" /> {t('cards.lines.save')}</button>
+                    </form>
+                </section>
+            ) : null}
 
             <Modal id="card-statement-modal" title={recording ? t('cards.recordTitle', { name: recording.card.name }) : ''}
                 open={recording !== null} closeAction="close-card-statement" onClose={() => setRecording(null)}

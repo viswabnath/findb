@@ -135,6 +135,51 @@ describe('the bank\'s statement recorded', () => {
     });
 });
 
+describe('a limit shared by two cards', () => {
+    let primary;
+    let addOn;
+    let line;
+    const available = async id => (await agent.get('/api/accounts')).body.find(account => account.id === id).available;
+
+    test('a shared limit needs a name and two cards', async () => {
+        primary = await newCard('Primary Card');
+        addOn = await newCard('Addon Card');
+        expect((await agent.post('/api/cards/lines').send({ name: 'Bank cards', limit: '60000', cardIds: [primary.id] })).body.error).toBe('Choose at least two cards to share the limit');
+        expect((await agent.post('/api/cards/lines').send({ name: ' ', limit: '60000', cardIds: [primary.id, addOn.id] })).body.error).toBe('Give the shared limit a name');
+        const created = await agent.post('/api/cards/lines').send({ name: 'Bank cards', limit: '60000', cardIds: [primary.id, addOn.id] });
+        expect(created.status).toBe(200);
+        line = created.body;
+        expect(line).toMatchObject({ name: 'Bank cards', limit: '60000.00', owed: '0.00', available: '60000.00' });
+        expect(line.cards.map(card => card.name).sort()).toEqual(['ADDON CARD', 'PRIMARY CARD']);
+        const travel = await cardNamed('TRAVEL CARD');
+        expect((await agent.post('/api/cards/lines').send({ name: 'Other', limit: '1000', cardIds: [travel.id, addOn.id] })).body.error).toBe('ADDON CARD already shares another limit');
+    });
+
+    test('spending on one card leaves less on the other; the line cannot be overspent', async () => {
+        expect((await spend(primary, 40000, TODAY)).status).toBe(200);
+        // The add-on's own limit has 1,00,000 left, the shared one 20,000
+        expect(await available(addOn.id)).toBe('20000.00');
+        expect((await cardNamed('ADDON CARD')).line).toMatchObject({ name: 'Bank cards', available: '20000.00' });
+        expect((await spend(addOn, 25000, TODAY)).body.error).toBe('Insufficient credit limit');
+        const addOnRow = (await agent.get('/api/credit-cards')).body.find(card => card.name === 'ADDON CARD');
+        expect((await agent.post('/api/expenses').send({ title: 'TV', amount: 25000, paymentMethod: 'credit_card', paymentSourceId: addOnRow.id, date: TODAY })).body.error)
+            .toBe('Insufficient credit limit');
+        expect((await spend(addOn, 15000, TODAY)).status).toBe(200);
+        expect((await agent.get('/api/cards/lines')).body).toMatchObject([{ owed: '55000.00', available: '5000.00' }]);
+    });
+
+    test('the limit raised, then the shared limit removed: each card has its own again', async () => {
+        const raised = await agent.put(`/api/cards/lines/${line.id}`).send({ limit: '80000' });
+        expect(raised.body).toMatchObject({ limit: '80000.00', available: '25000.00' });
+        expect(await available(addOn.id)).toBe('25000.00');
+        expect((await otherAgent.put(`/api/cards/lines/${line.id}`).send({ limit: '1' })).status).toBe(404);
+        expect((await otherAgent.get('/api/cards/lines')).body).toEqual([]);
+        expect((await agent.delete(`/api/cards/lines/${line.id}`)).status).toBe(200);
+        expect(await available(addOn.id)).toBe('85000.00');
+        expect((await cardNamed('ADDON CARD')).line).toBeNull();
+    });
+});
+
 test('a bill unpaid past its due date is the next step; others see none of it', async () => {
     const card = await newCard('Fuel Card');
     expect((await spend(card, 5000, daysAgo(16))).status).toBe(200);

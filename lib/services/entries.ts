@@ -1,6 +1,6 @@
 import type { Pool, PoolClient } from 'pg';
 import { logActivity } from '../activity-log';
-import { fromPaise, postEntry, systemAccount, toPaise, voidEntry, type EntryLine } from '../ledger';
+import { creditLineRoom, fromPaise, postEntry, systemAccount, toPaise, voidEntry, type EntryLine } from '../ledger';
 import { RequestError, withTransaction } from '../transaction';
 import { lockedCategory } from './categories';
 import { moveEntryLinks } from './documents';
@@ -57,7 +57,10 @@ export interface MoneyAccount {
 }
 
 const ACCOUNT_COLUMNS = `a.id, a.subtype, a.name, a.institution, a.account_type, a.interest_rate, a.notes, a.source_id,
-    a.credit_limit_paise, COALESCE(b.balance_paise, 0)::bigint AS balance_paise`;
+    a.credit_limit_paise, COALESCE(b.balance_paise, 0)::bigint AS balance_paise,
+    (SELECT c.limit_paise + COALESCE((SELECT SUM(sb.balance_paise) FROM ledger_accounts s JOIN ledger_account_balances sb ON sb.account_id = s.id
+                                      WHERE s.user_id = a.user_id AND s.credit_line_id = c.id AND s.archived_at IS NULL), 0)
+     FROM credit_lines c WHERE c.user_id = a.user_id AND c.id = a.credit_line_id AND c.deleted_at IS NULL)::bigint AS line_room_paise`;
 
 function toAccount(row: Record<string, unknown>): MoneyAccount {
     const balance = Number(row.balance_paise);
@@ -70,7 +73,10 @@ function toAccount(row: Record<string, unknown>): MoneyAccount {
         balance: fromPaise(balance),
         used: isCard ? fromPaise(-balance) : null,
         creditLimit: isCard && limit !== null ? fromPaise(limit) : null,
-        available: isCard && limit !== null ? fromPaise(limit + balance) : null,
+        // The smaller of what is left on the card's limit and on the credit line it shares (migration 0032)
+        available: isCard && limit !== null
+            ? fromPaise(row.line_room_paise === null || row.line_room_paise === undefined ? limit + balance : Math.min(limit + balance, Number(row.line_room_paise)))
+            : null,
         institution: (row.institution as string | null) ?? null,
         accountType: (row.account_type as string | null) ?? null,
         interestRate: row.interest_rate === null || row.interest_rate === undefined ? null : String(row.interest_rate),
@@ -454,6 +460,9 @@ export async function checkCanSpend(client: Client, userId: number, account: Mon
     if ((user.rows[0]?.tracking_option || 'both') === 'expenses') return;
     if (account.type === 'credit_card') {
         if (account.available === null || toPaise(account.available) < paise) throw new RequestError(400, t('errors.insufficientCreditLimit'));
+        // Checked again with the line locked, so another card on it cannot spend the same room
+        const room = await creditLineRoom(client, userId, account.id);
+        if (room !== null && room < paise) throw new RequestError(400, t('errors.insufficientCreditLimit'));
         return;
     }
     if (toPaise(account.balance) >= paise) return;

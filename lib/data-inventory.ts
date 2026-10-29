@@ -139,6 +139,11 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         purpose: 'Reminding you before a card bill is due and showing what carrying a balance costs', retention: 'Until you delete your account; removed ones are kept as history',
     },
     {
+        table: 'credit_lines', category: 'money', exported: true,
+        holds: 'Limits shared by several of your cards: a name and the limit', purpose: 'Showing what is left to spend across cards that share a limit',
+        retention: 'Until you delete your account; removed ones are kept as history',
+    },
+    {
         table: 'pledges', category: 'money', exported: true,
         holds: 'What you pledged for a loan (gold, a deposit, a policy, shares or property): its description and value; for gold, its weight, purity and the rate used',
         purpose: 'Showing what is pledged, and warning before a gold loan\'s margin call', retention: 'With the loan',

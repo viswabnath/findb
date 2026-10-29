@@ -136,6 +136,8 @@ Since migration 0030 (`lib/services/chits.ts`): a chit is a ledger account of su
 
 Since migration 0031 (`lib/services/cards.ts`): a card's billing and due days are on its account (`billing_day`, `due_day`, beside `interest_rate`). Its statement is worked out from the card's balance on the statement date; a statement recorded from the bank (`card_statements`) keeps the bank's amount and minimum due, and its interest and fees are a `card_charges` entry: the card charged, spending in "Loan interest and fees". Payments are transfers into the card dated after the statement date; those by the due date decide whether the bill was paid in full, only the minimum (the rest carried), or overdue.
 
+Since migration 0032 (`lib/services/credit-lines.ts`): cards can share a limit (`credit_lines`, `ledger_accounts.credit_line_id`). The room on a card is the smaller of its own limit less what it owes and the line's limit less what all its cards owe (`creditLineRoom` in `lib/ledger.ts`, which locks the line).
+
 ## Groups
 
 Since migrations 0026 and 0027 (`lib/services/groups.ts`): a group's costs (`shared_expenses`, with `shared_expense_shares`) and payments (`settlements`) are kept in full for the group's balances, but only the user's part reaches the ledger. A cost is one `shared_expense` entry: when the user paid, their money account pays the whole amount, the category takes their share and each friend's person account their share; when a friend paid, the category takes the user's share against that friend's person account. A settlement with the user is a `group_settlement` between a money account and a person account. Person balances therefore include group debts. The Transactions list shows a `shared_expense` as an expense of the user's share, read-only.

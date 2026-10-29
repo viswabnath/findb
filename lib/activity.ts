@@ -16,7 +16,7 @@ export interface ActivityLabel {
 }
 
 type Entity = 'cash_balance' | 'bank' | 'credit_card' | 'income' | 'expense' | 'transfer' | 'account' | 'category' | 'event' | 'repeating'
-    | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant' | 'modules' | 'sample_data' | 'import' | 'search' | 'budget' | 'document' | 'person' | 'person_loan' | 'group' | 'loan' | 'chit';
+    | 'reimbursement' | 'reconciliation' | 'profile' | 'dependant' | 'modules' | 'sample_data' | 'import' | 'search' | 'budget' | 'document' | 'person' | 'person_loan' | 'group' | 'loan' | 'chit' | 'card_statement' | 'credit_line';
 type Action = 'created' | 'updated' | 'deleted';
 
 /** Each entry's icon and CSS class; the words are in messages/en.ts (activity.labels) */
@@ -46,6 +46,8 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         group: { icon: 'plus', className: 'action-create' },
         loan: { icon: 'plus', className: 'action-create' },
         chit: { icon: 'plus', className: 'action-create' },
+        card_statement: { icon: 'credit-card', className: 'action-card-update' },
+        credit_line: { icon: 'credit-card', className: 'action-card-add' },
         person_loan: { icon: 'refresh-cw', className: 'action-create' },
     },
     updated: {
@@ -73,6 +75,8 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         group: { icon: 'pencil', className: 'action-update' },
         loan: { icon: 'pencil', className: 'action-update' },
         chit: { icon: 'pencil', className: 'action-update' },
+        card_statement: { icon: 'credit-card', className: 'action-card-update' },
+        credit_line: { icon: 'credit-card', className: 'action-card-update' },
         person_loan: { icon: 'refresh-cw', className: 'action-update' },
     },
     deleted: {
@@ -100,6 +104,8 @@ const LOOKS: Record<Action, Record<Entity, Omit<ActivityLabel, 'text'>>> = {
         group: { icon: 'trash-2', className: 'action-delete' },
         loan: { icon: 'trash-2', className: 'action-delete' },
         chit: { icon: 'trash-2', className: 'action-delete' },
+        card_statement: { icon: 'trash-2', className: 'action-delete' },
+        credit_line: { icon: 'trash-2', className: 'action-delete' },
         person_loan: { icon: 'refresh-cw', className: 'action-delete' },
     },
 };
