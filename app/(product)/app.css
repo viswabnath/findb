@@ -529,6 +529,8 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .tag.status-minimum_paid, .tag.status-part_paid { background: var(--gold-soft); color: var(--fg); }
 .tag.status-unpaid { background: var(--info-soft); color: var(--fg); }
 .card-terms { display: grid; gap: 12px; }
+.card-terms h4 { margin: 0; }
+.card-terms fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
 
 /* Debt review (components/people/DebtsScreen.tsx) */
 .debt-totals { margin-bottom: 6px; }

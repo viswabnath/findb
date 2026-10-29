@@ -53,3 +53,24 @@ test('a card: statement days and rate, the bank statement, and the minimum paid'
     await expect(box.locator('[data-warning="carried"]')).toContainText('₹38,000.00 was carried past the due date');
     await expect(box.locator('[data-warning="carried"]')).toContainText('about ₹1,330.00 a month');
 });
+
+test('two cards share a limit: what is left on one falls as the other is used', async ({ page }) => {
+    await register(page, uniqueUser());
+    await chooseTracking(page, 'both');
+    for (const name of ['E2E Primary', 'E2E Addon']) {
+        expect((await page.request.post('/api/credit-cards', { data: { name, creditLimit: 100000 } })).ok()).toBe(true);
+    }
+    const primary = (await (await page.request.get('/api/accounts')).json()).find(account => account.name === 'E2E PRIMARY');
+    expect((await page.request.post('/api/entries', { data: { type: 'expense', description: 'Phone', amount: 30000, accountId: primary.id, date: daysAgo(1) } })).ok()).toBe(true);
+
+    await page.goto('/cards');
+    await page.locator('#line-name').fill('HDFC cards');
+    await page.locator('#line-limit').fill('50000');
+    await page.locator('[data-line-card="E2E PRIMARY"]').click();
+    await page.locator('[data-line-card="E2E ADDON"]').click();
+    await page.locator('[data-action="addLine"]').click();
+    await expect(toast(page, 'HDFC cards added')).toBeVisible();
+    await expect(page.locator('[data-line="HDFC cards"]')).toContainText('₹30,000.00 owed of ₹50,000.00 · ₹20,000.00 left');
+    await expect(page.locator('[data-card="E2E ADDON"] .card-line')).toContainText('Shares HDFC cards: ₹20,000.00 left of ₹50,000.00');
+    await expect(page.locator('[data-card="E2E ADDON"] .loan-facts')).toContainText('₹20,000.00 left of ₹1,00,000.00');
+});

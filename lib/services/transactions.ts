@@ -1,7 +1,7 @@
 import type { Pool, PoolClient, QueryResultRow } from 'pg';
 import { logActivity } from '../activity-log';
 import { RequestError, withTransaction } from '../transaction';
-import { accountBalance, moneyAccount, recordExpense, recordIncome, toPaise, voidEntries } from '../ledger';
+import { accountBalance, creditLineRoom, moneyAccount, recordExpense, recordIncome, toPaise, voidEntries } from '../ledger';
 import { t } from '../i18n';
 
 /**
@@ -188,6 +188,11 @@ async function checkCanSpend(client: Client, userId: number, method: unknown, so
     // A card's balance is negative by the amount owed, so the room left is the limit plus the balance
     if (method === 'credit_card' && (missing || toPaise(locked.rows[0].credit_limit) + balance < needed)) {
         throw new RequestError(400, t('errors.insufficientCreditLimit'));
+    }
+    // A card sharing a credit line also needs the room left on the line (migration 0032)
+    if (method === 'credit_card') {
+        const room = await creditLineRoom(client, userId, await moneyAccount(client, userId, method, sourceId));
+        if (room !== null && room < needed) throw new RequestError(400, t('errors.insufficientCreditLimit'));
     }
 }
 

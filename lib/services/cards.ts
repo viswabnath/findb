@@ -60,6 +60,8 @@ export interface Card {
     trueRate: number | null;
     billingDay: number | null;
     dueDay: number | null;
+    /** The credit line it shares (migration 0032); `available` above is already limited by it */
+    line: { id: number; name: string; limit: string; available: string } | null;
     /** The latest statement, once the billing and due days are set */
     statement: CardStatement | null;
     /** Spent on the card since the latest statement */
@@ -71,6 +73,7 @@ export interface Card {
 interface CardRow {
     id: string; source_id: string | null; name: string; credit_limit_paise: string | null; interest_rate: string | null;
     billing_day: number | null; due_day: number | null; balance_paise: string;
+    line_id: string | null; line_name: string | null; line_limit_paise: string | null; line_owed_paise: string | null;
 }
 
 interface StatementRow {
@@ -125,8 +128,11 @@ async function paymentsBetween(client: Client, userId: number, accountId: number
 async function loadCards(client: Client, userId: number, onlyId?: number): Promise<Card[]> {
     const cards = await client.query(
         `SELECT a.id, a.source_id, a.name, a.credit_limit_paise, a.interest_rate::text AS interest_rate, a.billing_day, a.due_day,
-                COALESCE(b.balance_paise, 0)::bigint AS balance_paise
+                COALESCE(b.balance_paise, 0)::bigint AS balance_paise, c.id AS line_id, c.name AS line_name, c.limit_paise AS line_limit_paise,
+                (SELECT -COALESCE(SUM(sb.balance_paise), 0) FROM ledger_accounts s JOIN ledger_account_balances sb ON sb.account_id = s.id
+                 WHERE s.user_id = a.user_id AND s.credit_line_id = c.id AND s.archived_at IS NULL)::bigint AS line_owed_paise
          FROM ledger_accounts a LEFT JOIN ledger_account_balances b ON b.account_id = a.id
+         LEFT JOIN credit_lines c ON c.user_id = a.user_id AND c.id = a.credit_line_id AND c.deleted_at IS NULL
          WHERE a.user_id = $1 AND a.subtype = 'credit_card' AND a.archived_at IS NULL AND ($2::bigint IS NULL OR a.id = $2)
          ORDER BY lower(a.name)`, [userId, onlyId ?? null]);
     if (cards.rows.length === 0) return [];
@@ -140,6 +146,8 @@ async function loadCards(client: Client, userId: number, onlyId?: number): Promi
         const id = Number(row.id);
         const owed = Math.max(-Number(row.balance_paise), 0);
         const limit = row.credit_limit_paise === null ? null : Number(row.credit_limit_paise);
+        const lineRoom = row.line_id === null ? null : Number(row.line_limit_paise) - Number(row.line_owed_paise);
+        const room = limit === null ? null : lineRoom === null ? limit - owed : Math.min(limit - owed, lineRoom);
         const rate = row.interest_rate === null ? null : String(Number(row.interest_rate));
         const recorded = statements.filter(item => Number(item.account_id) === id);
         let statement: CardStatement | null = null;
@@ -169,7 +177,8 @@ async function loadCards(client: Client, userId: number, onlyId?: number): Promi
         }
         result.push({
             id, sourceId: row.source_id === null ? null : Number(row.source_id), name: row.name, owed: fromPaise(owed),
-            creditLimit: limit === null ? null : fromPaise(limit), available: limit === null ? null : fromPaise(limit - owed),
+            creditLimit: limit === null ? null : fromPaise(limit), available: room === null ? null : fromPaise(room),
+            line: row.line_id === null ? null : { id: Number(row.line_id), name: row.line_name!, limit: fromPaise(Number(row.line_limit_paise)), available: fromPaise(lineRoom!) },
             interestRate: rate, perHundredMonthly: rate === null ? null : perHundredMonthly(rate), trueRate: rate === null ? null : trueYearlyRate(Number(rate)),
             billingDay: row.billing_day, dueDay: row.due_day, statement, sinceStatement: fromPaise(sinceStatement),
             history: recorded.map(item => ({
@@ -244,7 +253,7 @@ export async function recordStatement(pool: Pool, userId: number, id: string, bo
         await client.query(
             `INSERT INTO card_statements (user_id, account_id, statement_date, due_on, amount_due_paise, minimum_due_paise, interest_paise, fees_paise, entry_id)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`, [userId, card.id, date, dueOn, amountDue, minimumDue, interest, fees, entryId]);
-        await logActivity(client, userId, 'created', 'credit_card', card.id, `Recorded the ${date} statement of ${card.name}`, fromPaise(amountDue), null,
+        await logActivity(client, userId, 'created', 'card_statement', card.id, `Recorded the ${date} statement of ${card.name}`, fromPaise(amountDue), null,
             { date, dueOn, amountDue: fromPaise(amountDue), minimumDue: fromPaise(minimumDue), interest: fromPaise(interest), fees: fromPaise(fees) });
         return (await loadCards(client, userId, card.id))[0]!;
     });
@@ -260,7 +269,7 @@ export async function deleteStatement(pool: Pool, userId: number, id: string, st
         if (!row) throw new RequestError(404, t('errors.cards.statementNotFound'));
         if (row.entry_id !== null) await voidEntry(client, userId, Number(row.entry_id));
         await client.query('UPDATE card_statements SET deleted_at = now() WHERE id = $1 AND user_id = $2', [row.id, userId]);
-        await logActivity(client, userId, 'deleted', 'credit_card', card.id, `Removed the ${row.statement_date} statement of ${card.name}`, null, { statement: Number(row.id) }, null);
+        await logActivity(client, userId, 'deleted', 'card_statement', card.id, `Removed the ${row.statement_date} statement of ${card.name}`, null, { statement: Number(row.id) }, null);
         return (await loadCards(client, userId, card.id))[0]!;
     });
 }

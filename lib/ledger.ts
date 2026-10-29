@@ -183,6 +183,24 @@ export async function accountBalance(client: Client, accountId: number): Promise
     return Number(result.rows[0].balance);
 }
 
+/**
+ * The room left on the credit line a card shares, in paise (the line's limit less what all its
+ * cards owe), with the line locked so two cards on it cannot both pass a check; null when the card
+ * is on no line (migration 0032).
+ */
+export async function creditLineRoom(client: Client, userId: number, cardAccountId: number): Promise<number | null> {
+    const line = await client.query(
+        `SELECT c.id, c.limit_paise FROM credit_lines c JOIN ledger_accounts a ON a.user_id = c.user_id AND a.credit_line_id = c.id
+         WHERE a.id = $1 AND a.user_id = $2 AND c.deleted_at IS NULL FOR UPDATE OF c`, [cardAccountId, userId]);
+    if (line.rows.length === 0) return null;
+    const owed = await client.query(
+        `SELECT COALESCE(SUM(l.amount_paise), 0)::bigint AS paise FROM journal_lines l
+         JOIN journal_entries e ON e.user_id = l.user_id AND e.id = l.entry_id
+         JOIN ledger_accounts a ON a.user_id = l.user_id AND a.id = l.account_id
+         WHERE l.user_id = $1 AND a.credit_line_id = $2 AND a.archived_at IS NULL AND e.voided_at IS NULL`, [userId, line.rows[0].id]);
+    return Number(line.rows[0].limit_paise) + Number(owed.rows[0].paise);
+}
+
 export interface Balances {
     /** By ledger account id, every account */
     accounts: Map<number, number>;
