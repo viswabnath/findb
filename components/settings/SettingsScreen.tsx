@@ -46,6 +46,7 @@ export function SettingsScreen() {
     const [newCodes, setNewCodes] = useState<string[] | null>(null);
     const [myData, setMyData] = useState<MyData | null>(null);
     const [confirmWithdraw, setConfirmWithdraw] = useState(false);
+    const [deleting, setDeleting] = useState<{ password: string; code: string; confirm: string; busy: boolean } | null>(null);
 
     async function load() {
         const [statusResult, sessionsResult, historyResult, dataResult] = await Promise.all([
@@ -96,6 +97,20 @@ export function SettingsScreen() {
             return;
         }
         window.location.assign('/login');
+    }
+
+    async function deleteAccount() {
+        if (!deleting) return;
+        setDeleting({ ...deleting, busy: true });
+        const { password, code: deleteCode, confirm } = deleting;
+        const result = await apiPost('/api/account/delete', { password, code: deleteCode, confirm });
+        if (!result.ok) {
+            if (redirectIfUnauthorized(result)) return;
+            setDeleting(current => (current ? { ...current, busy: false } : current));
+            toast('error', apiError(result.data, t('settings.data.deleteFailed')));
+            return;
+        }
+        window.location.assign('/');
     }
 
     async function signOutEverywhere() {
@@ -215,6 +230,38 @@ export function SettingsScreen() {
                             ) : (
                                 <button type="button" className="btn btn-secondary" data-action="withdrawConsent" onClick={() => setConfirmWithdraw(true)}>
                                     {t('settings.data.withdraw')}
+                                </button>
+                            )}
+                        </div>
+                        <div className="card-pad data-rights" id="data-export">
+                            <h4>{t('settings.data.exportTitle')}</h4>
+                            <p className="form-note">{t('settings.data.exportNote')}</p>
+                            <div className="settings-actions">
+                                <a className="btn btn-secondary btn-sm" href="/api/privacy/export?format=json" download data-action="exportJson">{t('settings.data.exportJson')}</a>
+                                <a className="btn btn-secondary btn-sm" href="/api/privacy/export?format=csv" download data-action="exportCsv">{t('settings.data.exportCsv')}</a>
+                            </div>
+                        </div>
+                        <div className="card-pad data-rights" id="delete-account">
+                            <h4>{t('settings.data.deleteTitle')}</h4>
+                            <p className="form-note">{t('settings.data.deleteNote')}</p>
+                            {deleting ? (
+                                <form className="stack" onSubmit={event => { event.preventDefault(); deleteAccount(); }}>
+                                    <div className="field"><label htmlFor="delete-password">{t('settings.data.password')}</label>
+                                        <input id="delete-password" type="password" autoComplete="current-password" value={deleting.password} onChange={event => setDeleting({ ...deleting, password: event.target.value })} /></div>
+                                    <div className="field"><label htmlFor="delete-code">{t('settings.data.code')}</label>
+                                        <input id="delete-code" type="text" inputMode="numeric" autoComplete="one-time-code" maxLength={6} value={deleting.code} onChange={event => setDeleting({ ...deleting, code: event.target.value })} /></div>
+                                    <div className="field"><label htmlFor="delete-confirm">{t('settings.data.typeDelete')}</label>
+                                        <input id="delete-confirm" type="text" autoComplete="off" value={deleting.confirm} onChange={event => setDeleting({ ...deleting, confirm: event.target.value })} /></div>
+                                    <div className="settings-actions">
+                                        <button type="submit" className="btn btn-danger" data-action="confirmDeleteAccount" disabled={deleting.busy || deleting.confirm !== 'DELETE'}>
+                                            {deleting.busy ? t('settings.data.deleting') : t('settings.data.deleteConfirm')}
+                                        </button>
+                                        <button type="button" className="btn btn-secondary" data-action="cancelDeleteAccount" onClick={() => setDeleting(null)}>{t('settings.data.cancel')}</button>
+                                    </div>
+                                </form>
+                            ) : (
+                                <button type="button" className="btn btn-secondary" data-action="deleteAccount" onClick={() => setDeleting({ password: '', code: '', confirm: '', busy: false })}>
+                                    {t('settings.data.deleteStart')}
                                 </button>
                             )}
                         </div>

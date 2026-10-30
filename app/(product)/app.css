@@ -1068,3 +1068,6 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
     .category-bars li { grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; }
 }
 
+/* Settings: export and account deletion */
+.data-rights { display: grid; gap: 8px; border-top: 1px solid var(--line); }
+.data-rights h4, .data-rights p { margin: 0; }

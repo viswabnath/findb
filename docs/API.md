@@ -77,6 +77,8 @@ Needs the pending login at `setup`.
 - **GET** `/api/privacy` → `{ "consent": { "noticeVersion", "givenAt", "withdrawnAt", "needed" }, "tables": [{ "table", "category", "holds", "purpose", "retention", "rows" }] }`: what FinDB holds about the user (`lib/data-inventory.ts`), with their record counts.
 - **POST** `/api/privacy/consent` with `{ "noticeVersion": "2026-10-04" }` → `{ "success": true }`. Any other version: `400` (the notice changed; reload).
 - **POST** `/api/privacy/withdraw` → `{ "success": true }`: consent withdrawn, every session signed out, cookies cleared. Data is not deleted.
+- **GET** `/api/privacy/export?format=json|csv` → a download (`Content-Disposition: attachment`): everything FinDB holds about the user (`{ "exportedAt", "notes", "profile", "tables": { "<table>": [rows] } }`), or the same as a ZIP of one CSV a table with `README.txt` and `profile.json`. Hashes, encrypted values and two-step login state are left out; PAN and demat numbers are masked. Ledger amounts are in paise.
+- **POST** `/api/account/delete` with `{ "password", "code", "confirm": "DELETE" }` → `{ "success": true }`, cookies cleared: the account and everything in it, vault files included. `400` for a wrong password or code (a wrong code counts toward the login limit), `503` when the vault cannot be reached (nothing deleted).
 
 ### Set tracking option (former)
 **POST** `/api/set-tracking-option`
