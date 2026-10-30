@@ -281,7 +281,7 @@ export const FEATURES: Feature[] = [
         group: 'borrow',
         name: 'Credit cards, cashback and rewards',
         icon: 'card',
-        status: 'building',
+        status: 'available',
         short: 'Bills, due dates, cashback and reward points, without surprises.',
         summary:
             'Know what each card owes, when it is due, and what it has earned you. FinDB warns you before a due date and when you are paying only the minimum.',

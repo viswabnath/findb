@@ -328,6 +328,16 @@ A card: `{ "id", "sourceId" (the /api/credit-cards id), "name", "owed", "creditL
 
 A card's rewards: `{ "id", "name", "pointValue", "points": { "balance", "value" (at the value per point, never in net worth) \| null, "expiring": [{ "expiresOn", "points", "daysLeft" }] (within 60 days), "lapsed" }, "cashback": { "thisYear" (the financial year), "byYear" }, "compare": { "spent", "rewards", "rate", "pointsUnvalued" }, "history" }`. Points are used earliest-expiring first; points past their expiry and not used have `lapsed`. Cashback counts both records here and Cashback and rewards income entered on the card. `compare` is the last 12 months: cashback plus points earned at the value per point, as a % of spending on the card. `GET /api/next-step` returns `{ "kind": "points" }` for points expiring within 30 days.
 
+## What's due
+
+Everything due this month and next (`lib/services/calendar.ts`, `src/core/calendar.ts`); it reads cards, loans, chits, repeating entries and people, and stores nothing.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/calendar` | – | `{ "from", "to", "items", "months": [{ "month", "toPay", "toReceive" }], "overdue", "byAccount": [{ "account" \| null, "amount" }] }` (amounts in paise) |
+
+An item: `{ "date", "kind": "card_bill \| emi \| chit \| auction \| repeating \| person", "title", "amount" \| null, "direction": "pay \| receive \| move \| none", "account" \| null, "overdue", "estimated", "href" }`. Card bills are the latest statement still to pay, and the next one estimated from spending since the statement; EMIs are the first unpaid and the schedule after it (a card loan's from its card); chit payments are less the dividend once the month's auction is known (otherwise `estimated`), and auction days show without an amount; repeating entries list each date (a daily one is one line a month); money lent or borrowed shows on its due date. Overdue items come first and count in this month's totals; `byAccount` sums what is to be paid from each account.
+
 ## Debt review
 
 Every debt ranked by its true yearly cost (`lib/services/debts.ts`, `src/core/debts.ts`). Information on the user's own figures, not advice.
