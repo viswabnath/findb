@@ -38,6 +38,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] Double-entry ledger ([ledger.md](ledger.md)): every balance and the monthly summary are read from it; the former balance columns are dropped (migration 0019), and `ledger_entry_check` matches every income and expense row to its ledger record
 
 ### Transactions
+- [x] Your data: a copy of everything as JSON or CSV, and deleting the account (password, a current code and DELETE), vault files included
 - [x] What's due: card bills, EMIs, chit payments and auctions, repeating entries and money with people for this month and next, overdue first, with totals and what each account pays
 - [x] Card rewards: points earned, redeemed and expired with expiry reminders and an optional value per point (not in net worth), cashback per card and financial year, and which card gives back most over 12 months
 - [x] Loans on a card: a purchase turned into EMIs or a loan against the card's limit, run by the loan engine, EMIs charged to the card, what is owed blocking the card's limit

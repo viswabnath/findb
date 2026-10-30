@@ -106,6 +106,7 @@
           "<rootDir>/tests/rewards.test.js",
           "<rootDir>/tests/calendar.test.js",
           "<rootDir>/tests/rate-limits.test.js",
+          "<rootDir>/tests/account.test.js",
           "<rootDir>/tests/categories.test.js",
           "<rootDir>/tests/events.test.js",
           "<rootDir>/tests/recurring.test.js",

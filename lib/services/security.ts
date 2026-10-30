@@ -179,6 +179,32 @@ export async function regenerateRecoveryCodes(pool: Pool, userId: number, code: 
     }
 }
 
+/**
+ * Check a current code from the user's app before a change that cannot be undone (deleting the
+ * account). A wrong code counts toward the same limit as at login.
+ */
+export async function checkCurrentCode(pool: Pool, userId: number, code: unknown, userAgent: string | null): Promise<void> {
+    if (typeof code !== 'string' || !code.trim()) throw new RequestError(400, t('errors.enterCode'));
+    let wrong = false;
+    try {
+        await withTransaction(pool, async (client) => {
+            const user = await client.query('SELECT totp_secret_enc, totp_last_step FROM users WHERE id = $1 FOR UPDATE', [userId]);
+            const row = user.rows[0];
+            if (!row?.totp_secret_enc) throw new RequestError(400, t('errors.twoFactorLoginNotSet'));
+            if (await tooManyWrongCodes(client, userId)) throw new RequestError(429, TOO_MANY_CODES);
+            const lastStep = row.totp_last_step === null ? null : Number(row.totp_last_step);
+            const step = verifyTotp(decryptField(row.totp_secret_enc, secretContext(userId)), code, lastStep);
+            if (step === null) {
+                wrong = true;
+                throw new RequestError(400, t('errors.codeWrong'));
+            }
+            await client.query('UPDATE users SET totp_last_step = $1 WHERE id = $2', [step, userId]);
+        });
+    } finally {
+        if (wrong) await recordLoginEvent(pool, userId, 'wrong_code', userAgent);
+    }
+}
+
 /** Whether two-factor login is on, and how many recovery codes are left */
 export async function twoFactorStatus(pool: Pool, userId: number): Promise<{ enabledAt: string | null; recoveryCodesLeft: number }> {
     const result = await pool.query(
