@@ -242,7 +242,10 @@ export function SetupScreen() {
                     <h2>{t('accounts.title')}</h2>
                     <p>{t('accounts.subtitle')}</p>
                 </div>
-                <a href="/reconcile" className="btn btn-secondary btn-sm" data-action="goReconcile">{t('accounts.checkStatement')}</a>
+                <span className="page-header-links">
+                    <a href="/calendar" className="btn btn-secondary btn-sm" id="calendar-link">{t('calendar.link')}</a>
+                    <a href="/reconcile" className="btn btn-secondary btn-sm" data-action="goReconcile">{t('accounts.checkStatement')}</a>
+                </span>
             </div>
 
             <NextStepCard />

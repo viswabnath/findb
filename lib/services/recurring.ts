@@ -99,7 +99,7 @@ function toRepeating(row: Record<string, unknown>): Repeating {
     };
 }
 
-const ruleOf = (item: Pick<Repeating, 'frequency' | 'dayOfWeek' | 'dayOfMonth' | 'month'>): Rule =>
+export const ruleOf = (item: Pick<Repeating, 'frequency' | 'dayOfWeek' | 'dayOfMonth' | 'month'>): Rule =>
     ({ frequency: item.frequency, dayOfWeek: item.dayOfWeek, dayOfMonth: item.dayOfMonth, month: item.month });
 
 /** The next due date from a start, or null when that is past the end */

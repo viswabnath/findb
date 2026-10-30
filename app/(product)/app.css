@@ -535,6 +535,21 @@ select:disabled, input:disabled { opacity: 0.55; cursor: not-allowed; }
 .reward-value .field { max-width: 220px; }
 .card-rewards details summary { cursor: pointer; font-weight: 600; }
 
+/* What's due (components/calendar/CalendarScreen.tsx) */
+.due-totals { margin-bottom: 12px; }
+#calendar-overdue { margin-bottom: 16px; }
+.due-list { list-style: none; margin: 0; padding: 0; }
+.due-line { display: grid; grid-template-columns: 92px 1fr auto; align-items: baseline; gap: 10px; padding: 10px clamp(16px, 2.5vw, 24px); border-top: 1px solid var(--line); }
+.due-line:first-child { border-top: 0; }
+.due-date { color: var(--muted); font-size: 0.9rem; }
+.due-what { min-width: 0; overflow-wrap: anywhere; }
+.due-what .what { font-weight: 600; color: var(--fg); }
+.due-what .tag { margin-left: 8px; }
+.due-line .amount { font-family: var(--font-num); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.due-receive .amount { color: var(--c-income); }
+#due-accounts .due-line { grid-template-columns: 1fr auto; }
+@media (max-width: 420px) { .due-line { grid-template-columns: 1fr auto; } .due-date { grid-column: 1 / -1; } }
+
 /* Debt review (components/people/DebtsScreen.tsx) */
 .debt-totals { margin-bottom: 6px; }
 .debt-totals .amount.danger { color: var(--danger); }

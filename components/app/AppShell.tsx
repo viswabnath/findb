@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { ArrowLeftRight, CalendarHeart, ChartColumn, FolderLock, Gauge, HandCoins, Landmark, UsersRound, CircleDollarSign, CreditCard, History, Lightbulb, LogOut, Plus, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
+import { ArrowLeftRight, CalendarClock, CalendarHeart, ChartColumn, FolderLock, Gauge, HandCoins, Landmark, UsersRound, CircleDollarSign, CreditCard, History, Lightbulb, LogOut, Plus, Search, Settings, Wallet, type LucideIcon } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { t } from '@/lib/i18n';
 import { ConsentScreen } from '@/components/privacy/ConsentScreen';
@@ -30,6 +30,7 @@ const NAV_ITEMS: NavItem[] = [
     { section: 'summary', label: t('nav.summary'), icon: ChartColumn, href: '/summary' },
     { section: 'insights', label: t('nav.insights'), icon: Lightbulb, href: '/insights' },
     { section: 'events', label: t('nav.events'), icon: CalendarHeart, href: '/events' },
+    { section: 'calendar', label: t('nav.calendar'), icon: CalendarClock, href: '/calendar' },
     { section: 'cards', label: t('nav.cards'), icon: CreditCard, href: '/cards', module: 'credit_cards' },
     { section: 'people', label: t('nav.people'), icon: HandCoins, href: '/people', module: 'debts' },
     { section: 'groups', label: t('nav.groups'), icon: UsersRound, href: '/groups', module: 'debts' },
@@ -42,8 +43,8 @@ const NAV_ITEMS: NavItem[] = [
     { section: 'settings', label: t('nav.settings'), icon: Settings, href: '/settings' },
 ];
 // Phones: five tabs fit at 360 px with whole labels; Search and Settings are in the top bar instead.
-// Insights opens from Summary, Documents and People from Transactions, Cards from Accounts, and Groups, Loans, Chit funds and Debt review from People
-const TAB_ITEMS = NAV_ITEMS.filter(item => !['settings', 'search', 'insights', 'documents', 'cards', 'people', 'groups', 'loans', 'chits', 'debts'].includes(item.section));
+// Insights opens from Summary, Documents and People from Transactions, Cards and What's due from Accounts, and Groups, Loans, Chit funds and Debt review from People
+const TAB_ITEMS = NAV_ITEMS.filter(item => !['settings', 'search', 'insights', 'documents', 'calendar', 'cards', 'people', 'groups', 'loans', 'chits', 'debts'].includes(item.section));
 
 /**
  * The logged-in frame: a sidebar on larger screens, a top bar and a bottom tab bar on phones,
