@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { ownerPool, requestScope } from './db';
-import { allowRequest, authBlocked, recordAuthFailure } from './rate-limit';
+import { allowRequest, allowWrite, authBlocked, isWrite, PostgresRateLimitStore, recordAuthFailure } from './rate-limit';
 import { SESSION_COOKIE, sessionUserId } from './session';
 import { RequestError, withUserScope } from './transaction';
 import { t, type MessageKey } from './i18n';
@@ -56,6 +56,9 @@ export function isHttps(request: NextRequest): boolean {
     return request.nextUrl.protocol === 'https:' || request.headers.get('x-forwarded-proto') === 'https';
 }
 
+/** Writes and failed sign-ins are counted in Postgres, so the limits hold across server instances */
+const sharedLimits = new PostgresRateLimitStore(() => ownerPool());
+
 type AuthedHandler<C> = (request: NextRequest, userId: number, context: C) => Promise<Response>;
 
 interface PublicOptions {
@@ -69,8 +72,9 @@ interface PublicOptions {
 export function withPublic(handler: (request: NextRequest) => Promise<Response>, options: PublicOptions = {}) {
     return async (request: NextRequest): Promise<Response> => {
         const ip = clientIp(request);
-        if (!allowRequest(ip)) return jsonError(429, t('errors.tooManyRequests'));
-        if (options.authLimited && authBlocked(ip)) {
+        if (!await allowRequest(ip)) return jsonError(429, t('errors.tooManyRequests'));
+        if (isWrite(request.method) && !await allowWrite({ ip }, sharedLimits)) return jsonError(429, t('errors.tooManyRequests'));
+        if (options.authLimited && await authBlocked(ip, sharedLimits)) {
             return jsonError(429, t('errors.tooManyAuthAttempts'));
         }
         let response: Response;
@@ -85,7 +89,7 @@ export function withPublic(handler: (request: NextRequest) => Promise<Response>,
             }
         }
         // Like express-rate-limit with skipSuccessfulRequests: only failed answers count
-        if (options.authLimited && response.status >= 400) recordAuthFailure(ip);
+        if (options.authLimited && response.status >= 400) await recordAuthFailure(ip, sharedLimits);
         return response;
     };
 }
@@ -96,12 +100,13 @@ export function withPublic(handler: (request: NextRequest) => Promise<Response>,
  */
 export function withUser<C>(handler: AuthedHandler<C>) {
     return async (request: NextRequest, context: C): Promise<Response> => {
-        if (!allowRequest(clientIp(request))) {
+        if (!await allowRequest(clientIp(request))) {
             return jsonError(429, t('errors.tooManyRequests'));
         }
         try {
             const userId = await sessionUserId(ownerPool(), request.cookies.get(SESSION_COOKIE)?.value);
             if (userId === null) return jsonError(401, t('errors.authRequired'));
+            if (isWrite(request.method) && !await allowWrite({ userId }, sharedLimits)) return jsonError(429, t('errors.tooManyRequests'));
             // Everything the handler does with db() runs as the user, limited to their rows by the
             // database itself (docs/security.md)
             return await withUserScope(ownerPool(), userId,

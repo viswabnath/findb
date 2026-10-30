@@ -231,6 +231,11 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         retention: 'Until you delete your account',
     },
     {
+        table: 'rate_limits', category: 'system', exported: false,
+        holds: 'Counts of recent changes and failed sign-ins, by account number or a one-way hash of the network address (never the address)',
+        purpose: 'Limiting abuse across all servers', retention: 'One day',
+    },
+    {
         table: 'schema_migrations', category: 'system', exported: false,
         holds: 'No personal data: which database changes have run', purpose: 'Running FinDB', retention: 'Always',
     },
