@@ -5,6 +5,8 @@ import { t } from '../i18n';
 import { listBudgets } from './budgets';
 import { listCards } from './cards';
 import { listChits } from './chits';
+import { listRewards } from './rewards';
+import { POINTS_URGENT_DAYS } from '../../src/core/rewards';
 import { listLoans } from './loans';
 import { overdueLoans } from './people';
 import { dueItems, todayInIndia } from './recurring';
@@ -14,14 +16,14 @@ import { hasSampleData } from './sample-data';
 /**
  * The one clear next step shown at the top of the Accounts screen (v2 plan, Phase 1): the most
  * useful thing to do now, in this order:
- *   sample data loaded > nothing set up yet > repeating entries to confirm > a missed EMI > a missed chit payment > a card bill overdue or due within 5 days > a gold loan near its margin limit > a budget near or over
+ *   sample data loaded > nothing set up yet > repeating entries to confirm > a missed EMI > a missed chit payment > a card bill overdue or due within 5 days > reward points expiring within 30 days > a gold loan near its margin limit > a budget near or over
  *   its limit this month > a document expiring within 30 days > money from a person overdue > spending with no
  *   category this month > money owed back for over a month > an account not checked against a
  *   statement for a month > the everyday step.
  */
 
 export interface NextStep {
-    kind: 'sample' | 'start' | 'confirm' | 'emi' | 'chit' | 'card' | 'margin' | 'budget' | 'expiring' | 'overdue' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
+    kind: 'sample' | 'start' | 'confirm' | 'emi' | 'chit' | 'card' | 'points' | 'margin' | 'budget' | 'expiring' | 'overdue' | 'categorise' | 'reimbursement' | 'reconcile' | 'everyday';
     text: string;
     /** Where the step is done; absent when it is a button on the card (sample data) */
     href?: string;
@@ -89,6 +91,15 @@ export async function nextStep(pool: Pool, userId: number, today = todayInIndia(
         return {
             kind: 'card', href: '/cards', label: t('nextStep.cardLabel'),
             text: statement.daysLeft === 0 ? t('nextStep.cardDueToday', values) : t('nextStep.cardDue', values),
+        };
+    }
+    const points = (await listRewards(pool, userId))
+        .flatMap(card => card.points.expiring.filter(item => item.daysLeft <= POINTS_URGENT_DAYS).map(item => ({ name: card.name, ...item })))
+        .sort((a, b) => a.daysLeft - b.daysLeft)[0];
+    if (points) {
+        return {
+            kind: 'points', href: '/cards', label: t('nextStep.pointsLabel'),
+            text: t('nextStep.pointsExpiring', { name: points.name, points: points.points, count: points.daysLeft, date: points.expiresOn }),
         };
     }
     const risky = loans.filter(loan => loan.pledge && loan.pledge.risk !== 'ok').sort((a, b) => b.pledge!.ltv - a.pledge!.ltv)[0];

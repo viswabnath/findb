@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { CreditCard, Layers, Plus, X } from 'lucide-react';
+import { CreditCard, Gift, Layers, Plus, X } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
 import { apiDelete, apiGet, apiPost, apiPut, httpError, redirectIfUnauthorized } from '@/lib/api-client';
@@ -28,6 +28,16 @@ interface Card {
 }
 interface Line { id: number; name: string; limit: string; owed: string; available: string; cards: { id: number; name: string }[] }
 const EMPTY_LINE = { name: '', limit: '', cardIds: [] as number[] };
+type RewardKind = 'earned' | 'redeemed' | 'expired' | 'cashback';
+interface Rewards {
+    id: number; name: string; pointValue: string | null;
+    points: { balance: number; value: string | null; expiring: { expiresOn: string; points: number; daysLeft: number }[]; lapsed: number };
+    cashback: { thisYear: string; byYear: { year: string; amount: string }[] };
+    compare: { spent: string; rewards: string; rate: number | null; pointsUnvalued: boolean };
+    history: { id: number; kind: RewardKind; date: string; points: number; amount: string; expiresOn: string | null; into: string | null }[];
+}
+interface MoneyAccount { id: number; type: string; name: string }
+type RewardForm = { card: Card; kind: RewardKind; date: string; points: string; amount: string; expiresOn: string; intoAccountId: string };
 type Terms = { billingDay: string; dueDay: string; interestRate: string; rateUnit: 'year' | 'per100month' };
 type Recording = { card: Card; statementDate: string; dueOn: string; amountDue: string; minimumDue: string; interest: string; fees: string };
 
@@ -69,6 +79,46 @@ function StatementBlock({ card }: { card: Card }) {
     );
 }
 
+function RewardsBlock({ card, rewards, pointValue, onPointValue, onSavePointValue, onRecord, onRemove }: {
+    card: Card; rewards: Rewards | undefined; pointValue: string; onPointValue: (value: string) => void; onSavePointValue: () => void; onRecord: () => void; onRemove: (id: number) => void;
+}) {
+    if (!rewards) return null;
+    const { points, cashback } = rewards;
+    return (
+        <div className="card-pad card-statement card-rewards">
+            <p className="card-statement-title"><b>{t('cards.rewards.title')}</b></p>
+            <p className="reward-points">{points.value === null ? t('cards.rewards.points', { points: points.balance }) : t('cards.rewards.pointsValue', { points: points.balance, value: formatRupees(points.value) })}</p>
+            {points.value !== null ? <p className="form-note">{t('cards.rewards.valueNote')}</p> : null}
+            {points.expiring.map(item => (
+                <p key={item.expiresOn} className="notice warn" data-warning="points">{t('cards.rewards.expiring', { points: item.points, date: shortDate(item.expiresOn) })}</p>
+            ))}
+            {points.lapsed > 0 ? <p className="form-note">{t('cards.rewards.lapsed', { points: points.lapsed })}</p> : null}
+            <p className="when reward-cashback">{t('cards.rewards.cashbackYear', { amount: formatRupees(cashback.thisYear) })}</p>
+            <div className="settings-actions"><button type="button" className="btn btn-secondary btn-sm" data-action="recordReward" onClick={onRecord}>{t('cards.rewards.record')}</button></div>
+            <form className="card-terms reward-value" onSubmit={event => { event.preventDefault(); onSavePointValue(); }}>
+                <div className="field"><label htmlFor={`point-value-${card.id}`}>{t('cards.rewards.pointValue')}</label>
+                    <input id={`point-value-${card.id}`} className="point-value" type="number" inputMode="decimal" min="0" max="100" step="0.01" placeholder={t('cards.rewards.pointValueHint')}
+                        value={pointValue} onChange={event => onPointValue(event.target.value)} /></div>
+                <button type="submit" className="btn btn-secondary btn-sm" data-action="savePointValue">{t('cards.rewards.savePointValue')}</button>
+            </form>
+            {rewards.history.length > 0 ? (
+                <details>
+                    <summary>{t('cards.rewards.history')} ({rewards.history.length})</summary>
+                    <ul className="loan-history">
+                        {rewards.history.map(item => (
+                            <li key={item.id}>
+                                <span>{t(`cards.rewards.historyLine.${item.kind}`, { date: shortDate(item.date), points: item.points, amount: formatRupees(item.amount) })}
+                                    {item.into ? t('cards.rewards.intoPart', { name: item.into }) : ''}</span>
+                                <button type="button" className="chip-remove" aria-label={t('cards.rewards.remove')} onClick={() => onRemove(item.id)}><X aria-hidden="true" /></button>
+                            </li>
+                        ))}
+                    </ul>
+                </details>
+            ) : null}
+        </div>
+    );
+}
+
 export function CardsScreen() {
     const toast = useToast();
     const [cards, setCards] = useState<Card[] | null>(null);
@@ -76,6 +126,10 @@ export function CardsScreen() {
     const [recording, setRecording] = useState<Recording | null>(null);
     const [lines, setLines] = useState<Line[]>([]);
     const [newLine, setNewLine] = useState(EMPTY_LINE);
+    const [rewards, setRewards] = useState<Rewards[]>([]);
+    const [money, setMoney] = useState<MoneyAccount[]>([]);
+    const [rewardForm, setRewardForm] = useState<RewardForm | null>(null);
+    const [pointValues, setPointValues] = useState<Record<number, string>>({});
 
     const termsOf = (card: Card): Terms => ({
         billingDay: card.billingDay ? String(card.billingDay) : '', dueDay: card.dueDay ? String(card.dueDay) : '', interestRate: card.interestRate ?? '', rateUnit: 'year',
@@ -88,6 +142,12 @@ export function CardsScreen() {
             setTerms(Object.fromEntries(result.data.map(card => [card.id, termsOf(card)])));
         });
         apiGet<Line[]>('/api/cards/lines').then(result => { if (result.ok) setLines(result.data); });
+        apiGet<Rewards[]>('/api/cards/rewards').then(result => {
+            if (!result.ok) return;
+            setRewards(result.data);
+            setPointValues(Object.fromEntries(result.data.map(item => [item.id, item.pointValue ?? ''])));
+        });
+        apiGet<MoneyAccount[]>('/api/accounts').then(result => { if (result.ok) setMoney(result.data.filter(account => account.type === 'bank' || account.type === 'credit_card')); });
         // Once on page load
     }, []);
 
@@ -116,6 +176,41 @@ export function CardsScreen() {
         toast('success', t('cards.recorded', { date: shortDate(recording.statementDate), name: card.name }));
         setRecording(null);
     }
+
+    const replaceRewards = (item: Rewards) => {
+        setRewards(current => current.map(old => (old.id === item.id ? item : old)));
+        setPointValues(current => ({ ...current, [item.id]: item.pointValue ?? '' }));
+    };
+
+    async function saveReward() {
+        if (!rewardForm) return;
+        const { card, ...body } = rewardForm;
+        const result = await apiPost<Rewards>(`/api/cards/${card.id}/rewards`, { ...body, intoAccountId: Number(body.intoAccountId) || undefined });
+        if (redirectIfUnauthorized(result)) return;
+        if (!result.ok) return toast('error', httpError(result));
+        replaceRewards(result.data);
+        toast('success', t('cards.rewards.recorded', { name: card.name }));
+        setRewardForm(null);
+        await reload();
+    }
+
+    async function savePointValue(card: Card) {
+        const result = await apiPut<Rewards>(`/api/cards/${card.id}/rewards`, { pointValue: pointValues[card.id] ?? '' });
+        if (redirectIfUnauthorized(result)) return;
+        if (!result.ok) return toast('error', httpError(result));
+        replaceRewards(result.data);
+        toast('success', t('cards.termsSaved', { name: card.name }));
+    }
+
+    async function removeReward(card: Card, id: number) {
+        const result = await apiDelete<Rewards>(`/api/cards/${card.id}/rewards/${id}`);
+        if (redirectIfUnauthorized(result)) return;
+        if (!result.ok) return toast('error', httpError(result));
+        replaceRewards(result.data);
+        await reload();
+    }
+
+    const setReward = (key: keyof Omit<RewardForm, 'card'>, value: string) => setRewardForm(current => (current ? { ...current, [key]: value } : current));
 
     async function reload() {
         const [cardList, lineList] = await Promise.all([apiGet<Card[]>('/api/cards'), apiGet<Line[]>('/api/cards/lines')]);
@@ -206,6 +301,10 @@ export function CardsScreen() {
                                 <button type="submit" className="btn btn-primary btn-sm" data-action="saveCardTerms">{t('cards.saveTerms')}</button>
                             </form>
                         </details>
+                        <RewardsBlock card={card} rewards={rewards.find(item => item.id === card.id)}
+                            pointValue={pointValues[card.id] ?? ''} onPointValue={value => setPointValues(current => ({ ...current, [card.id]: value }))}
+                            onSavePointValue={() => savePointValue(card)} onRemove={id => removeReward(card, id)}
+                            onRecord={() => setRewardForm({ card, kind: 'earned', date: todayInIndiaClient(), points: '', amount: '', expiresOn: '', intoAccountId: String(card.id) })} />
                         {card.history.length > 0 ? (
                             <details className="loan-more">
                                 <summary className="card-pad">{t('cards.history')} ({card.history.length})</summary>
@@ -259,6 +358,65 @@ export function CardsScreen() {
                     </form>
                 </section>
             ) : null}
+
+            {rewards.length > 1 ? (
+                <section className="card" id="card-compare" aria-labelledby="card-compare-title">
+                    <div className="card-head"><h3 id="card-compare-title"><span className="icon-tile t-income" aria-hidden="true"><Gift /></span>{t('cards.rewards.compareTitle')}</h3></div>
+                    <p className="card-pad form-note card-link">{t('cards.rewards.compareNote')}</p>
+                    <ol className="debt-rank">
+                        {[...rewards].sort((a, b) => (b.compare.rate ?? -1) - (a.compare.rate ?? -1)).map(item => (
+                            <li key={item.id} data-compare={item.name}>
+                                <div className="debt-line"><span className="what">{item.name}</span>
+                                    <b className="amount">{item.compare.rate === null ? '-' : `${item.compare.rate}%`}</b></div>
+                                <span className="when">
+                                    {item.compare.rate === null ? t('cards.rewards.compareNone')
+                                        : t('cards.rewards.compareLine', { rate: item.compare.rate, rewards: formatRupees(item.compare.rewards), spent: formatRupees(item.compare.spent) })}
+                                    {item.compare.pointsUnvalued ? ` (${t('cards.rewards.unvalued')})` : ''}
+                                </span>
+                            </li>
+                        ))}
+                    </ol>
+                </section>
+            ) : null}
+
+            <Modal id="card-reward-modal" title={rewardForm ? t('cards.rewards.recordTitle', { name: rewardForm.card.name }) : ''}
+                open={rewardForm !== null} closeAction="close-card-reward" onClose={() => setRewardForm(null)}
+                footer={(
+                    <>
+                        <button type="button" className="btn btn-secondary" data-action="close-card-reward" onClick={() => setRewardForm(null)}>{t('common.cancel')}</button>
+                        <button type="button" className="btn btn-primary" data-action="saveReward" onClick={saveReward}>{t('cards.rewards.save')}</button>
+                    </>
+                )}>
+                {rewardForm ? (
+                    <div className="form-grid two">
+                        <div className="field"><label htmlFor="reward-kind">{t('cards.rewards.kind')}</label>
+                            <select id="reward-kind" value={rewardForm.kind} onChange={event => setReward('kind', event.target.value)}>
+                                {(['earned', 'redeemed', 'expired', 'cashback'] as const).map(kind => <option key={kind} value={kind}>{t(`cards.rewards.kinds.${kind}`)}</option>)}
+                            </select></div>
+                        <div className="field"><label htmlFor="reward-date">{t('cards.rewards.date')}</label>
+                            <input id="reward-date" type="date" value={rewardForm.date} onChange={event => setReward('date', event.target.value)} /></div>
+                        {rewardForm.kind !== 'cashback' ? (
+                            <div className="field"><label htmlFor="reward-points">{t('cards.rewards.pointsLabel')}</label>
+                                <input id="reward-points" type="number" inputMode="decimal" min="0" step="0.01" value={rewardForm.points} onChange={event => setReward('points', event.target.value)} /></div>
+                        ) : null}
+                        {rewardForm.kind === 'earned' ? (
+                            <div className="field"><label htmlFor="reward-expires">{t('cards.rewards.expiresOn')}</label>
+                                <input id="reward-expires" type="date" value={rewardForm.expiresOn} onChange={event => setReward('expiresOn', event.target.value)} /></div>
+                        ) : null}
+                        {rewardForm.kind === 'cashback' || rewardForm.kind === 'redeemed' ? (
+                            <>
+                                <div className="field"><label htmlFor="reward-amount">{rewardForm.kind === 'cashback' ? t('cards.rewards.amount') : t('cards.rewards.redeemedAmount')}</label>
+                                    <input id="reward-amount" type="number" inputMode="decimal" min="0" step="0.01" value={rewardForm.amount} onChange={event => setReward('amount', event.target.value)} /></div>
+                                <div className="field"><label htmlFor="reward-into">{t('cards.rewards.into')}</label>
+                                    <select id="reward-into" value={rewardForm.intoAccountId} onChange={event => setReward('intoAccountId', event.target.value)}>
+                                        {money.map(account => <option key={account.id} value={account.id}>{account.name}</option>)}
+                                    </select></div>
+                                <p className="form-note field full">{t('cards.rewards.incomeNote')}</p>
+                            </>
+                        ) : null}
+                    </div>
+                ) : null}
+            </Modal>
 
             <Modal id="card-statement-modal" title={recording ? t('cards.recordTitle', { name: recording.card.name }) : ''}
                 open={recording !== null} closeAction="close-card-statement" onClose={() => setRecording(null)}
