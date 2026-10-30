@@ -16,7 +16,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] Login/logout with PostgreSQL-backed sessions (2-hour, HTTP-only, `SameSite=strict`); a Settings screen lists signed-in devices, signs them out (one or everywhere) and shows recent logins
 - [x] Username recovery by email; password reset by security question
 - [x] bcrypt hashing for passwords and security answers
-- [x] Auth-endpoint rate limiting (5 failed attempts / 15 min; off in development and test)
+- [x] Auth-endpoint rate limiting (5 failed attempts / 15 min; off in development and test), and 60 writes a minute per user, both counted in Postgres so they hold across server instances
 
 ### Accounts
 - [x] Banks: CRUD; deletion blocked while transactions exist

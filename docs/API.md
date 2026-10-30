@@ -638,8 +638,10 @@ An unsupported method on an existing path returns `405`. Unknown API paths retur
 
 ## Rate limiting
 
-- All requests: 100 per minute per IP, then `429`. Counted in memory per server instance.
-- Auth endpoints (register, login, forgot-username, forgot-password, reset-password): 5 **failed** attempts per 15 minutes per IP, then `429`. Successful requests don't count. Skipped in development and when `DISABLE_RATE_LIMIT=true` (test servers).
+- All requests: 100 per minute per IP, then `429`. Counted in memory per server instance (no database round trip).
+- Writes (`POST`, `PUT`, `PATCH`, `DELETE`): 60 per minute per signed-in user, or per IP when signed out, then `429`. Counted in Postgres (`rate_limits`, migration 0035), so the limit holds across server instances.
+- Auth endpoints (register, login, forgot-username, forgot-password, reset-password): 5 **failed** attempts per 15-minute window per IP, then `429`. Successful requests don't count. Counted in Postgres by a hash of the IP (never the address). Skipped in development.
+- All limits are off when `DISABLE_RATE_LIMIT=true` (test servers). If the database cannot be reached, the shared limits let requests through and log a warning.
 
 ## Security notes
 
