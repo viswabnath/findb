@@ -407,6 +407,8 @@ interface EntryInput {
     eventId: unknown;
     /** The statement import it came from, kept through edits so undoing the import removes it */
     importBatchId?: number | null;
+    /** The phone's reference for an entry added offline (new entries only) */
+    clientRef?: string | null;
 }
 
 const MAX_TAGS = 10;
@@ -453,8 +455,15 @@ function readEntry(body: Body): EntryInput {
     return {
         type: type as EntryKind, date: date.date, description, paise: amountPaise(body.amount),
         accountId: body.accountId, toAccountId: body.toAccountId, categoryId: body.categoryId, tags: readTags(body.tags),
-        eventId: body.eventId,
+        eventId: body.eventId, clientRef: clientRefOf(body.clientRef),
     };
+}
+
+/** The phone's reference for an entry added offline: letters, digits and dashes, up to 64 */
+function clientRefOf(value: unknown): string | null {
+    if (value === undefined || value === null || value === '') return null;
+    if (typeof value !== 'string' || !/^[A-Za-z0-9-]{8,64}$/.test(value)) throw new RequestError(400, t('errors.badClientRef'));
+    return value;
 }
 
 /**
@@ -518,7 +527,7 @@ async function record(client: Client, userId: number, input: EntryInput, checkSp
         lines = [{ accountId: toAccount.id, paise: input.paise }, { accountId: account.id, paise: -input.paise }];
     }
     const id = (await postEntry(client, {
-        userId, date: input.date, description: input.description, type: input.type, eventId, recurring, importBatchId: input.importBatchId, lines,
+        userId, date: input.date, description: input.description, type: input.type, eventId, recurring, importBatchId: input.importBatchId, clientRef: input.clientRef, lines,
     }))!;
     await setEntryTags(client, userId, id, input.tags ?? []);
     return { id, account, toAccount, category };
@@ -550,7 +559,15 @@ export async function recordNewEntry(client: Client, userId: number, body: Body,
 }
 
 export async function createEntry(pool: Pool, userId: number, body: Body): Promise<Entry> {
-    return withTransaction(pool, client => recordNewEntry(client, userId, body, { checkSpending: true }));
+    return withTransaction(pool, async (client) => {
+        // Sent again from the phone's offline queue: the entry already made, not a second one
+        const ref = clientRefOf(body.clientRef);
+        if (ref) {
+            const made = await client.query('SELECT id FROM journal_entries WHERE user_id = $1 AND client_ref = $2', [userId, ref]);
+            if (made.rows[0]) return publicEntry(await lockedEntry(client, userId, Number(made.rows[0].id)));
+        }
+        return recordNewEntry(client, userId, body, { checkSpending: true });
+    });
 }
 
 /** The most entries one "Add many" saves */

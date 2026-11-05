@@ -1,0 +1,67 @@
+/*
+ * FinDB's service worker (v2 Phase 5, the phone app), registered by components/app/OfflineBar.tsx.
+ *
+ * - Pages: from the network first; the last copy of each is kept so the app still opens without a
+ *   connection. Pages hold no financial data (each screen fetches it after loading), so nothing
+ *   private is stored here.
+ * - Next.js's own files (/_next/static, content-hashed) and the icons: from the cache first.
+ * - The API is never cached: balances and entries are never kept on the phone by this worker.
+ *   Entries added offline are kept by the page itself (lib/offline-queue.ts), not here.
+ *
+ * Bump VERSION when this file's caching changes; old caches are deleted on activation.
+ */
+/* global self, caches */
+const VERSION = 'findb-1';
+const PAGES = `${VERSION}-pages`;
+const ASSETS = `${VERSION}-assets`;
+
+self.addEventListener('install', () => self.skipWaiting());
+
+self.addEventListener('activate', event => {
+    event.waitUntil((async () => {
+        for (const name of await caches.keys()) if (!name.startsWith(VERSION)) await caches.delete(name);
+        await self.clients.claim();
+    })());
+});
+
+const OFFLINE_PAGE = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FinDB - offline</title><style>body{font-family:system-ui,sans-serif;margin:0;padding:48px 24px;color:#17251e;background:#f6f8f6}main{max-width:420px;margin:0 auto}h1{font-size:1.4rem}</style></head>
+<body><main><h1>You are offline</h1><p>This page has not been opened on this phone before, so it cannot be shown without a connection.</p>
+<p>Screens you have opened before still work, and entries you add with Quick add are kept on this phone and sent when you are back online.</p></main></body></html>`;
+
+async function page(request) {
+    try {
+        const response = await fetch(request);
+        if (response.ok && response.type === 'basic') {
+            const cache = await caches.open(PAGES);
+            await cache.put(new URL(request.url).pathname, response.clone());
+        }
+        return response;
+    } catch {
+        const cache = await caches.open(PAGES);
+        const path = new URL(request.url).pathname;
+        return (await cache.match(path)) ?? (await cache.match('/transactions')) ?? (await cache.match('/setup'))
+            ?? new Response(OFFLINE_PAGE, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': 'default-src \'none\'; style-src \'unsafe-inline\'' } });
+    }
+}
+
+async function asset(request) {
+    const cache = await caches.open(ASSETS);
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    const response = await fetch(request);
+    if (response.ok) await cache.put(request, response.clone());
+    return response;
+}
+
+self.addEventListener('fetch', event => {
+    const request = event.request;
+    if (request.method !== 'GET') return;
+    const url = new URL(request.url);
+    if (url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
+    if (request.mode === 'navigate') {
+        event.respondWith(page(request));
+    } else if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/')) {
+        event.respondWith(asset(request));
+    }
+});

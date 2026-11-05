@@ -11,6 +11,7 @@ import { todayInIndiaClient } from '@/lib/dates';
 import { budgetWarning } from '@/lib/budget-alert';
 import { readReceipt } from '@/lib/receipt-reader';
 import { uploadFile } from '@/components/documents/DocumentsScreen';
+import { queueEntry } from '@/lib/offline-queue';
 
 /**
  * Quick add (v2 Phase 2, faster entry): an amount, the account and a category, from any screen.
@@ -57,6 +58,27 @@ export function takeSavedMessage(): string | null {
     }
 }
 
+const LISTS = 'findb_quick_lists';
+type Lists = { owner: number; accounts: Account[]; categories: Category[]; frequent: Record<Kind, Category[]> };
+
+/** The accounts and categories last loaded (names and ids only, no balances), so quick add works offline */
+function keepLists(lists: Lists): void {
+    try {
+        window.localStorage.setItem(LISTS, JSON.stringify({ ...lists, accounts: lists.accounts.map(({ id, type, name }) => ({ id, type, name })) }));
+    } catch {
+        // Without storage quick add needs a connection to open
+    }
+}
+
+function keptLists(owner: number | null): Lists | null {
+    try {
+        const lists = JSON.parse(window.localStorage.getItem(LISTS) ?? 'null') as Lists | null;
+        return lists && owner !== null && lists.owner === owner ? lists : null;
+    } catch {
+        return null;
+    }
+}
+
 function remember(accountId: string): void {
     try {
         window.localStorage.setItem(LAST_ACCOUNT, accountId);
@@ -70,9 +92,11 @@ interface Props {
     onClose: () => void;
     /** What the user tracks: income only, spending only, or both */
     kinds: Kind[];
+    /** The signed-in user's id: an entry saved without a connection is kept for them only */
+    owner: number | null;
 }
 
-export function QuickAdd({ open, onClose, kinds }: Props) {
+export function QuickAdd({ open, onClose, kinds, owner }: Props) {
     const toast = useToast();
     const amountRef = useRef<HTMLInputElement>(null);
     const [accounts, setAccounts] = useState<Account[]>([]);
@@ -95,13 +119,23 @@ export function QuickAdd({ open, onClose, kinds }: Props) {
                 apiGet<Account[]>('/api/accounts'), apiGet<Category[]>('/api/categories'),
                 apiGet<Category[]>('/api/categories/frequent?kind=expense'), apiGet<Category[]>('/api/categories/frequent?kind=income'),
             ]);
-            if (redirectIfUnauthorized(accountList) || !accountList.ok) return;
-            setAccounts(accountList.data);
-            setCategories(categoryList.ok ? categoryList.data : []);
-            setFrequent({ expense: spending.ok ? spending.data : [], income: income.ok ? income.data : [] });
+            if (redirectIfUnauthorized(accountList)) return;
+            let lists: Lists | null;
+            if (accountList.ok) {
+                lists = { owner: owner ?? 0, accounts: accountList.data, categories: categoryList.ok ? categoryList.data : [],
+                    frequent: { expense: spending.ok ? spending.data : [], income: income.ok ? income.data : [] } };
+                if (owner !== null) keepLists(lists);
+            } else {
+                // Offline: the lists kept from last time, for this user only
+                lists = accountList.status === 0 ? keptLists(owner) : null;
+            }
+            if (!lists) return;
+            setAccounts(lists.accounts);
+            setCategories(lists.categories);
+            setFrequent(lists.frequent);
             const last = remembered();
             // The account used last, else the first (banks come first)
-            const account = accountList.data.find(item => String(item.id) === last) ?? accountList.data[0];
+            const account = lists.accounts.find(item => String(item.id) === last) ?? lists.accounts[0];
             setForm(current => ({ ...current, accountId: String(account?.id ?? '') }));
         })();
         amountRef.current?.focus();
@@ -147,11 +181,21 @@ export function QuickAdd({ open, onClose, kinds }: Props) {
         if (!amount || !(Number(amount) > 0)) return toast('error', t('quickAdd.needAmount'));
         if (!chosen) return toast('error', t('quickAdd.needCategory'));
         setSaving(true);
-        const result = await apiPost<{ id: number }>('/api/entries', {
+        const body = {
             type: kind, date: form.date, amount, accountId: Number(accountId), categoryId: chosen.id,
             description: form.note.trim() || chosen.name,
-        });
+        };
+        const result = await apiPost<{ id: number }>('/api/entries', body);
         setSaving(false);
+        // No connection: keep it on this phone and send it when back online (lib/offline-queue.ts)
+        if (result.status === 0 && owner !== null) {
+            const queued = await queueEntry(owner, body, `${formatRupees(amount)}, ${chosen.name}`).then(() => true, () => false);
+            if (!queued) return toast('error', httpError(result));
+            remember(accountId);
+            onClose();
+            toast('success', t('offline.kept', { amount: formatRupees(amount), category: chosen.name }));
+            return;
+        }
         if (redirectIfUnauthorized(result)) return;
         if (!result.ok) return toast('error', httpError(result));
         remember(accountId);

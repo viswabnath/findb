@@ -27,6 +27,12 @@ export const API_CONTENT_SECURITY_POLICY = "default-src 'none'; frame-ancestors 
  */
 export const OCR_CONTENT_SECURITY_POLICY = "default-src 'none'; script-src 'self' 'wasm-unsafe-eval'; connect-src 'self'; frame-ancestors 'none'";
 
+/**
+ * The service worker (public/sw.js, the phone app): it fetches only from FinDB itself, and is
+ * never cached, so a new version reaches phones on their next visit.
+ */
+export const SERVICE_WORKER_CONTENT_SECURITY_POLICY = "default-src 'self'; frame-ancestors 'none'";
+
 export const SITE_CONTENT_SECURITY_POLICY = buildSiteContentSecurityPolicy({ isDevelopment: process.env.NODE_ENV === 'development' });
 
 const nextConfig: NextConfig = {
@@ -47,6 +53,13 @@ const nextConfig: NextConfig = {
                 headers: [
                     { key: 'Content-Security-Policy', value: OCR_CONTENT_SECURITY_POLICY },
                     { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+                ],
+            },
+            {
+                source: '/sw.js',
+                headers: [
+                    { key: 'Content-Security-Policy', value: SERVICE_WORKER_CONTENT_SECURITY_POLICY },
+                    { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
                 ],
             },
             ...SITE_ROUTES.map(source => ({ source, headers: [{ key: 'Content-Security-Policy', value: SITE_CONTENT_SECURITY_POLICY }] })),

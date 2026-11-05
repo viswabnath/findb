@@ -3,6 +3,8 @@
  * Same-origin requests, so the session cookie is sent automatically.
  */
 
+import { t } from './i18n';
+
 export interface ApiResult<T> {
     ok: boolean;
     status: number;
@@ -30,13 +32,19 @@ async function request<T>(method: Method, path: string, body?: unknown): Promise
     setActive(1);
     try {
         const form = body instanceof FormData;
-        const response = await fetch(path, {
-            method,
-            credentials: 'same-origin',
-            // A form (a file upload) sets its own multipart type
-            headers: body === undefined || form ? undefined : { 'Content-Type': 'application/json' },
-            body: body === undefined ? undefined : form ? body : JSON.stringify(body),
-        });
+        let response: Response;
+        try {
+            response = await fetch(path, {
+                method,
+                credentials: 'same-origin',
+                // A form (a file upload) sets its own multipart type
+                headers: body === undefined || form ? undefined : { 'Content-Type': 'application/json' },
+                body: body === undefined ? undefined : form ? body : JSON.stringify(body),
+            });
+        } catch {
+            // No connection (offline, or the network dropped): status 0, so callers can keep the change for later
+            return { ok: false, status: 0, data: { error: t('errors.offline') } as T };
+        }
         const data = (await response.json().catch(() => ({}))) as T;
         return { ok: response.ok, status: response.status, data };
     } finally {

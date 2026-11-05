@@ -71,7 +71,7 @@ Needs the pending login at `setup`.
 **POST** `/api/logout` → `{ "success": true }`. Deletes the session and clears the `sessionId` and `findb_signed_in` cookies.
 
 ### Current user
-**GET** `/api/user` → `{ "name", "tracking_option", "consentNeeded": false, "noticeVersion": "2026-10-04" }`. `consentNeeded` is true until the user agrees to the current privacy notice (accounts from before it, or after withdrawing); the app then shows the consent screen.
+**GET** `/api/user` → `{ "id", "name", "tracking_option", "consentNeeded": false, "noticeVersion": "2026-10-04" }`. `consentNeeded` is true until the user agrees to the current privacy notice (accounts from before it, or after withdrawing); the app then shows the consent screen.
 
 ### Privacy
 - **GET** `/api/privacy` → `{ "consent": { "noticeVersion", "givenAt", "withdrawnAt", "needed" }, "tables": [{ "table", "category", "holds", "purpose", "retention", "rows" }] }`: what FinDB holds about the user (`lib/data-inventory.ts`), with their record counts.
@@ -236,9 +236,11 @@ Income, expenses and transfers on any money account, in the ledger. A transfer m
   "toAccountId": 2,
   "categoryId": 7,
   "tags": ["goa trip", "work"],
-  "eventId": 3
+  "eventId": 3,
+  "clientRef": "optional, 8 to 64 letters, digits or dashes"
 }
 ```
+`clientRef` is the phone's own reference for an entry added offline (`lib/offline-queue.ts`, migration 0036): a new entry with a reference this user already sent returns the entry already made (`200`), never a second one.
 `categoryId` is for income and expenses and must be a category of the same kind; left out, it is the fallback ("Uncategorised", "Other income"), or on an edit, the entry's own. `tags` is an array or a comma-separated text, at most 10 of up to 30 characters, repeats ignored; left out on an edit, the entry keeps its tags. `eventId` is one of the user's events; `null` for none; left out on an edit, the entry keeps its event.
 `accountId` is where income arrives, or where an expense or transfer is paid from; `toAccountId` is a transfer's destination. Income goes onto a credit card only in the Refund or Cashback category (money back on the card). For users who also track income, a new expense or transfer must fit the account's balance (`Insufficient bank balance`, `Insufficient cash balance`, `Insufficient balance in <name>`) or a card's limit (`Insufficient credit limit`); edits are not checked, as with the routes below.
 
