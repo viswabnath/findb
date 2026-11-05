@@ -41,6 +41,7 @@
     "react-dom": "^19.3.0",
     "recharts": "3.10.1",
     "tesseract.js": "7.0.0",
+    "web-push": "3.6.7",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
@@ -54,6 +55,7 @@
     "@types/qrcode": "^1.5.6",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
+    "@types/web-push": "3.6.4",
     "cookie-signature": "^1.2.2",
     "eslint": "^10.11.0",
     "globals": "^16.3.0",
@@ -108,6 +110,7 @@
           "<rootDir>/tests/rate-limits.test.js",
           "<rootDir>/tests/account.test.js",
           "<rootDir>/tests/offline.test.js",
+          "<rootDir>/tests/reminders.test.js",
           "<rootDir>/tests/categories.test.js",
           "<rootDir>/tests/events.test.js",
           "<rootDir>/tests/recurring.test.js",

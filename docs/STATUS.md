@@ -38,6 +38,7 @@ The app is one Next.js project on Vercel with Supabase Postgres; the move from E
 - [x] Double-entry ledger ([ledger.md](ledger.md)): every balance and the monthly summary are read from it; the former balance columns are dropped (migration 0019), and `ledger_entry_check` matches every income and expense row to its ledger record
 
 ### Transactions
+- [x] Reminders by push notification: turned on per device in Settings, once a day what is overdue, due today and tomorrow (names only, no amounts), a test button; email waits for a domain
 - [x] The phone app offline: pages open without a connection, entries added with quick add are kept on the phone and sent when back online (never twice), and an offline bar shows what waits
 - [x] Your data: a copy of everything as JSON or CSV, and deleting the account (password, a current code and DELETE), vault files included
 - [x] What's due: card bills, EMIs, chit payments and auctions, repeating entries and money with people for this month and next, overdue first, with totals and what each account pays

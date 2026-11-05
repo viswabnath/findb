@@ -150,6 +150,15 @@ export const DATA_INVENTORY: readonly TableRecord[] = [
         retention: 'Until you delete your account; removed ones are kept as history',
     },
     {
+        table: 'push_subscriptions', category: 'account', exported: true,
+        holds: 'For each device with reminders on: its push service address and keys, and the browser and device type',
+        purpose: 'Sending you reminders by notification', retention: 'Until you turn reminders off on that device, or its browser drops the subscription',
+    },
+    {
+        table: 'reminders_sent', category: 'history', exported: true,
+        holds: 'The days a reminder was sent, and how many things it named', purpose: 'Sending at most one reminder a day', retention: 'Until you delete your account',
+    },
+    {
         table: 'pledges', category: 'money', exported: true,
         holds: 'What you pledged for a loan (gold, a deposit, a policy, shares or property): its description and value; for gold, its weight, purity and the rate used',
         purpose: 'Showing what is pledged, and warning before a gold loan\'s margin call', retention: 'With the loan',

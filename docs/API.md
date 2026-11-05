@@ -179,6 +179,20 @@ A PAN must be five letters, four digits and a letter. A full twelve-digit Aadhaa
 
 Bank row: `id, user_id, name, initial_balance, current_balance, created_at` (`current_balance` is the ledger's). Names are stored upper-case and are unique per user. A bank with transactions cannot be deleted.
 
+## Reminders
+
+Reminders by push notification (`lib/services/reminders.ts`, `lib/push.ts`, migration 0037). Email waits for a domain.
+
+| Method | Path | Body | Response |
+|---|---|---|---|
+| GET | `/api/reminders?endpoint=` | – | `{ "available", "publicKey", "devices": [{ "id", "device", "createdAt", "lastSentAt", "current" }] }`; `endpoint` (this browser's subscription) marks `current` |
+| POST | `/api/reminders/subscribe` | the browser's `PushSubscription` JSON: `{ "endpoint" (https), "keys": { "p256dh", "auth" } }` | `{ "success": true }`; a subscription held by another account moves to this one |
+| POST | `/api/reminders/unsubscribe` | `{ "endpoint" }` or `{ "id" }` | `{ "success": true }` |
+| POST | `/api/reminders/test` | – | `{ "sent" }`; `400` with no device, `503` when push is not set up |
+| GET | `/api/cron/reminders` | – (`Authorization: Bearer <CRON_SECRET>`, from Vercel cron) | `{ "users", "reminded", "sent", "gone" }`; `401` otherwise |
+
+Once a day (`vercel.json` crons, 02:30 UTC, about 08:00 in India) each user with a device and no reminder yet that day gets one notification: what is overdue, due today and due tomorrow from the calendar (things to pay, and chit auctions), and reward points expiring within a week, by name, never amounts, since it can show on a locked screen; nothing is sent on a day with nothing due. `reminders_sent` records the day; a subscription the push service answers 404 or 410 for is deleted. Push needs `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (optional `VAPID_SUBJECT`) and `CRON_SECRET`.
+
 ## Credit cards
 
 | Method | Path | Body | Response |
