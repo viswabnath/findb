@@ -11,7 +11,7 @@
  * Bump VERSION when this file's caching changes; old caches are deleted on activation.
  */
 /* global self, caches */
-const VERSION = 'findb-1';
+const VERSION = 'findb-2';
 const PAGES = `${VERSION}-pages`;
 const ASSETS = `${VERSION}-assets`;
 
@@ -64,4 +64,36 @@ self.addEventListener('fetch', event => {
     } else if (url.pathname.startsWith('/_next/static/') || url.pathname.startsWith('/icons/')) {
         event.respondWith(asset(request));
     }
+});
+
+// Reminders (lib/services/reminders.ts): show the notification, and open its screen when tapped
+self.addEventListener('push', event => {
+    let message;
+    try {
+        message = event.data ? event.data.json() : {};
+    } catch {
+        message = {};
+    }
+    const title = typeof message.title === 'string' ? message.title : 'FinDB';
+    event.waitUntil(self.registration.showNotification(title, {
+        body: typeof message.body === 'string' ? message.body : '',
+        tag: typeof message.tag === 'string' ? message.tag : 'findb',
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        data: { url: typeof message.url === 'string' && message.url.startsWith('/') ? message.url : '/calendar' },
+    }));
+});
+
+self.addEventListener('notificationclick', event => {
+    event.notification.close();
+    const url = event.notification.data && event.notification.data.url ? event.notification.data.url : '/calendar';
+    event.waitUntil((async () => {
+        for (const client of await self.clients.matchAll({ type: 'window', includeUncontrolled: true })) {
+            if (new URL(client.url).origin === self.location.origin && 'focus' in client) {
+                await client.navigate(url);
+                return client.focus();
+            }
+        }
+        return self.clients.openWindow(url);
+    })());
 });

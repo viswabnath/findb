@@ -10,6 +10,7 @@ import { t } from '@/lib/i18n';
 import { FoldingCard } from '@/components/ui/FoldingCard';
 import { CategoriesCard } from './CategoriesCard';
 import { ModulesCard } from './ModulesCard';
+import { RemindersCard } from './RemindersCard';
 import { ThemeCard } from './ThemeCard';
 import { ProfileCard } from './ProfileCard';
 
@@ -133,6 +134,8 @@ export function SettingsScreen() {
 
             <div className="stack">
                 <ModulesCard />
+
+                <RemindersCard />
 
                 <ThemeCard />
 
