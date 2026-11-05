@@ -90,7 +90,7 @@ export async function login(pool: Pool, body: Body, userAgent: string | null = n
 
 /** The logged-in user's name and tracking option, and whether they still need to agree to the privacy notice */
 export async function getUser(pool: Pool, userId: number): Promise<QueryResultRow> {
-    const result = await pool.query('SELECT name, tracking_option, modules FROM users WHERE id = $1', [userId]);
+    const result = await pool.query('SELECT id, name, tracking_option, modules FROM users WHERE id = $1', [userId]);
     if (result.rows.length === 0) return {};
     const consent = await consentStatus(pool, userId);
     const row = result.rows[0];

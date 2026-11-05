@@ -1,7 +1,9 @@
 /**
  * The security headers in next.config.ts (they moved from vercel.json and Helmet in N4)
  */
-import nextConfig, { API_CONTENT_SECURITY_POLICY, OCR_CONTENT_SECURITY_POLICY, SECURITY_HEADERS, SITE_CONTENT_SECURITY_POLICY } from '../../next.config';
+import nextConfig, {
+    API_CONTENT_SECURITY_POLICY, OCR_CONTENT_SECURITY_POLICY, SECURITY_HEADERS, SERVICE_WORKER_CONTENT_SECURITY_POLICY, SITE_CONTENT_SECURITY_POLICY,
+} from '../../next.config';
 import { SITE_ROUTES } from '../../lib/site-routes';
 import { config as proxyConfig } from '../../proxy';
 
@@ -30,7 +32,7 @@ describe('security headers', () => {
         // A second Content-Security-Policy on an app page would block its nonce scripts
         const rules = await nextConfig.headers!();
         const withPolicy = rules.filter(rule => rule.headers.some(header => header.key === 'Content-Security-Policy'));
-        const pageRules = withPolicy.filter(rule => rule.source !== '/api/:path*' && rule.source !== '/ocr/:path*');
+        const pageRules = withPolicy.filter(rule => !['/api/:path*', '/ocr/:path*', '/sw.js'].includes(rule.source));
         expect(pageRules.map(rule => rule.source).sort()).toEqual([...SITE_ROUTES].sort());
         for (const rule of pageRules) expect(rule.headers).toEqual([{ key: 'Content-Security-Policy', value: SITE_CONTENT_SECURITY_POLICY }]);
         const appPages = proxyConfig.matcher.filter((entry): entry is string => typeof entry === 'string');
@@ -48,6 +50,15 @@ describe('security headers', () => {
         for (const rule of rules.filter(item => item.source !== '/ocr/:path*')) {
             for (const header of rule.headers) expect(header.value).not.toContain('wasm-unsafe-eval');
         }
+    });
+
+    test('the service worker may only reach FinDB itself, and is never cached', async () => {
+        const rules = await nextConfig.headers!();
+        expect(rules.find(rule => rule.source === '/sw.js')?.headers).toEqual([
+            { key: 'Content-Security-Policy', value: SERVICE_WORKER_CONTENT_SECURITY_POLICY },
+            { key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' },
+        ]);
+        expect(SERVICE_WORKER_CONTENT_SECURITY_POLICY).toBe("default-src 'self'; frame-ancestors 'none'");
     });
 
     test('the X-Powered-By header is off', () => {

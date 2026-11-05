@@ -145,3 +145,7 @@ Since migrations 0026 and 0027 (`lib/services/groups.ts`): a group's costs (`sha
 ## Sample data
 
 Since migration 0018 (`lib/services/sample-data.ts`): rows made by sample data carry `sample = true` (ledger accounts, journal entries, banks, credit cards, events, tags). Two triggers keep it apart from real money, refusing with SQLSTATE `FS001` (shown to the user as a `400`): no real journal entry while the user has sample accounts, and no line that mixes a sample entry with a real money account or a real entry with a sample account. Categories and Opening balances are shared. Clearing deletes the sample rows outright: sample data is not history, so it is not voided. The monthly summary starts at the earliest sample entry when that is before registration.
+
+## Entries added offline
+
+Since migration 0036: `journal_entries.client_ref`, unique per user, holds the reference the phone made for an entry added without a connection (`lib/offline-queue.ts`). `POST /api/entries` with a reference already used returns that entry instead of recording a second one.

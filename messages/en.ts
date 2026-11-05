@@ -180,6 +180,8 @@ export const en = {
             wrongPassword: 'The password is wrong',
             filesUnavailable: 'Your documents could not be removed just now, so nothing was deleted. Try again in a few minutes.',
         },
+        badClientRef: 'The entry\'s reference is not valid',
+        offline: 'You are offline. Try again when you have a connection.',
         cards: {
             notFound: 'Card not found',
             badDay: 'Billing and due days are days of the month, 1 to 31',
@@ -1361,6 +1363,14 @@ export const en = {
             noteHidden: 'Left out: your password and security answer (kept only as one-way hashes), your two-step login key, and encrypted values; your PAN and demat numbers appear masked, as in Settings.',
             noteFiles: 'Documents in the vault are not included: download each from Documents.',
         },
+    },
+    offline: {
+        offline: 'You are offline. Entries you add are kept on this phone and sent when you are back online.',
+        waiting: { one: 'You are offline. {count} entry is kept on this phone and will be sent when you are back online.', other: 'You are offline. {count} entries are kept on this phone and will be sent when you are back online.' },
+        sending: { one: 'Sending {count} entry saved while offline...', other: 'Sending {count} entries saved while offline...' },
+        kept: 'No connection: {amount} for {category} is kept on this phone and will be sent when you are back online.',
+        sent: { one: '{count} entry saved while offline was sent.', other: '{count} entries saved while offline were sent.' },
+        refused: 'An entry saved while offline ({label}) was not accepted: {error}',
     },
     calendar: {
         link: 'What\'s due',

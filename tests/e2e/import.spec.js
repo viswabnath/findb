@@ -78,6 +78,11 @@ test('a known bank layout: reviewed, imported with a transfer and categories, th
     await expect(page.locator('#import-history-list li')).toHaveCount(1);
 
     await page.goto('/transactions');
+    // The renamed line is dated 6 days ago: show its month (early in a month, that is the last one)
+    const swiggyDay = new Date(Date.now() - 6 * 86_400_000);
+    await page.locator('#transaction-month').selectOption(String(swiggyDay.getMonth() + 1));
+    await page.locator('#transaction-year').selectOption(String(swiggyDay.getFullYear()));
+    await page.locator('[data-action="filterTransactions"]').click();
     await expect(page.locator('#transactions-section')).toContainText('Swiggy dinner');
 
     await page.goto('/import');

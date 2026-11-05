@@ -8,6 +8,7 @@ import { t } from '@/lib/i18n';
 import { ConsentScreen } from '@/components/privacy/ConsentScreen';
 import { Logo } from '@/components/site/Logo';
 import { useToast } from '@/components/Toast';
+import { OfflineBar } from './OfflineBar';
 import { QuickAdd, takeSavedMessage } from './QuickAdd';
 import { apiDelete, apiGet, apiPost, onActiveRequestsChange } from '@/lib/api-client';
 
@@ -56,6 +57,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const [logoutOpen, setLogoutOpen] = useState(false);
     const [busy, setBusy] = useState(false);
     const [name, setName] = useState('');
+    const [userId, setUserId] = useState<number | null>(null);
 
     // Set when the account has not agreed to the current privacy notice: the app waits for consent
     const [consentVersion, setConsentVersion] = useState<string | null>(null);
@@ -74,9 +76,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     }, [toast]);
 
     useEffect(() => {
-        apiGet<{ name?: string; consentNeeded?: boolean; noticeVersion?: string; sampleData?: boolean; modules?: string[] }>('/api/user').then(result => {
+        apiGet<{ id?: number; name?: string; consentNeeded?: boolean; noticeVersion?: string; sampleData?: boolean; modules?: string[] }>('/api/user').then(result => {
             if (!result.ok) return;
             setName(result.data.name ?? '');
+            setUserId(result.data.id ?? null);
             setSample(result.data.sampleData === true);
             const modules = result.data.modules ?? [];
             setModules(modules);
@@ -174,6 +177,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                     </header>
 
                     <main className="app-content">
+                        <OfflineBar owner={userId} />
                         {!consentVersion && sample ? (
                             <div id="sample-banner" className="notice warn sample-banner" role="status">
                                 <span><b>{t('shell.sample')}</b> {t('shell.sampleText')}</span>
@@ -233,7 +237,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <p id="logout-confirmation-message">{t('shell.logoutText')}</p>
             </Modal>
 
-            {kinds.length > 0 ? <QuickAdd open={quickOpen} onClose={() => setQuickOpen(false)} kinds={kinds} /> : null}
+            {kinds.length > 0 ? <QuickAdd open={quickOpen} onClose={() => setQuickOpen(false)} kinds={kinds} owner={userId} /> : null}
 
             <div id="global-loader" className={`loader-overlay${busy ? '' : ' hidden'}`} role="progressbar" aria-label={t('shell.loading')} aria-hidden={!busy} />
         </>
