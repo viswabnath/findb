@@ -12,6 +12,7 @@ import { budgetWarning } from '@/lib/budget-alert';
 import { readReceipt } from '@/lib/receipt-reader';
 import { uploadFile } from '@/components/documents/DocumentsScreen';
 import { queueEntry } from '@/lib/offline-queue';
+import type { SmsEntry } from '@/src/core/sms';
 
 /**
  * Quick add (v2 Phase 2, faster entry): an amount, the account and a category, from any screen.
@@ -25,6 +26,8 @@ interface Category { id: number; kind: 'income' | 'expense'; name: string; fallb
 type Kind = 'expense' | 'income';
 
 export const ENTRIES_CHANGED = 'findb:entries-changed';
+/** Open quick add from another screen, with a QuickPreset as the event's detail */
+export const OPEN_QUICK_ADD = 'findb:open-quick-add';
 const LAST_ACCOUNT = 'findb_quick_account';
 const RELOAD_PATHS = ['/setup', '/summary', '/events', '/reconcile'];
 
@@ -94,9 +97,14 @@ interface Props {
     kinds: Kind[];
     /** The signed-in user's id: an entry saved without a connection is kept for them only */
     owner: number | null;
+    /** Shared into FinDB (the /share screen): a picture to read, or a bank SMS already read */
+    preset?: QuickPreset | null;
+    onPresetUsed?: () => void;
 }
 
-export function QuickAdd({ open, onClose, kinds, owner }: Props) {
+export type QuickPreset = { file: File } | { sms: SmsEntry };
+
+export function QuickAdd({ open, onClose, kinds, owner, preset = null, onPresetUsed }: Props) {
     const toast = useToast();
     const amountRef = useRef<HTMLInputElement>(null);
     const [accounts, setAccounts] = useState<Account[]>([]);
@@ -137,6 +145,11 @@ export function QuickAdd({ open, onClose, kinds, owner }: Props) {
             // The account used last, else the first (banks come first)
             const account = lists.accounts.find(item => String(item.id) === last) ?? lists.accounts[0];
             setForm(current => ({ ...current, accountId: String(account?.id ?? '') }));
+            if (preset) {
+                onPresetUsed?.();
+                if ('file' in preset) await read(preset.file);
+                else await fillFromSms(preset.sms, lists.accounts);
+            }
         })();
         amountRef.current?.focus();
     }, [open]);
@@ -150,6 +163,22 @@ export function QuickAdd({ open, onClose, kinds, owner }: Props) {
     function switchKind(next: Kind) {
         setKind(next);
         setForm(current => ({ ...current, categoryId: '' }));
+    }
+
+    /** A bank SMS shared into FinDB, already read on this phone (src/core/sms.ts): fill in what it says */
+    async function fillFromSms(sms: SmsEntry, list: Account[]) {
+        const next: Kind = sms.kind === 'income' && kinds.includes('income') ? 'income' : 'expense';
+        setKind(next);
+        // The account whose name carries the SMS's last digits, if there is one
+        const account = sms.last4 ? list.find(item => item.name.includes(sms.last4!)) : undefined;
+        setForm(current => ({
+            ...current, amount: sms.amount ?? current.amount, date: sms.date ?? current.date, note: sms.merchant ?? current.note, categoryId: '',
+            accountId: account ? String(account.id) : current.accountId,
+        }));
+        if (sms.merchant) {
+            const suggestion = await apiGet<{ category: Category | null }>(`/api/categories/suggest?${new URLSearchParams({ kind: next, description: sms.merchant })}`);
+            if (suggestion.ok && suggestion.data.category) setForm(current => ({ ...current, categoryId: String(suggestion.data.category!.id) }));
+        }
     }
 
     /** Read a receipt or screenshot and fill in what it says, for the user to check */

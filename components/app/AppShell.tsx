@@ -9,7 +9,7 @@ import { ConsentScreen } from '@/components/privacy/ConsentScreen';
 import { Logo } from '@/components/site/Logo';
 import { useToast } from '@/components/Toast';
 import { OfflineBar } from './OfflineBar';
-import { QuickAdd, takeSavedMessage } from './QuickAdd';
+import { OPEN_QUICK_ADD, QuickAdd, takeSavedMessage, type QuickPreset } from './QuickAdd';
 import { apiDelete, apiGet, apiPost, onActiveRequestsChange } from '@/lib/api-client';
 
 interface NavItem {
@@ -66,6 +66,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     const [sample, setSample] = useState(false);
     // Quick add, from any screen, for what the user tracks
     const [quickOpen, setQuickOpen] = useState(false);
+    const [quickPreset, setQuickPreset] = useState<QuickPreset | null>(null);
     const [kinds, setKinds] = useState<('expense' | 'income')[]>([]);
     const [modules, setModules] = useState<string[]>([]);
 
@@ -94,6 +95,16 @@ export function AppShell({ children }: { children: ReactNode }) {
                 setDueNotice({ posted: due.data.posted ?? 0, pending: due.data.pending?.length ?? 0 });
             });
         });
+    }, []);
+
+    // Another screen (the /share screen) opens quick add with something to fill it from
+    useEffect(() => {
+        const openWith = (event: Event) => {
+            setQuickPreset((event as CustomEvent<QuickPreset | null>).detail ?? null);
+            setQuickOpen(true);
+        };
+        window.addEventListener(OPEN_QUICK_ADD, openWith);
+        return () => window.removeEventListener(OPEN_QUICK_ADD, openWith);
     }, []);
 
     // Show the progress bar while requests run, and hide it shortly after the last one
@@ -237,7 +248,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <p id="logout-confirmation-message">{t('shell.logoutText')}</p>
             </Modal>
 
-            {kinds.length > 0 ? <QuickAdd open={quickOpen} onClose={() => setQuickOpen(false)} kinds={kinds} owner={userId} /> : null}
+            {kinds.length > 0 ? <QuickAdd open={quickOpen} onClose={() => setQuickOpen(false)} kinds={kinds} owner={userId} preset={quickPreset} onPresetUsed={() => setQuickPreset(null)} /> : null}
 
             <div id="global-loader" className={`loader-overlay${busy ? '' : ' hidden'}`} role="progressbar" aria-label={t('shell.loading')} aria-hidden={!busy} />
         </>
