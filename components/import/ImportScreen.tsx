@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Columns3, FileUp, History, ListChecks, Undo2 } from 'lucide-react';
 import { Modal } from '@/components/Modal';
 import { useToast } from '@/components/Toast';
@@ -8,6 +8,7 @@ import { FoldingCard } from '@/components/ui/FoldingCard';
 import { apiDelete, apiGet, apiPost, httpError, redirectIfUnauthorized } from '@/lib/api-client';
 import { formatRupees, signedRupees } from '@/lib/format';
 import { t } from '@/lib/i18n';
+import { takeShared } from '@/lib/shared-item';
 import { readStatementFile, StatementFileError, type FileKind } from '@/lib/statement-file';
 import {
     MAX_IMPORT_ROWS, closingBalance, detectLayout, layoutSignature, mappingProblem, paiseText, readRows,
@@ -111,6 +112,15 @@ export function ImportScreen() {
         })();
         // Once on page load
     }, []);
+
+    // A statement shared to FinDB from another app (/share sends it here): read it once the accounts are in
+    const sharedTaken = useRef(false);
+    useEffect(() => {
+        if (accounts === null || sharedTaken.current || new URLSearchParams(window.location.search).get('shared') !== '1') return;
+        sharedTaken.current = true;
+        takeShared().then(shared => { if (shared?.file) chooseFile(shared.file); });
+        // Once, when the accounts have loaded
+    }, [accounts]);
 
     const account = accounts?.find(item => String(item.id) === accountId) ?? null;
     const accountKind = account?.type === 'credit_card' ? 'card' : 'bank';

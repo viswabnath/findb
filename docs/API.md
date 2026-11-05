@@ -193,6 +193,10 @@ Reminders by push notification (`lib/services/reminders.ts`, `lib/push.ts`, migr
 
 Once a day (`vercel.json` crons, 02:30 UTC, about 08:00 in India) each user with a device and no reminder yet that day gets one notification: what is overdue, due today and due tomorrow from the calendar (things to pay, and chit auctions), and reward points expiring within a week, by name, never amounts, since it can show on a locked screen; nothing is sent on a day with nothing due. `reminders_sent` records the day; a subscription the push service answers 404 or 410 for is deleted. Push needs `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` (optional `VAPID_SUBJECT`) and `CRON_SECRET`.
 
+## Share to FinDB
+
+The installed app is a share target (`app/manifest.ts` `share_target`: `POST /share-target`, multipart `title`, `text`, `url`, `file`). The service worker (`public/sw.js`) answers that post itself: it keeps the shared item in the phone's `findb-share` cache and redirects (303) to `/share`, which reads a bank SMS on the phone (`src/core/sms.ts`) and opens quick add filled in, opens quick add to read a picture, or sends a statement file to `/import?shared=1`. Nothing reaches the server until the entry is saved. Without the worker, `POST /share-target` on the server reads nothing and redirects to `/share?again=1`.
+
 ## Credit cards
 
 | Method | Path | Body | Response |

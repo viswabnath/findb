@@ -1369,6 +1369,20 @@ export const en = {
             noteFiles: 'Documents in the vault are not included: download each from Documents.',
         },
     },
+    share: {
+        title: 'Shared to FinDB',
+        subtitle: 'A bank SMS, a receipt photo, a UPI screenshot or a statement, shared from another app.',
+        states: {
+            looking: 'Opening what you shared...',
+            opened: 'Check what was read in Quick add, then save it.',
+            statement: 'Opening the statement in Import...',
+            nothing: 'Nothing is waiting here. Share a bank SMS, a receipt, a UPI screenshot or a statement to FinDB from another app.',
+            unreadable: 'No amount was found in what you shared. Add the entry with Quick add instead.',
+            again: 'FinDB was not ready on this phone yet. Open FinDB once, then share it again.',
+        },
+        how: 'On an Android phone with FinDB installed, tap Share in Messages, your gallery or Files and choose FinDB. Nothing is saved until you save the entry.',
+        toTransactions: 'Go to Transactions',
+    },
     reminders: {
         points: '{name}: {points} points expire soon',
         push: {

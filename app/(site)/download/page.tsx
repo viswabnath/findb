@@ -79,13 +79,18 @@ export default function DownloadPage() {
 
             <section className="section-tight">
                 <div className="wrap split">
-                    <div className="panel coming reveal">
-                        <h2>Coming at launch</h2>
+                    <div className="panel reveal">
+                        <h2>What the installed app does</h2>
                         <ul>
-                            <li><ArrowRight size={18} /><span>Add entries with no signal; they sync when you are back online</span></li>
-                            <li><ArrowRight size={18} /><span>Reminders as phone notifications</span></li>
-                            <li><ArrowRight size={18} /><span>Share a bank SMS, receipt photo or UPI screenshot straight into FinDB</span></li>
-                            <li><ArrowRight size={18} /><span>Apps for iPhone and Android, with the same account</span></li>
+                            <li><ArrowRight size={18} /><span>Add entries with no signal; they are sent when you are back online, never twice</span></li>
+                            <li><ArrowRight size={18} /><span>A reminder each morning of what is due today and tomorrow, as a notification (turn it on in Settings; on iPhone, from the installed app)</span></li>
+                            <li><ArrowRight size={18} /><span>On Android, share a bank SMS, receipt photo, UPI screenshot or statement straight into FinDB</span></li>
+                        </ul>
+                    </div>
+                    <div className="panel coming reveal">
+                        <h2>Coming later</h2>
+                        <ul>
+                            <li><ArrowRight size={18} /><span>Apps in the App Store and Play Store, with the same account</span></li>
                         </ul>
                     </div>
                     <div className="panel reveal">

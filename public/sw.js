@@ -11,7 +11,7 @@
  * Bump VERSION when this file's caching changes; old caches are deleted on activation.
  */
 /* global self, caches */
-const VERSION = 'findb-2';
+const VERSION = 'findb-3';
 const PAGES = `${VERSION}-pages`;
 const ASSETS = `${VERSION}-assets`;
 
@@ -96,4 +96,29 @@ self.addEventListener('notificationclick', event => {
         }
         return self.clients.openWindow(url);
     })());
+});
+
+// Share to FinDB (app/manifest.ts share_target): keep what was shared on the phone, in its own
+// cache, and open /share to turn it into an entry for review. Nothing is sent to the server here.
+const SHARED = 'findb-share';
+
+async function keepShared(request) {
+    const form = await request.formData();
+    const file = form.get('file');
+    const meta = {
+        title: String(form.get('title') || ''), text: String(form.get('text') || ''), url: String(form.get('url') || ''),
+        file: file && typeof file === 'object' ? { name: file.name, type: file.type } : null,
+    };
+    const cache = await caches.open(SHARED);
+    await cache.put('/shared/meta', new Response(JSON.stringify(meta), { headers: { 'Content-Type': 'application/json' } }));
+    if (meta.file) await cache.put('/shared/file', new Response(file, { headers: { 'Content-Type': file.type || 'application/octet-stream' } }));
+    else await cache.delete('/shared/file');
+    return Response.redirect('/share', 303);
+}
+
+self.addEventListener('fetch', event => {
+    const url = new URL(event.request.url);
+    if (event.request.method === 'POST' && url.origin === self.location.origin && url.pathname === '/share-target') {
+        event.respondWith(keepShared(event.request));
+    }
 });
